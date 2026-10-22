@@ -63,6 +63,8 @@ export interface ResponsesImageAdmission {
   readonly stream: boolean;
   readonly previousResponseId?: string;
   readonly explicitCallIds: readonly ResponsesImageCallId[];
+  /** Direct images require an ingress-owned decoder, not the retained-image store. */
+  readonly hasDirectInputImages: boolean;
   readonly selectionPolicy: ResponsesImageSelectionPolicy;
   readonly options?: ResponsesImageNormalizedOptions;
 }

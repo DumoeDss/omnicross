@@ -37,7 +37,7 @@ export function apiImageCapabilities(options: ApiImageProviderOptions, available
     ...(!imagen && (nativeGoogle || options.protocol === 'openrouter' || profile?.dimensions === 'aspect-resolution')
       ? { resolutions: catalogModel.startsWith('gemini-2.5') || catalogModel === 'gemini-3.1-flash-lite-image' ? ['1K']
         : catalogModel === 'gemini-3.1-flash-image' ? ['512', '1K', '2K', '4K']
-      : profile?.resolutions ? profile.resolutions.map((value) => value.toUpperCase()) : ['1K', '2K', '4K'] } : {}),
+      : profile?.resolutions ? profile.resolutions.map((value) => value === '0.5k' ? '512' : value.toUpperCase()) : ['1K', '2K', '4K'] } : {}),
     outputFormats: profile?.outputFormats ? [...profile.outputFormats] : ['png', 'jpeg', 'webp'],
     qualityLevels: openai ? /^gpt-image-2\.5-(?:flare|sunburst)$/u.test(upstream)
       ? ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] : ['auto', 'low', 'medium', 'high']
@@ -79,6 +79,11 @@ export function createApiImageProvider(options: ApiImageProviderOptions): ImageP
           if ((request.history?.length ?? 0) > 100 || (request.history ?? []).reduce((total, turn) =>
             total + (turn.text?.length ?? 0) + (turn.images ?? []).reduce((bytes, image) => bytes + image.byteLength, 0), 0) > 64 * 1024 * 1024) {
             throw new ImageGenerationError('image_too_large', { param: 'history' });
+          }
+          const supportsHistory = options.protocol === 'openrouter' || options.protocol === 'gemini-interactions' ||
+            ((options.protocol === 'gemini' || options.protocol === 'vertex') && !options.models[request.model]!.startsWith('imagen-'));
+          if (request.history?.length && !supportsHistory) {
+            throw new ImageGenerationError('unsupported_capability', { param: 'history' });
           }
           const timeout = AbortSignal.timeout(options.timeoutMs ?? 180_000);
           const signal = AbortSignal.any([context.signal, controller.signal, timeout]);

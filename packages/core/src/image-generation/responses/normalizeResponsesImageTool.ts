@@ -217,6 +217,14 @@ export function inspectResponsesImageRequest(
     invalid('tool_choice');
   }
   const previousResponseId = parsePreviousResponseId(input.previous_response_id);
+  const hasDirectInputImages = Array.isArray(input.input) && input.input.some((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const message = item as Record<string, unknown>;
+    if (message.type === 'input_image' || message.type === 'image_url') return true;
+    return Array.isArray(message.content) && message.content.some((part) =>
+      part && typeof part === 'object' &&
+      (part.type === 'input_image' || part.type === 'image_url'));
+  });
   return Object.freeze({
     declared: imageToolIndex !== undefined,
     ...(imageToolIndex !== undefined ? { imageToolIndex } : {}),
@@ -225,6 +233,7 @@ export function inspectResponsesImageRequest(
     stream,
     ...(previousResponseId !== undefined ? { previousResponseId } : {}),
     explicitCallIds: parseExplicitCallIds(input.input),
+    hasDirectInputImages,
     selectionPolicy,
     ...(declaration ? { options: declaration } : {}),
   });
@@ -281,6 +290,9 @@ export function validateResponsesImageSelection(
   selection.imageCalls.forEach(validateSelectedCall);
   selection.otherTools.forEach(validateSelectedOtherTool);
   if (selection.imageCalls.length > 0 && !admission.declared) protocolFailure();
+  if (selection.imageCalls.length > 0 && admission.hasDirectInputImages) {
+    throw new ImageGenerationError('unsupported_capability', { param: 'input' });
+  }
   for (const selected of selection.otherTools) {
     if (!admission.otherTools.some((declared) => sameToolIdentity(declared, selected))) {
       protocolFailure();

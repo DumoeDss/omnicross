@@ -178,7 +178,7 @@ export interface SubscriptionDispatchProfile {
     sdkModel: string,
     summary: SubscriptionRequestSummary,
     config: OpenCodeGoTokenConfig | undefined,
-  ) => { resolvedModel: string; scenario: OpenCodeGoScenario };
+  ) => { resolvedModel: string; scenario: OpenCodeGoScenario; temperature?: number; maxTokens?: number };
 
   /** Optional fallback resolver — for OpenCodeGo, picks the next model after
    *  an unrecoverable error. Returns `null` when exhausted. Cap = 3. The

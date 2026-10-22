@@ -51,6 +51,11 @@ export interface SimpleChatMessage {
   timestamp: number;
   /** Thinking/reasoning content with optional cryptographic signature */
   thinking?: ThinkingContent;
+  /** Native assistant history, replayed only to the matching wire protocol. */
+  providerMetadata?: {
+    apiFormat: 'anthropic' | 'google' | 'openai-response';
+    content: Record<string, unknown>[];
+  };
   /** Image attachments for vision/multimodal messages */
   images?: SimpleChatImage[];
   /** Audio attachments for multimodal messages */
@@ -61,6 +66,7 @@ export interface SimpleChatMessage {
   blocks?: MessageBlock[];
   /** Tool call ID — present when role is 'tool' (result of a tool invocation) */
   toolCallId?: string;
+  isError?: boolean;
   /** Tool or function name */
   name?: string;
   /** Tool calls requested by the assistant */

@@ -200,7 +200,7 @@ describe('assembleGatewayBindings', () => {
       bindings: withClaudeMapping,
       apiKeyId: 'k1',
       endpoint: 'messages',
-      requestedModel: 'deepseek-chat',
+      requestedModel: 'deepseek-flash',
     });
     expect(yielded.source).toBe('binding');
     expect(yielded.binding?.target).toEqual(DEEPSEEK);

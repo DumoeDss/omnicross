@@ -25,26 +25,8 @@ import sharp from 'sharp';
 
 import { readCandidateCodexImageResponseBody } from './privateWireResponse';
 
-/** The upstream aspect-ratio vocabulary (Google imageConfig.aspectRatio). */
-const ACCEPTED_ASPECT_RATIOS = new Set([
-  '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9', '9:21',
-]);
-
 /** The antigravity image upstream endpoint (non-stream generateContent). */
 export const ANTIGRAVITY_IMAGE_URL = buildAntigravityUrl(false);
-
-/**
- * Map a normalized pixel size to the upstream aspect-ratio vocabulary by exact
- * reduced fraction; sizes without an exact accepted ratio (or `auto`) omit
- * `imageConfig` entirely — the upstream default applies. Exported for tests.
- */
-export function antigravityAspectRatioFor(size: { kind: string; width?: number; height?: number }): string | undefined {
-  if (size.kind !== 'pixels' || !size.width || !size.height) return undefined;
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-  const divisor = gcd(size.width, size.height);
-  const ratio = `${size.width / divisor}:${size.height / divisor}`;
-  return ACCEPTED_ASPECT_RATIOS.has(ratio) ? ratio : undefined;
-}
 
 interface AntigravityImageWireInput {
   readonly model: string;
@@ -110,7 +92,12 @@ export async function parseAntigravityImageResponse(body: string): Promise<Image
   } catch (cause) {
     throw protocolChanged(cause);
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw protocolChanged();
   const envelope = parsed as Record<string, unknown>;
+  if (envelope.response !== undefined &&
+    (!envelope.response || typeof envelope.response !== 'object' || Array.isArray(envelope.response))) {
+    throw protocolChanged();
+  }
   const inner = (envelope['response'] ?? envelope) as Record<string, unknown>;
   const candidates = inner['candidates'];
   const candidate = Array.isArray(candidates) ? candidates[0] as Record<string, unknown> | undefined : undefined;
@@ -122,6 +109,7 @@ export async function parseAntigravityImageResponse(body: string): Promise<Image
   for (const part of parts) {
     if (!part || typeof part !== 'object') continue;
     const record = part as Record<string, unknown>;
+    if (record.thought === true) continue;
     if (typeof record['text'] === 'string') textSummary += record['text'];
     const inline = (record['inlineData'] ?? record['inline_data']) as
       | { mimeType?: string; mime_type?: string; data?: unknown }

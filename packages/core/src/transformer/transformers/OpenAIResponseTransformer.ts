@@ -21,6 +21,7 @@ import {
   extractReasoningIntent,
   normalizeThinkLevel,
   resolveReasoningPlan,
+  resolveTargetModelCapabilities,
 } from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
 import {
@@ -33,8 +34,10 @@ import {
 } from './utils/dsmlToolCalls';
 import { recordDroppedField } from '../transformWarnings';
 import { buildOpenAIResponseApiUrl } from '../../completion/url-builder';
+import { OpenAIOperationError } from '../../openai-operation';
 import { isCodexThreadDeliveryReceipt } from './utils/responsesBookkeeping';
 import type { ReasoningReplayEntry } from './utils/reasoningReplay';
+import { readAnthropicSSE } from './AnthropicSSE';
 
 // ============================================================================
 // Response API Types
@@ -48,7 +51,7 @@ interface ResponseApiInput {
 
 interface ResponseApiRequest {
   model: string;
-  input: Array<ResponseApiInput | Record<string, unknown>>;
+  input: string | Array<ResponseApiInput | Record<string, unknown>>;
   /** The public Responses API's system prompt (codex sends a `developer` item instead). */
   instructions?: string;
   /** Newer Responses clients' spelling of `instructions`. */
@@ -67,6 +70,78 @@ interface ResponseApiRequest {
   include?: string[];
   truncation?: string;
   text?: { verbosity?: string; format?: Record<string, unknown> };
+}
+
+interface WireThinking {
+  content?: string;
+  signature?: string;
+  blocks?: NonNullable<UnifiedMessage['thinking']>['blocks'];
+  index?: number;
+  type?: string;
+  data?: string;
+}
+interface WireExtra extends Record<string, unknown> {
+  responses?: { reasoning?: WireItem[] };
+  omnicross?: { thinking?: WireThinking };
+  google?: { parts?: unknown[]; [key: string]: unknown };
+}
+interface WirePart { type: string; text?: string; refusal?: string; annotations?: unknown[] }
+interface WireItem extends Record<string, unknown> {
+  type: string;
+  id?: string;
+  name?: string;
+  call_id?: string;
+  arguments?: string;
+  input?: string;
+  content?: WirePart[];
+  summary?: WirePart[];
+  extra_content?: WireExtra;
+}
+interface WireDelta {
+  content?: string;
+  refusal?: string;
+  reasoning_content?: string;
+  thinking?: WireThinking;
+  extra_content?: WireExtra;
+  tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string }; extra_content?: WireExtra }>;
+}
+interface WireEvent {
+  type?: string;
+  model?: string;
+  delta?: string;
+  output_index: number;
+  item?: WireItem;
+  arguments?: string;
+  input?: string;
+  message?: string;
+  code?: string;
+  error?: Record<string, unknown>;
+  usage?: Record<string, unknown>;
+  response?: { model?: string; usage?: Record<string, unknown>; error?: Record<string, unknown>; incomplete_details?: { reason?: string } };
+  choices?: Array<{ index?: number; delta?: WireDelta; finish_reason?: string | null }>;
+}
+
+function mergeWireExtra(target: WireExtra | undefined, incoming: WireExtra): WireExtra {
+  const merged = { ...target, ...incoming };
+  if (target?.google && incoming.google) {
+    merged.google = { ...target.google, ...incoming.google };
+    if (target.google.parts && incoming.google.parts) {
+      merged.google.parts = [...target.google.parts, ...incoming.google.parts];
+    }
+  }
+  if (target?.responses?.reasoning && incoming.responses?.reasoning) {
+    merged.responses = { reasoning: [...target.responses.reasoning, ...incoming.responses.reasoning] };
+  }
+  const previous = target?.omnicross?.thinking;
+  const next = incoming.omnicross?.thinking;
+  if (previous && next) {
+    merged.omnicross = { thinking: {
+      ...previous, ...next,
+      content: (previous.content ?? '') + (next.content ?? ''),
+      blocks: [...(previous.blocks ?? []), ...(next.blocks ?? [])],
+    } };
+  }
+  return merged;
 }
 
 // ============================================================================
@@ -115,21 +190,36 @@ export class OpenAIResponseTransformer implements Transformer {
     provider: LLMProvider,
     context: TransformerContext
   ): Promise<Record<string, unknown>> {
-    // ChatGPT's codex backend (official chatgpt.com OR any third-party relay)
-    // is a PRIVATE Responses variant: it REQUIRES `store:false`, REQUIRES typed
-    // `input_text` parts (rejects bare-string content), REJECTS
-    // `max_output_tokens`, and omits Content-Type on its SSE stream. Relays do
-    // NOT carry a discoverable url token, so codex can't be reliably told from
-    // public-OpenAI by url. Default to the codex-private shape because the
-    // public OpenAI Responses API ACCEPTS it too (`input_text` is the standard
-    // part type, `store:false` is legal, omitting `max_output_tokens` falls
-    // back to the upstream default) — works for all providers without a url
-    // guess. If a future public provider must honor max_output_tokens, add an
-    // opt-out flag then.
+    if (request.n !== undefined && request.n !== 1) {
+      throw new OpenAIOperationError({
+        status: 400, code: 'unsupported_capability',
+        message: 'Responses supports only one candidate (n=1)',
+      });
+    }
+    const codex = provider.responsesDialect === 'codex';
+    const native = context.responsesDecodedMessages === request.messages
+      ? context.responsesNativeRequest as Record<string, unknown> | undefined
+      : undefined;
+    if (native) {
+      const body: Record<string, unknown> = { ...native, model: request.model };
+      if (codex) {
+        body.stream = true;
+        body.store = false;
+        delete body.max_output_tokens;
+      }
+      return { body, config: { url: new URL(buildOpenAIResponseApiUrl(provider.baseUrl)) } };
+    }
+    const source = request as unknown as Record<string, unknown>;
+    if (Array.isArray(source._serverSideTools) && source._serverSideTools.length) {
+      throw new Error('Responses cannot represent Anthropic server-side tools');
+    }
     const input: Array<Record<string, unknown>> = [];
     const codexTools = request.meta?.codexTools as ResponsesCodexToolState | undefined;
 
     for (const msg of request.messages) {
+      const nativeMessage = msg as unknown as Record<string, unknown>;
+      const extra = nativeMessage.extra_content as WireExtra | undefined;
+      if (msg.role === 'assistant' && extra?.responses?.reasoning) input.push(...extra.responses.reasoning);
       if (msg.role === 'system') {
         const sysText = typeof msg.content === 'string' ? msg.content : flattenContent(msg.content);
         input.push({
@@ -143,10 +233,12 @@ export class OpenAIResponseTransformer implements Transformer {
             ? 'custom_tool_call_output'
             : 'function_call_output',
           call_id: callId,
-          output: typeof msg.content === 'string' ? msg.content : '',
+          output: msg.is_error
+            ? [{ type: 'input_text', text: 'Tool execution failed.' }, ...unifiedContentToResponses(msg.content, false)]
+            : typeof msg.content === 'string' ? msg.content : unifiedContentToResponses(msg.content, false),
         });
       } else {
-        const text = typeof msg.content === 'string' ? msg.content : flattenContent(msg.content);
+        const content = unifiedContentToResponses(msg.content, msg.role === 'assistant');
         // An assistant turn that carried ONLY tool calls (Claude Code's usual
         // tool-only turn: thinking + `tool_use`, no prose) flattens to an empty
         // text. Emitting it as a message item puts an `output_text: ''` part in
@@ -158,7 +250,7 @@ export class OpenAIResponseTransformer implements Transformer {
         // There is nothing to carry, so the item is dropped; the tool calls
         // below still go out, which is the shape a native client sends.
         // Non-empty text (even a single space) is kept verbatim.
-        if (msg.role === 'assistant' && text === '') {
+        if (msg.role === 'assistant' && content.length === 0 && msg.tool_calls?.length) {
           for (const tc of msg.tool_calls ?? []) {
             input.push(encodeToolCallItem(
               tc.id,
@@ -172,7 +264,7 @@ export class OpenAIResponseTransformer implements Transformer {
         }
         const entry: Record<string, unknown> = {
           role: msg.role,
-          content: [{ type: msg.role === 'assistant' ? 'output_text' : 'input_text', text }],
+          content,
         };
         // Include tool_calls as function_call items
         if (msg.role === 'assistant' && msg.tool_calls?.length) {
@@ -198,18 +290,8 @@ export class OpenAIResponseTransformer implements Transformer {
     const body: Record<string, unknown> = {
       model: request.model,
       input,
-      // codex's backend REQUIRES `stream:true` (it 400s with "Stream must be
-      // set to true" otherwise). Always force it; a non-streaming CLIENT is
-      // served by aggregating the SSE upstream of the wire (the ingress buffers
-      // it into a single message), not by asking codex for a non-streaming reply.
-      stream: context.responsesSourceFormat === this.name ? request.stream : true,
-      // `store:false` is required by the codex backend and accepted by the
-      // public Responses API (which defaults to store:true). Always set it so
-      // codex relays (no discoverable url token) work without configuration.
+      stream: codex ? true : request.stream,
       store: false,
-      // `max_output_tokens`: the codex backend REJECTS it, so it maps only when
-      // the client already speaks the Responses wire (public providers); the
-      // public API falls back to its default when absent.
       ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
       // R7 (claude-api-transform-fidelity): the Responses wire HAS `top_p`, so
       // the decoded hub value maps through — conditionally (absent ⇒ absent).
@@ -217,10 +299,17 @@ export class OpenAIResponseTransformer implements Transformer {
       ...(request.parallel_tool_calls !== undefined
         ? { parallel_tool_calls: request.parallel_tool_calls }
         : {}),
-      ...(context.responsesSourceFormat === this.name && request.max_tokens !== undefined
+      ...(!codex && request.max_tokens !== undefined
         ? { max_output_tokens: request.max_tokens }
         : {}),
     };
+    const format = request.response_format as Record<string, unknown> | undefined;
+    if (format) {
+      const schema = format.json_schema as Record<string, unknown> | undefined;
+      body.text = { format: format.type === 'json_schema'
+        ? { type: 'json_schema', ...schema }
+        : { type: format.type } };
+    }
 
     // R7 drops: the Responses API has NO `stop`/`top_k`/`user-id` parameters
     // (Q1 — the requirements text asserted a stop counterpart; the real API has
@@ -247,6 +336,10 @@ export class OpenAIResponseTransformer implements Transformer {
           ? context.responsesReasoningSummary
           : 'auto',
       };
+    } else if (reasoningPlan?.kind === 'off' && (request.reasoning?.enabled === false || request.reasoning?.effort === 'none')) {
+      const capabilities = resolveTargetModelCapabilities(request.model, provider);
+      const omitEffort = capabilities.thinkingLevels?.length === 1 && capabilities.thinkingLevels[0] === 'none';
+      if (capabilities.reasoning !== false && !omitEffort) body.reasoning = { effort: 'none' };
     }
 
     // Map tools
@@ -263,6 +356,9 @@ export class OpenAIResponseTransformer implements Transformer {
               name: tool.function.name,
               description: tool.function.description,
               parameters: tool.function.parameters,
+              ...((tool.function as unknown as Record<string, unknown>).strict !== undefined
+                ? { strict: (tool.function as unknown as Record<string, unknown>).strict }
+                : {}),
             });
     }
 
@@ -271,7 +367,10 @@ export class OpenAIResponseTransformer implements Transformer {
       if (typeof request.tool_choice === 'string') {
         body.tool_choice = request.tool_choice;
       } else if (typeof request.tool_choice === 'object' && 'function' in request.tool_choice) {
-        body.tool_choice = { type: 'function', name: request.tool_choice.function.name };
+        body.tool_choice = {
+          type: isCustomToolCallName(request.tool_choice.function.name, codexTools) ? 'custom' : 'function',
+          name: request.tool_choice.function.name,
+        };
       }
     }
 
@@ -296,7 +395,10 @@ export class OpenAIResponseTransformer implements Transformer {
     context: TransformerContext
   ): Promise<UnifiedChatRequest> {
     const req = request as ResponseApiRequest;
+    context.responsesNativeRequest = request;
+    delete context.responsesReasoningReplay;
     const messages: UnifiedMessage[] = [];
+    context.responsesDecodedMessages = messages;
     // codex ships its tool declarations inside an `additional_tools` INPUT item
     // rather than the top-level `tools` field. The catalog is collected in a
     // PRE-PASS so every history tool call can be checked against it — codex's
@@ -304,7 +406,10 @@ export class OpenAIResponseTransformer implements Transformer {
     // transcript must not depend on that ordering. The main walk below merges
     // the same items again (idempotent: names dedup, sets union).
     let codexTools = collectCodexTools({ tools: req.tools });
-    for (const item of req.input ?? []) {
+    const inputItems = typeof req.input === 'string'
+      ? [{ role: 'user', content: req.input }]
+      : req.input ?? [];
+    for (const item of inputItems) {
       const entry = item as Record<string, unknown>;
       if (entry && entry.type === 'additional_tools') {
         codexTools = mergeCodexTools(codexTools, collectCodexTools(entry));
@@ -324,12 +429,25 @@ export class OpenAIResponseTransformer implements Transformer {
     // replays it as `reasoning_content` only for upstreams that demand it —
     // DeepSeek v4 thinking mode 400s without it (utils/reasoningReplay).
     let pendingReasoningText = '';
+    let pendingExtra: WireExtra | undefined;
     const attachPendingReasoning = () => {
-      if (!pendingReasoningText) return;
-      ((context.responsesReasoningReplay as ReasoningReplayEntry[] | undefined) ??= []).push({
-        messageIndex: messages.length - 1,
-        text: pendingReasoningText,
-      });
+      if (!pendingReasoningText && !pendingExtra) return;
+      const message = messages[messages.length - 1];
+      const nativeThinking = pendingExtra?.omnicross?.thinking;
+      message.thinking = nativeThinking
+        ? { ...nativeThinking, content: nativeThinking.content ?? pendingReasoningText }
+        : { content: pendingReasoningText };
+      if (pendingExtra) {
+        const native = message as unknown as Record<string, unknown>;
+        native.extra_content = mergeWireExtra(native.extra_content as WireExtra | undefined, pendingExtra);
+      }
+      if (pendingReasoningText) {
+        ((context.responsesReasoningReplay as ReasoningReplayEntry[] | undefined) ??= []).push({
+          messageIndex: messages.length - 1,
+          text: pendingReasoningText,
+        });
+      }
+      pendingExtra = undefined;
       pendingReasoningText = '';
     };
 
@@ -338,16 +456,20 @@ export class OpenAIResponseTransformer implements Transformer {
     // spell it `prompt`. Dropping it lost the caller's entire system prompt
     // silently.
     const instructions = typeof req.instructions === 'string'
-      ? req.instructions.trim()
-      : typeof req.prompt === 'string' ? req.prompt.trim() : '';
+      ? req.instructions
+      : typeof req.prompt === 'string' ? req.prompt : '';
     if (instructions) {
       messages.push({ role: 'system', content: instructions });
     }
 
-    if (req.input) {
-      for (const item of req.input) {
+    if (req.input !== undefined) {
+      for (const item of inputItems) {
         const entry = item as Record<string, unknown>;
         const itemType = typeof entry.type === 'string' ? entry.type : undefined;
+        if ((pendingReasoningText || pendingExtra) && (entry.role === 'user' || entry.role === 'system' || entry.role === 'developer' || itemType === 'function_call_output' || itemType === 'custom_tool_call_output')) {
+          messages.push({ role: 'assistant', content: null });
+          attachPendingReasoning();
+        }
 
         if ((itemType && SKIPPED_INPUT_ITEM_TYPES.has(itemType)) || isCodexThreadDeliveryReceipt(entry)) continue;
 
@@ -356,6 +478,10 @@ export class OpenAIResponseTransformer implements Transformer {
         // `encrypted_content` (OpenAI-only opaque replay) is unusable here and
         // deliberately ignored.
         if (itemType === 'reasoning') {
+          if (isResponsesRecord(entry.extra_content)) pendingExtra = mergeWireExtra(pendingExtra, entry.extra_content as WireExtra);
+          if (typeof entry.encrypted_content === 'string') {
+            pendingExtra = mergeWireExtra(pendingExtra, { responses: { reasoning: [entry as WireItem] } });
+          }
           const summary = Array.isArray(entry.summary) ? entry.summary : [];
           let text = '';
           for (const part of summary) {
@@ -413,6 +539,7 @@ export class OpenAIResponseTransformer implements Transformer {
           rememberToolNamespace(codexTools, flatName, entry.namespace);
           rememberCustomCall(codexTools, entry.call_id ?? entry.id, flatName);
           const toolCall = {
+            ...(entry.extra_content ? { extra_content: entry.extra_content } : {}),
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
             function: {
@@ -423,11 +550,15 @@ export class OpenAIResponseTransformer implements Transformer {
             },
           };
           const last = messages[messages.length - 1];
-          if (last && last.role === 'assistant') {
+          if (last && last.role === 'assistant' && !pendingReasoningText && !pendingExtra) {
             (last.tool_calls ??= []).push(toolCall);
           } else {
             messages.push({ role: 'assistant', content: null, tool_calls: [toolCall] });
             attachPendingReasoning();
+          }
+          if (isResponsesRecord(entry.extra_content)) {
+            const native = messages[messages.length - 1] as unknown as Record<string, unknown>;
+            native.extra_content = mergeWireExtra(native.extra_content as WireExtra | undefined, entry.extra_content as WireExtra);
           }
           continue;
         }
@@ -468,6 +599,7 @@ export class OpenAIResponseTransformer implements Transformer {
             ? entry.namespace
             : (codexTools.toolNamespaces[wireName] ?? '');
           const toolCall = {
+            ...(entry.extra_content ? { extra_content: entry.extra_content } : {}),
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
             function: {
@@ -476,11 +608,15 @@ export class OpenAIResponseTransformer implements Transformer {
             },
           };
           const last = messages[messages.length - 1];
-          if (last && last.role === 'assistant') {
+          if (last && last.role === 'assistant' && !pendingReasoningText && !pendingExtra) {
             (last.tool_calls ??= []).push(toolCall);
           } else {
             messages.push({ role: 'assistant', content: null, tool_calls: [toolCall] });
             attachPendingReasoning();
+          }
+          if (isResponsesRecord(entry.extra_content)) {
+            const native = messages[messages.length - 1] as unknown as Record<string, unknown>;
+            native.extra_content = mergeWireExtra(native.extra_content as WireExtra | undefined, entry.extra_content as WireExtra);
           }
           continue;
         }
@@ -504,10 +640,14 @@ export class OpenAIResponseTransformer implements Transformer {
         } else if (role === 'user' || role === 'assistant') {
           const content = responsesContentToUnified(entry.content);
           if (content === undefined) continue;
-          messages.push({ role, content });
+          messages.push({ role, content, ...(entry.extra_content ? { extra_content: entry.extra_content } : {}) });
           if (role === 'assistant') attachPendingReasoning();
         }
       }
+    }
+    if (pendingReasoningText || pendingExtra) {
+      messages.push({ role: 'assistant', content: null });
+      attachPendingReasoning();
     }
 
     const result: UnifiedChatRequest = {
@@ -546,7 +686,7 @@ export class OpenAIResponseTransformer implements Transformer {
     // closest choice mode and the declared tool list is filtered to the
     // allowlist (every target selects among the declared tools only, so the
     // filter IS the restriction).
-    applyResponsesToolChoice(result, req.tool_choice);
+    applyResponsesToolChoice(result, req.tool_choice, codexTools);
 
     if (typeof req.parallel_tool_calls === 'boolean') {
       result.parallel_tool_calls = req.parallel_tool_calls;
@@ -582,7 +722,7 @@ export class OpenAIResponseTransformer implements Transformer {
           type: 'json_schema',
           json_schema: {
             ...(typeof textFormat.name === 'string' ? { name: textFormat.name } : {}),
-            ...(textFormat.strict === true ? { strict: true } : {}),
+            ...(typeof textFormat.strict === 'boolean' ? { strict: textFormat.strict } : {}),
             schema: textFormat.schema,
           },
         };
@@ -624,6 +764,7 @@ export class OpenAIResponseTransformer implements Transformer {
     response: Response,
     _context: TransformerContext
   ): Promise<Response> {
+    if (!response.ok) return response;
     const contentType = response.headers.get('Content-Type') ?? '';
 
     // ChatGPT's codex backend OMITS Content-Type on SSE streams, so a header
@@ -631,17 +772,57 @@ export class OpenAIResponseTransformer implements Transformer {
     // "Unexpected token 'e'" on the leading `event:` line). Peek the first
     // chunk to detect an SSE frame when the header is absent.
     let isSse = contentType.includes('text/event-stream');
-    if (!isSse && response.body) {
-      const peek = response.clone();
+    if (!isSse && !contentType.includes('application/json') && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const prefix: Uint8Array[] = [];
+      let head = '';
+      let ended = false;
       try {
-        const reader = peek.body!.getReader();
-        const { value } = await reader.read();
-        reader.releaseLock();
-        const head = value ? new TextDecoder().decode(value).trimStart() : '';
-        isSse = head.startsWith('event:') || head.startsWith('data:');
-      } catch {
-        /* treat as non-SSE on peek failure */
+        while (true) {
+          const next = await reader.read();
+          ended = next.done;
+          if (next.value) {
+            prefix.push(next.value);
+            head += decoder.decode(next.value, { stream: true });
+          }
+          const trimmed = head.trimStart();
+          isSse = trimmed.startsWith('event:') || trimmed.startsWith('data:') || trimmed.startsWith(':');
+          if (ended || isSse || (trimmed && !'event:'.startsWith(trimmed) && !'data:'.startsWith(trimmed))) break;
+        }
+      } catch (error) {
+        try { await reader.cancel(error); } finally { reader.releaseLock(); }
+        throw error;
       }
+      let cancelled = false;
+      response = new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of prefix) controller.enqueue(chunk);
+          if (ended) { controller.close(); reader.releaseLock(); }
+        },
+        async pull(controller) {
+          if (ended || cancelled) return;
+          try {
+            const next = await reader.read();
+            if (cancelled) return;
+            if (next.done) {
+              ended = true;
+              controller.close();
+              reader.releaseLock();
+            } else controller.enqueue(next.value);
+          } catch (error) {
+            if (!cancelled) controller.error(error);
+            ended = true;
+            try { await reader.cancel(error); } finally { reader.releaseLock(); }
+          }
+        },
+        async cancel(reason) {
+          cancelled = true;
+          if (!ended) {
+            try { await reader.cancel(reason); } finally { reader.releaseLock(); }
+          }
+        },
+      }), { status: response.status, headers: response.headers });
     }
 
     if (isSse) {
@@ -670,6 +851,7 @@ export class OpenAIResponseTransformer implements Transformer {
     response: Response,
     context?: TransformerContext
   ): Promise<Response> {
+    if (!response.ok) return response;
     const contentType = response.headers.get('Content-Type') ?? '';
     // Request-scoped codex protocol state, recorded by `transformRequestOut`
     // and threaded here on `context.req` by `executeResponseChain`. Absent for
@@ -818,6 +1000,8 @@ export function resolveDeclaredWireName(name: string, codexTools: CodexToolState
     declared.add(wireName);
   }
   if (declared.has(name)) return name;
+  const qualified = name.replaceAll('.', '__');
+  if (declared.has(qualified)) return qualified;
 
   const suffix = `__${name}`;
   let match: string | undefined;
@@ -852,7 +1036,7 @@ export function encodeToolCallItem(
   status: 'in_progress' | 'completed',
   codexTools: CodexToolState,
 ): Record<string, unknown> {
-  const bareId = callId.replace(/^(call_|fc_|ctc_)/, '');
+  const bareId = callId;
   // A provider may answer with the bare member name; look it up as the
   // flattened name its declaration actually registered (see
   // resolveDeclaredWireName — DeepSeek's `exec` for `functions__exec`).
@@ -882,7 +1066,7 @@ export function encodeToolCallItem(
   }
 
   return {
-    id: callId.startsWith('fc_') ? callId : `fc_${bareId}`,
+    id: `fc_${bareId}`,
     type: 'function_call',
     status,
     call_id: callId,
@@ -971,6 +1155,7 @@ export function collectCodexTools(entry: Record<string, unknown>): CodexToolDecl
             name: wireName,
             description,
             parameters: (tool.parameters || {}) as UnifiedTool['function']['parameters'],
+            ...(typeof tool.strict === 'boolean' ? { strict: tool.strict } : {}),
           },
         });
       } else {
@@ -1039,11 +1224,26 @@ function isResponsesRecord(value: unknown): value is Record<string, unknown> {
  * (Anthropic image blocks — including tool_result — chat image_url parts,
  * Gemini inlineData) can carry them.
  */
+function unifiedContentToResponses(content: UnifiedMessage['content'], assistant: boolean): Array<Record<string, unknown>> {
+  if (typeof content === 'string') return content || !assistant ? [{ type: assistant ? 'output_text' : 'input_text', text: content }] : [];
+  if (!Array.isArray(content)) return [];
+  return content.map((part) => {
+    if (part.type === 'text') return { type: assistant ? 'output_text' : 'input_text', text: part.text };
+    if (part.type === 'image_url' && !assistant) return {
+      type: 'input_image',
+      image_url: part.image_url.url,
+      ...(part.image_url.detail ? { detail: part.image_url.detail } : {}),
+    };
+    throw new Error(`Responses cannot represent ${part.type} in this message`);
+  });
+}
+
 function responsesContentToUnified(
   content: unknown,
 ): string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> | undefined {
-  if (typeof content === 'string') return content || undefined;
-  if (!Array.isArray(content) || content.length === 0) return undefined;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return undefined;
+  if (content.length === 0) return '';
   const blocks: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [];
   for (const part of content) {
     if (typeof part === 'string') {
@@ -1052,10 +1252,17 @@ function responsesContentToUnified(
     }
     if (!isResponsesRecord(part)) continue;
     if (part.type === 'input_image' && typeof part.image_url === 'string' && part.image_url) {
-      blocks.push({ type: 'image_url', image_url: { url: part.image_url } });
+      blocks.push({ type: 'image_url', image_url: {
+        url: part.image_url,
+        ...(part.detail === 'auto' || part.detail === 'low' || part.detail === 'high' ? { detail: part.detail } : {}),
+      } });
       continue;
     }
-    if (typeof part.type === 'string' && TEXT_PART_TYPES.has(part.type) && typeof part.text === 'string' && part.text) {
+    if (part.type === 'refusal' && typeof part.refusal === 'string') {
+      blocks.push({ type: 'text', text: part.refusal });
+      continue;
+    }
+    if (typeof part.type === 'string' && TEXT_PART_TYPES.has(part.type) && typeof part.text === 'string') {
       blocks.push({ type: 'text', text: part.text });
     }
   }
@@ -1083,6 +1290,7 @@ function toolNameAllowed(allowed: Set<string>, name: string): boolean {
 function applyResponsesToolChoice(
   result: UnifiedChatRequest,
   choice: unknown,
+  codexTools: CodexToolState,
 ): void {
   if (choice === undefined || choice === null) return;
   if (typeof choice === 'string') {
@@ -1090,10 +1298,12 @@ function applyResponsesToolChoice(
     return;
   }
   if (!isResponsesRecord(choice)) return;
-  if (choice.type === 'function' && typeof choice.name === 'string') {
+  if ((choice.type === 'function' || choice.type === 'custom') && typeof choice.name === 'string') {
     result.tool_choice = {
       type: 'function',
-      function: { name: bareToolName(choice.name) },
+      function: { name: resolveDeclaredWireName(choice.name, codexTools) === choice.name
+        ? bareToolName(choice.name)
+        : resolveDeclaredWireName(choice.name, codexTools) },
     };
     return;
   }
@@ -1102,10 +1312,10 @@ function applyResponsesToolChoice(
     const entries = Array.isArray(choice.tools) ? choice.tools : [];
     const allowed = new Set(
       entries
-        .map((tool) => isResponsesRecord(tool) && typeof tool.name === 'string' ? tool.name : undefined)
+        .map((tool) => isResponsesRecord(tool) && typeof tool.name === 'string' ? resolveDeclaredWireName(tool.name, codexTools) : undefined)
         .filter((name): name is string => name !== undefined),
     );
-    if (result.tools?.length && allowed.size) {
+    if (result.tools?.length) {
       result.tools = result.tools.filter((tool) => toolNameAllowed(allowed, tool.function.name));
     }
   }
@@ -1151,59 +1361,58 @@ function flattenContent(content: unknown): string {
 // ============================================================================
 
 function convertResponseApiJsonToOpenAI(data: Record<string, unknown>): Record<string, unknown> {
+  if (data.error || data.status === 'failed') {
+    return { error: data.error ?? { message: 'Response failed' } };
+  }
   let textContent = '';
+  let reasoningContent = '';
+  let refusal = '';
   const toolCalls: Array<Record<string, unknown>> = [];
-
-  const output = data.output as Array<Record<string, unknown>> | undefined;
-  if (output) {
-    for (const item of output) {
-      if (item.type === 'message') {
-        const content = item.content as Array<Record<string, unknown>> | undefined;
-        if (content) {
-          for (const part of content) {
-            if (part.type === 'output_text' && typeof part.text === 'string') {
-              textContent += part.text;
-            }
-          }
-        }
-      } else if (item.type === 'function_call') {
-        toolCalls.push({
-          id: item.call_id || item.id || `call_${Date.now()}`,
-          type: 'function',
-          function: {
-            name: item.name,
-            arguments:
-              typeof item.arguments === 'string'
-                ? item.arguments
-                : JSON.stringify(item.arguments || {}),
-          },
-        });
+  let extra: WireExtra | undefined;
+  for (const item of (data.output ?? []) as WireItem[]) {
+    if (item.extra_content) extra = mergeWireExtra(extra, item.extra_content);
+    if (item.type === 'message') {
+      for (const part of item.content ?? []) {
+        if (part.type === 'output_text') textContent += part.text ?? '';
+        if (part.type === 'refusal') refusal += part.refusal ?? '';
       }
+    } else if (item.type === 'reasoning') {
+      if (typeof item.encrypted_content === 'string') extra = mergeWireExtra(extra, { responses: { reasoning: [item] } });
+      reasoningContent += (item.summary ?? []).map((part: { text?: string }) => part.text ?? '').join('\n');
+    } else if (item.type === 'function_call' || item.type === 'custom_tool_call') {
+      toolCalls.push({
+        id: item.call_id ?? item.id,
+        ...(item.extra_content ? { extra_content: item.extra_content } : {}),
+        type: 'function',
+        function: {
+          name: item.name,
+          arguments: item.type === 'custom_tool_call'
+            ? JSON.stringify({ input: item.input ?? '' })
+            : typeof item.arguments === 'string' ? item.arguments : JSON.stringify(item.arguments ?? {}),
+        },
+      });
     }
   }
-
-  const usage = data.usage as Record<string, number> | undefined;
-  const message: Record<string, unknown> = {
-    role: 'assistant',
-    content: textContent || null,
-  };
-  if (toolCalls.length > 0) {
-    message.tool_calls = toolCalls;
-  }
-
+  const message: Record<string, unknown> = { role: 'assistant', content: textContent || null };
+  if (extra) message.extra_content = extra;
+  if (extra?.omnicross?.thinking) message.thinking = extra.omnicross.thinking;
+  if (reasoningContent) message.reasoning_content = reasoningContent;
+  if (refusal) message.refusal = refusal;
+  if (toolCalls.length) message.tool_calls = toolCalls;
+  const incomplete = data.incomplete_details as { reason?: string } | undefined;
   return {
     id: data.id || `chatcmpl-${Date.now()}`,
     object: 'chat.completion',
-    created: Math.floor(Date.now() / 1000),
+    created: data.created_at ?? Math.floor(Date.now() / 1000),
     model: data.model || 'unknown',
-    choices: [
-      {
-        index: 0,
-        message,
-        finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
-      },
-    ],
-    usage: responsesUsageToChatUsage(usage),
+    choices: [{
+      index: 0,
+      message,
+      finish_reason: data.status === 'incomplete'
+        ? incomplete?.reason === 'content_filter' ? 'content_filter' : 'length'
+        : toolCalls.length ? 'tool_calls' : 'stop',
+    }],
+    usage: responsesUsageToChatUsage(data.usage as Record<string, unknown> | undefined),
   };
 }
 
@@ -1212,7 +1421,11 @@ function convertOpenAIJsonToResponseApi(
   codexTools?: CodexToolState,
   dsmlArmed = false
 ): Record<string, unknown> {
+  if (data.error) return { object: 'response', status: 'failed', error: data.error, output: [] };
   const choices = data.choices as Array<Record<string, unknown>> | undefined;
+  if (choices && choices.length > 1) {
+    throw new Error('Multiple Chat candidates cannot be represented by one Responses result');
+  }
   const message = choices?.[0]?.message as Record<string, unknown> | undefined;
   const output: Array<Record<string, unknown>> = [];
 
@@ -1234,7 +1447,7 @@ function convertOpenAIJsonToResponseApi(
         warnDsmlUnarmed(data.model);
       } else {
         const salvaged = salvageDsmlToolCalls(content);
-        content = salvaged.cleaned;
+        if (salvaged.calls.length || toolCalls.length) content = salvaged.cleaned;
         // Only synthesize when the upstream decoded NOTHING. A response can carry
         // BOTH structured tool_calls and leaked markup; re-adding those calls
         // would dispatch every tool a second time.
@@ -1251,35 +1464,47 @@ function convertOpenAIJsonToResponseApi(
     }
 
     const contentParts: Array<Record<string, unknown>> = [];
-    if (content) {
-      contentParts.push({ type: 'output_text', text: content });
+    if (typeof content === 'string' && content.length > 0) {
+      contentParts.push({ type: 'output_text', text: content, annotations: [] });
     }
     // A thinking upstream answers with `reasoning_content`; surface it as a
     // `reasoning` output item (first, as on the real wire) so Responses clients
     // retain it — codex replays it next turn, which chat upstreams that demand
     // `reasoning_content` passback need (utils/reasoningReplay).
-    const reasoningContent = message.reasoning_content;
-    if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {
+    const extra = message.extra_content as WireExtra | undefined;
+    const thinking = message.thinking as WireThinking | undefined ?? extra?.omnicross?.thinking;
+    const reasoningContent = message.reasoning_content ?? thinking?.content;
+    if ((typeof reasoningContent === 'string' && reasoningContent.length > 0) || thinking) {
       output.push({
+        id: `rs_${crypto.randomUUID().replaceAll('-', '')}`,
         type: 'reasoning',
-        summary: [{ type: 'summary_text', text: reasoningContent }],
+        summary: typeof reasoningContent === 'string' && reasoningContent ? [{ type: 'summary_text', text: reasoningContent }] : [],
+        ...(thinking ? { extra_content: { omnicross: { thinking } } } : {}),
       });
     }
+    if (typeof message.refusal === 'string') {
+      contentParts.push({ type: 'refusal', refusal: message.refusal });
+    }
     if (contentParts.length > 0) {
-      output.push({ type: 'message', role: 'assistant', content: contentParts });
+      output.push({ id: `msg_${crypto.randomUUID().replaceAll('-', '')}`, type: 'message', role: 'assistant', status: 'completed', content: contentParts, ...(extra ? { extra_content: extra } : {}) });
+    }
+    if (extra && contentParts.length === 0) {
+      const reasoningItem = output.find((item) => item.type === 'reasoning');
+      if (reasoningItem) reasoningItem.extra_content = mergeWireExtra(reasoningItem.extra_content as WireExtra | undefined, extra);
+      else output.push({ id: `msg_${crypto.randomUUID().replaceAll('-', '')}`, type: 'message', role: 'assistant', status: 'completed', content: [], extra_content: extra });
     }
 
     if (toolCalls.length) {
       for (const tc of toolCalls) {
         const func = tc.function as Record<string, unknown>;
         output.push(
-          encodeToolCallItem(
+          { ...encodeToolCallItem(
             (tc.id as string) || '',
             (func?.name as string) || '',
             typeof func?.arguments === 'string' ? func.arguments : '',
             'completed',
             codexTools
-          )
+          ), ...(tc.extra_content ? { extra_content: tc.extra_content } : {}) }
         );
       }
     }
@@ -1292,7 +1517,10 @@ function convertOpenAIJsonToResponseApi(
       ? data.id
       : `resp_${crypto.randomUUID().replaceAll('-', '')}`,
     object: 'response',
-    status: 'completed',
+    status: choices?.[0]?.finish_reason === 'length' || choices?.[0]?.finish_reason === 'content_filter' ? 'incomplete' : 'completed',
+    ...(choices?.[0]?.finish_reason === 'length' || choices?.[0]?.finish_reason === 'content_filter'
+      ? { incomplete_details: { reason: choices[0].finish_reason === 'length' ? 'max_output_tokens' : 'content_filter' } }
+      : {}),
     model: data.model || 'unknown',
     output,
     usage: chatUsageToResponsesUsage(usage),
@@ -1303,194 +1531,98 @@ function convertOpenAIJsonToResponseApi(
 // Streaming SSE Conversion
 // ============================================================================
 
-/**
- * Convert Response API SSE stream → OpenAI CC SSE stream
- */
+
 function convertResponseApiStreamToOpenAI(
   responseApiStream: ReadableStream<Uint8Array>
 ): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
   const encoder = new TextEncoder();
-
+  const reader = responseApiStream.getReader();
+  let cancelled = false;
   return new ReadableStream({
-    start: async (controller) => {
-      const reader = responseApiStream.getReader();
-      let buffer = '';
-      let isClosed = false;
-      const messageId = `chatcmpl-${Date.now()}`;
+    async start(controller) {
+      const id = `chatcmpl-${crypto.randomUUID()}`;
       let model = 'unknown';
-      let hasEmittedRole = false;
-      // True once a codex function_call event is seen in this stream, so the
-      // terminal `response.completed` chunk carries `finish_reason:"tool_calls"`
-      // (matching the OpenAI-chat protocol — a tool-call turn is NOT a `stop`).
-      let hasToolCalls = false;
-
-      const safeEnqueue = (str: string) => {
-        if (!isClosed) {
-          try {
-            controller.enqueue(encoder.encode(str));
-          } catch {
-            isClosed = true;
-          }
-        }
+      let terminal = false;
+      let role = false;
+      const tools = new Map<number, { index: number; arguments: string; custom: boolean }>();
+      const emit = (delta: Record<string, unknown>, finish: string | null = null, usage?: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          id, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model,
+          choices: [{ index: 0, delta: role ? delta : { role: 'assistant', ...delta }, finish_reason: finish }],
+          ...(usage ? { usage } : {}),
+        })}\n\n`));
+        role = true;
       };
-
-      const emitChunk = (choices: unknown[], usage?: unknown) => {
-        const chunk: Record<string, unknown> = {
-          id: messageId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model,
-          choices,
-        };
-        if (usage) chunk.usage = usage;
-        safeEnqueue(`data: ${JSON.stringify(chunk)}\n\n`);
-      };
-
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (isClosed) break;
-            if (!line.startsWith('data:')) continue;
-
-            const data = line.slice(5).trim();
-            if (data === '[DONE]') continue;
-
-            try {
-              const event = JSON.parse(data);
-              model = event.model || event.response?.model || model;
-
-              switch (event.type) {
-                case 'response.output_text.delta':
-                  if (event.delta) {
-                    if (!hasEmittedRole) {
-                      emitChunk([{ index: 0, delta: { role: 'assistant', content: '' }, finish_reason: null }]);
-                      hasEmittedRole = true;
-                    }
-                    emitChunk([{ index: 0, delta: { content: event.delta }, finish_reason: null }]);
-                  }
-                  break;
-
-                case 'response.reasoning_summary_text.delta':
-                  if (event.delta) {
-                    emitChunk([{
-                      index: 0,
-                      delta: { thinking: { content: event.delta } },
-                      finish_reason: null,
-                    }]);
-                  }
-                  break;
-
-                case 'response.output_item.added': {
-                  // codex emits a `function_call` output item when the model
-                  // decides to call a tool. Translate it into an OpenAI-chat
-                  // `tool_calls` delta so step 2 (AnthropicOpenAIToAnthropicStream)
-                  // can map it to an Anthropic `tool_use` block. Without this,
-                  // the tool call is silently dropped and the client gets an
-                  // empty assistant turn.
-                  const item = event.item;
-                  if (item?.type !== 'function_call') break;
-                  if (!hasEmittedRole) {
-                    emitChunk([{ index: 0, delta: { role: 'assistant', content: null }, finish_reason: null }]);
-                    hasEmittedRole = true;
-                  }
-                  hasToolCalls = true;
-                  emitChunk([{
-                    index: 0,
-                    delta: {
-                      tool_calls: [{
-                        index: event.output_index ?? 0,
-                        id: item.call_id,
-                        type: 'function',
-                        function: { name: item.name, arguments: '' },
-                      }],
-                    },
-                    finish_reason: null,
-                  }]);
-                  break;
-                }
-
-                case 'response.function_call_arguments.delta': {
-                  // codex streams the function-call arguments token-by-token;
-                  // concatenate into the matching tool_call's `arguments`.
-                  hasToolCalls = true;
-                  emitChunk([{
-                    index: 0,
-                    delta: {
-                      tool_calls: [{
-                        index: event.output_index ?? 0,
-                        function: { arguments: event.delta ?? '' },
-                      }],
-                    },
-                    finish_reason: null,
-                  }]);
-                  break;
-                }
-
-                case 'response.completed': {
-                  const resp = event.response;
-                  const respUsage = resp?.usage;
-                  const usage = responsesUsageToChatUsage(respUsage);
-                  // A tool-call turn finishes with `tool_calls` (matching the
-                  // OpenAI-chat protocol); a plain-text turn finishes `stop`.
-                  emitChunk([{ index: 0, delta: {}, finish_reason: hasToolCalls ? 'tool_calls' : 'stop' }], usage);
-                  safeEnqueue('data: [DONE]\n\n');
-                  break;
-                }
-
-                case 'error':
-                  emitChunk([{
-                    index: 0,
-                    delta: { content: `[Error: ${event.error?.message || 'Unknown error'}]` },
-                    finish_reason: 'stop',
-                  }]);
-                  break;
-
-                case 'response.failed': {
-                  // R8 (claude-api-transform-fidelity): the codex backend
-                  // reports failures (incl. `server_is_overloaded` capacity
-                  // events) as `response.failed` INSIDE a 200 stream. It used
-                  // to fall through to `default` and vanish — the client saw
-                  // an empty success. Emit it as a chat-wire `error` chunk so
-                  // the Anthropic stream converter renders the official
-                  // in-band error event (and the messages overload bridge can
-                  // classify the code) instead of swallowing it.
-                  safeEnqueue(
-                    `data: ${JSON.stringify({
-                      error: event.response?.error ?? { message: 'response.failed' },
-                    })}\n\n`,
-                  );
-                  safeEnqueue('data: [DONE]\n\n');
-                  break;
-                }
-
-                default:
-                  break;
-              }
-            } catch {
-              // Ignore parse errors
+        await readAnthropicSSE(reader, (raw) => {
+          if (cancelled || terminal) return false;
+          const event = raw as unknown as WireEvent;
+          model = event.model ?? event.response?.model ?? model;
+          if (event.type === 'response.output_text.delta') emit({ content: event.delta });
+          else if (event.type === 'response.refusal.delta') emit({ refusal: event.delta });
+          else if (event.type === 'response.reasoning_summary_text.delta') emit({ reasoning_content: event.delta });
+          else if (event.type === 'response.output_item.done') {
+            const item = event.item;
+            if (item?.type === 'reasoning') {
+              const extra = mergeWireExtra(item.extra_content, { responses: { reasoning: [item] } });
+              emit({ extra_content: extra });
+            } else if (item?.extra_content) {
+              const tool = tools.get(event.output_index);
+              if (tool) emit({ tool_calls: [{ index: tool.index, extra_content: item.extra_content }] });
+              else emit({ extra_content: item.extra_content });
             }
+          } else if (event.type === 'response.output_item.added') {
+            const item = event.item;
+            if (item?.type !== 'function_call' && item?.type !== 'custom_tool_call') return;
+            const state = { index: tools.size, arguments: item.arguments ?? '', custom: item.type === 'custom_tool_call' };
+            tools.set(event.output_index, state);
+            emit({ tool_calls: [{
+              index: state.index, id: item.call_id ?? item.id, type: 'function',
+              function: { name: item.name, arguments: state.custom ? '' : state.arguments },
+              ...(item.extra_content ? { extra_content: item.extra_content } : {}),
+            }] });
+          } else if (event.type === 'response.function_call_arguments.delta') {
+            const state = tools.get(event.output_index);
+            if (!state) throw new Error('Responses arguments arrived before their tool item');
+            state.arguments += event.delta ?? '';
+            emit({ tool_calls: [{ index: state.index, function: { arguments: event.delta ?? '' } }] });
+          } else if (event.type === 'response.function_call_arguments.done') {
+            const state = tools.get(event.output_index);
+            if (state && typeof event.arguments === 'string' && event.arguments.startsWith(state.arguments)) {
+              const remaining = event.arguments.slice(state.arguments.length);
+              if (remaining) emit({ tool_calls: [{ index: state.index, function: { arguments: remaining } }] });
+              state.arguments = event.arguments;
+            }
+          } else if (event.type === 'response.custom_tool_call_input.done') {
+            const state = tools.get(event.output_index);
+            if (state) emit({ tool_calls: [{ index: state.index, function: { arguments: JSON.stringify({ input: event.input ?? '' }) } }] });
+          } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+            const reason = event.response?.incomplete_details?.reason;
+            emit({}, event.type === 'response.incomplete'
+              ? reason === 'content_filter' ? 'content_filter' : 'length'
+              : tools.size ? 'tool_calls' : 'stop', responsesUsageToChatUsage(event.response?.usage));
+            terminal = true;
+          } else if (event.type === 'error' || event.type === 'response.failed') {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+              error: event.response?.error ?? event.error ?? { message: event.message ?? 'Response failed', code: event.code },
+            })}\n\n`));
+            terminal = true;
           }
-        }
-      } catch (e) {
-        if (!isClosed) controller.error(e);
+          if (terminal) return false;
+        });
+        if (cancelled) return;
+        if (!terminal) throw new Error('Responses stream ended before a terminal event');
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      } catch (error) {
+        if (!cancelled) controller.error(error);
       } finally {
-        if (!isClosed) {
-          try {
-            controller.close();
-          } catch {
-            // Already closed
-          }
-        }
-        reader.releaseLock();
+        try { await reader.cancel(); } finally { reader.releaseLock(); }
       }
+    },
+    cancel(reason) {
+      cancelled = true;
+      return reader.cancel(reason);
     },
   });
 }
@@ -1503,401 +1635,223 @@ function convertOpenAIStreamToResponseApi(
   codexTools?: CodexToolState,
   dsmlArmed = false
 ): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
   const encoder = new TextEncoder();
-
+  const reader = openaiStream.getReader();
+  let cancelled = false;
   return new ReadableStream({
-    start: async (controller) => {
-      const reader = openaiStream.getReader();
-      let buffer = '';
-      let isClosed = false;
-      let accumulatedContent = '';
+    async start(controller) {
+      const responseId = `resp_${crypto.randomUUID().replaceAll('-', '')}`;
+      let sequence = 0;
       let model = 'unknown';
-      const responseId = `resp_${Date.now()}`;
-      // Assign indexes when items first appear so tool-only streams have no
-      // empty text slot. Codex builds its message item from `response.output_item.added` and
-      // finalizes it on `response.output_item.done`; without that lifecycle the
-      // text deltas arrive but nothing renders (`last_agent_message` null). Emit
-      // the item lazily on the first content delta and close it at finish,
-      // mirroring the real Responses streaming wire format.
-      const messageId = `msg_${Date.now()}`;
-      let messageItemAdded = false;
-      let messageOutputIndex: number | undefined;
-      // Accumulate tool calls (keyed by OpenAI tool_call index) so the terminal
-      // `response.completed` carries them as `function_call` output items, and
-      // stream them as `function_call_arguments.delta` events — mirroring codex's
-      // own wire format. Without this, a tool call from an OpenAI-chat upstream
-      // (e.g. a BYO provider behind `/v1/responses`) is silently dropped.
-      const toolCalls = new Map<
-        number,
-        { callId: string; name: string; arguments: string; isCustom: boolean }
-      >();
-      const toolOutputIndex = new Map<number, number>();
-      let nextOutputIndex = 0;
-      // DeepSeek DSML salvage (see utils/dsmlToolCalls). The suppressor holds
-      // markup off the wire; salvaged calls land in `toolCalls` below and ride
-      // the ordinary encoder, so they need an index space that cannot collide
-      // with real upstream tool-call indices (always small and 0-based).
-      let salvageDsml = dsmlArmed;
-      const dsmlSuppressor = new DsmlStreamSuppressor();
-      let syntheticToolIndex = 10000;
-      let finalized = false;
-      // Reasoning item lifecycle. A chat upstream's `reasoning_content` must be
-      // framed as a `reasoning` OUTPUT ITEM (added → summary part → deltas →
-      // done); bare `response.reasoning_summary_text.delta` events belong to no
-      // item, so codex silently DROPPED them — the reasoning never reached the
-      // rollout and could not be replayed on the next turn, which thinking
-      // upstreams that demand `reasoning_content` passback need
-      // (utils/reasoningReplay). Opened lazily on the first reasoning delta,
-      // closed on the first non-reasoning output or at finish.
-      let reasoningItemAdded = false;
-      let reasoningItemClosed = false;
-      let reasoningItemId = '';
-      let reasoningOutputIndex: number | undefined;
-      let reasoningText = '';
-      // Tail of the relayed text while the salvage is UNARMED, so a leak split
-      // across deltas still trips the once-per-process diagnostic below.
-      let unarmedTail = '';
-
-      const safeEnqueue = (str: string) => {
-        if (!isClosed) {
-          try {
-            controller.enqueue(encoder.encode(str));
-          } catch {
-            isClosed = true;
-          }
+      let finish: string | undefined;
+      let usage: Record<string, unknown> | undefined;
+      let failed = false;
+      let salvage = dsmlArmed;
+      const suppressor = new DsmlStreamSuppressor();
+      const output: WireItem[] = [];
+      const calls = new Map<number, { callId: string; name: string; arguments: string; outputIndex?: number; extra_content?: WireExtra }>();
+      let textIndex: number | undefined;
+      let reasoningIndex: number | undefined;
+      let refusalIndex: number | undefined;
+      const closedReasoning = new Set<number>();
+      const thinkingBlocks = new Map<number, NonNullable<NonNullable<UnifiedMessage['thinking']>['blocks']>[number]>();
+      const emit = (event: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ ...event, sequence_number: sequence++ })}\n\n`));
+      };
+      const add = (item: Record<string, unknown>) => {
+        const index = output.length;
+        output.push(item as WireItem);
+        emit({ type: 'response.output_item.added', output_index: index, item: { ...item } });
+        return index;
+      };
+      const closeReasoning = () => {
+        if (reasoningIndex === undefined) return;
+        const index = reasoningIndex;
+        const item = output[index];
+        const part = item.summary![0];
+        item.status = 'completed';
+        emit({ type: 'response.reasoning_summary_text.done', item_id: item.id, output_index: index, summary_index: 0, text: part.text });
+        emit({ type: 'response.reasoning_summary_part.done', item_id: item.id, output_index: index, summary_index: 0, part });
+        emit({ type: 'response.output_item.done', output_index: index, item });
+        closedReasoning.add(index);
+        thinkingBlocks.clear();
+        reasoningIndex = undefined;
+      };
+      const text = (delta: string, refusal = false, extra?: WireExtra) => {
+        if (!delta && !extra) return;
+        closeReasoning();
+        if (textIndex === undefined) {
+          textIndex = add({ id: `msg_${crypto.randomUUID().replaceAll('-', '')}`, type: 'message', role: 'assistant', status: 'in_progress', content: [] });
+        }
+        const item = output[textIndex];
+        if (extra) item.extra_content = mergeWireExtra(item.extra_content, extra);
+        const content = item.content!;
+        let contentIndex = refusal ? refusalIndex : content.findIndex((part) => part.type === 'output_text');
+        if (contentIndex === undefined || contentIndex === -1) {
+          contentIndex = content.length;
+          const part = refusal ? { type: 'refusal', refusal: '' } : { type: 'output_text', text: '', annotations: [] };
+          content.push(part);
+          if (refusal) refusalIndex = contentIndex;
+          emit({ type: 'response.content_part.added', item_id: item.id, output_index: textIndex, content_index: contentIndex, part: { ...part } });
+        }
+        const key = refusal ? 'refusal' : 'text';
+        content[contentIndex][key] = (content[contentIndex][key] ?? '') + delta;
+        emit({ type: refusal ? 'response.refusal.delta' : 'response.output_text.delta', item_id: item.id, output_index: textIndex, content_index: contentIndex, delta });
+      };
+      const openCall = (call: { callId: string; name: string; arguments: string; outputIndex?: number; extra_content?: WireExtra }, force = false) => {
+        if (call.outputIndex !== undefined || !call.callId || !call.name || (!force && !call.arguments)) return;
+        closeReasoning();
+        call.outputIndex = add(encodeToolCallItem(call.callId, call.name, '', 'in_progress', codexTools));
+        if (call.arguments && !isCustomToolCallName(call.name, codexTools)) {
+          emit({ type: 'response.function_call_arguments.delta', item_id: output[call.outputIndex].id, output_index: call.outputIndex, delta: call.arguments });
         }
       };
-
-      const emitEvent = (event: Record<string, unknown>) => {
-        safeEnqueue(`data: ${JSON.stringify(event)}\n\n`);
-      };
-
-      const closeReasoningItem = () => {
-        if (!reasoningItemAdded || reasoningItemClosed) return;
-        reasoningItemClosed = true;
-        emitEvent({
-          type: 'response.reasoning_summary_text.done',
-          item_id: reasoningItemId,
-          output_index: reasoningOutputIndex,
-          summary_index: 0,
-          text: reasoningText,
-        });
-        emitEvent({
-          type: 'response.reasoning_summary_part.done',
-          item_id: reasoningItemId,
-          output_index: reasoningOutputIndex,
-          summary_index: 0,
-          part: { type: 'summary_text', text: reasoningText },
-        });
-        emitEvent({
-          type: 'response.output_item.done',
-          output_index: reasoningOutputIndex,
-          item: {
-            id: reasoningItemId,
-            type: 'reasoning',
-            summary: reasoningText ? [{ type: 'summary_text', text: reasoningText }] : [],
-            status: 'completed',
-          },
-        });
-      };
-
-      // Emit assistant prose, opening the text message item lazily on the first
-      // fragment. The DSML suppressor feeds this too — it withholds markup, so
-      // what it releases is prose by construction.
-      const emitAssistantText = (text: string) => {
-        if (!text) return;
-        closeReasoningItem();
-        if (!messageItemAdded) {
-          messageItemAdded = true;
-          messageOutputIndex = nextOutputIndex++;
-          emitEvent({
-            type: 'response.output_item.added',
-            output_index: messageOutputIndex,
-            item: {
-              id: messageId,
-              type: 'message',
-              role: 'assistant',
-              status: 'in_progress',
-              content: [],
-            },
-          });
-        }
-        accumulatedContent += text;
-        emitEvent({
-          type: 'response.output_text.delta',
-          output_index: messageOutputIndex,
-          content_index: 0,
-          delta: text,
-        });
-      };
-
-      emitEvent({
-        type: 'response.created',
-        response: { id: responseId, status: 'in_progress' },
-      });
-
+      emit({ type: 'response.created', response: { id: responseId, object: 'response', status: 'in_progress', output: [] } });
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (isClosed) break;
-            if (!line.startsWith('data:')) continue;
-
-            const data = line.slice(5).trim();
-            if (data === '[DONE]') continue;
-
-            try {
-              const chunk = JSON.parse(data);
-              const choice = chunk.choices?.[0];
-              model = chunk.model || model;
-
-              if (!choice) continue;
-
-              if (choice.delta?.content) {
-                // Arm on the upstream's self-reported model too: the request
-                // model may have been rewritten by upstream mapping before it
-                // ever reached the provider. Still gated by the switch.
-                if (!salvageDsml && isDsmlSalvageArmed(undefined, undefined, chunk.model)) {
-                  salvageDsml = true;
+        await readAnthropicSSE(reader, (raw) => {
+          if (cancelled) return false;
+          const chunk = raw as unknown as WireEvent;
+          model = chunk.model ?? model;
+          if (chunk.usage) usage = chunk.usage;
+          if (chunk.error) {
+            emit({ type: 'response.failed', response: { id: responseId, object: 'response', status: 'failed', error: chunk.error, output } });
+            failed = true;
+            return false;
+          }
+          if ((chunk.choices?.length ?? 0) > 1 || chunk.choices?.some(choice => choice.index !== undefined && choice.index !== 0)) {
+            throw new Error('Multiple Chat candidates cannot be represented by one Responses result');
+          }
+          const choice = chunk.choices?.[0];
+          if (!choice) return;
+          const delta = choice.delta ?? {};
+          const thinking = delta.thinking ?? delta.extra_content?.omnicross?.thinking;
+          const reasoning = delta.reasoning_content ?? thinking?.content;
+          const hasReasoning = (typeof reasoning === 'string' && reasoning.length > 0) || thinking !== undefined;
+          if (hasReasoning) {
+            if (reasoningIndex === undefined) {
+              textIndex = undefined;
+              refusalIndex = undefined;
+              reasoningIndex = add({ id: `rs_${crypto.randomUUID().replaceAll('-', '')}`, type: 'reasoning', status: 'in_progress', summary: [] });
+              emit({ type: 'response.reasoning_summary_part.added', item_id: output[reasoningIndex].id, output_index: reasoningIndex, summary_index: 0, part: { type: 'summary_text', text: '' } });
+              output[reasoningIndex].summary!.push({ type: 'summary_text', text: '' });
+            }
+            const item = output[reasoningIndex];
+            const retained: WireThinking = item.extra_content?.omnicross?.thinking ?? { content: '', blocks: [] };
+            if (delta.extra_content) item.extra_content = mergeWireExtra(item.extra_content, delta.extra_content);
+            if (thinking) {
+              retained.content = (retained.content ?? '') + (thinking.content ?? '');
+              if (thinking.blocks) retained.blocks = thinking.blocks;
+              else {
+                const index = thinking.index ?? 0;
+                let block = thinkingBlocks.get(index);
+                if (!block) {
+                  block = thinking.type === 'redacted_thinking'
+                    ? { type: 'redacted_thinking', data: thinking.data ?? '' }
+                    : { type: 'thinking', thinking: '' };
+                  thinkingBlocks.set(index, block);
+                  (retained.blocks ??= []).push(block);
                 }
-                if (salvageDsml) {
-                  emitAssistantText(dsmlSuppressor.push(choice.delta.content));
-                } else {
-                  // Unarmed: relay the text, but surface the leak once so a
-                  // never-recovered tool call is not a mystery. The tail keeps
-                  // a marker split across deltas detectable.
-                  unarmedTail = (unarmedTail + choice.delta.content).slice(-64);
-                  if (hasDsmlMarkup(unarmedTail)) warnDsmlUnarmed(chunk.model);
-                  emitAssistantText(choice.delta.content);
-                }
-              }
-
-              // Reasoning reaches Unified under EITHER spelling, depending on
-              // which format transformer decoded the upstream: a Responses
-              // upstream yields `thinking.content` (emitted by this class's own
-              // decoder), while an OpenAI-chat upstream carries the wire's
-              // `reasoning_content` verbatim — `openai` is a pass-through on the
-              // response side, since on the chat ingress Unified IS the client
-              // wire. Read both so a Codex client sees reasoning from a chat
-              // upstream too. (This used to work only because DeepseekTransformer
-              // renamed the field, which silently broke the Anthropic encoder.)
-              const reasoningDelta =
-                choice.delta?.thinking?.content ??
-                (choice.delta as { reasoning_content?: string } | undefined)?.reasoning_content;
-              if (reasoningDelta) {
-                if (!reasoningItemAdded) {
-                  reasoningItemAdded = true;
-                  reasoningItemId = `rs_${Date.now()}`;
-                  reasoningOutputIndex = nextOutputIndex++;
-                  emitEvent({
-                    type: 'response.output_item.added',
-                    output_index: reasoningOutputIndex,
-                    item: {
-                      id: reasoningItemId,
-                      type: 'reasoning',
-                      summary: [],
-                      status: 'in_progress',
-                    },
-                  });
-                  emitEvent({
-                    type: 'response.reasoning_summary_part.added',
-                    item_id: reasoningItemId,
-                    output_index: reasoningOutputIndex,
-                    summary_index: 0,
-                    part: { type: 'summary_text', text: '' },
-                  });
-                }
-                reasoningText += reasoningDelta;
-                emitEvent({
-                  type: 'response.reasoning_summary_text.delta',
-                  item_id: reasoningItemId,
-                  output_index: reasoningOutputIndex,
-                  summary_index: 0,
-                  delta: reasoningDelta,
-                });
-              }
-
-              // Tool calls → codex-style function_call streaming events.
-              if (choice.delta?.tool_calls) {
-                for (const tc of choice.delta.tool_calls as Array<Record<string, unknown>>) {
-                  const tcIndex = typeof tc['index'] === 'number' ? tc['index'] : 0;
-                  const func = (tc['function'] ?? {}) as Record<string, unknown>;
-                  let entry = toolCalls.get(tcIndex);
-                  if (!entry) {
-                    const callId = typeof tc['id'] === 'string' ? (tc['id'] as string) : `call_${Date.now()}_${tcIndex}`;
-                    const name = typeof func['name'] === 'string' ? (func['name'] as string) : '';
-                    entry = {
-                      callId,
-                      name,
-                      arguments: '',
-                      isCustom: isCustomToolCallName(name, codexTools),
-                    };
-                    toolCalls.set(tcIndex, entry);
-                    closeReasoningItem();
-                    const outIdx = nextOutputIndex++;
-                    toolOutputIndex.set(tcIndex, outIdx);
-                    // A codex `custom` tool opens a `custom_tool_call` item, a
-                    // regular one a `function_call` — the encoder picks, and
-                    // synthesizes the id prefix each protocol requires.
-                    emitEvent({
-                      type: 'response.output_item.added',
-                      output_index: outIdx,
-                      item: encodeToolCallItem(callId, name, '', 'in_progress', codexTools),
-                    });
-                  }
-                  const argsFragment = typeof func['arguments'] === 'string' ? (func['arguments'] as string) : '';
-                  if (argsFragment) {
-                    entry.arguments += argsFragment;
-                    // A custom tool's payload is the `input` STRING nested inside
-                    // the arguments JSON; it cannot be recovered from a partial
-                    // fragment (`{"input":"const a` is not parseable), so its
-                    // delta is emitted once at finish instead of per fragment.
-                    if (!entry.isCustom) {
-                      emitEvent({
-                        type: 'response.function_call_arguments.delta',
-                        item_id: encodeToolCallItem(entry.callId, entry.name, '', 'in_progress', codexTools).id,
-                        output_index: toolOutputIndex.get(tcIndex),
-                        delta: argsFragment,
-                      });
-                    }
-                  }
+                if (block.type === 'thinking') {
+                  block.thinking += thinking.content ?? '';
+                  if (thinking.signature) block.signature = (block.signature ?? '') + thinking.signature;
                 }
               }
-
-              if (choice.finish_reason) {
-                finalized = true;
-                // End of turn. Release prose the suppressor held back, then turn
-                // a captured DSML block into the calls the model meant to make:
-                // the upstream reported `stop` with an empty `tool_calls`, so
-                // without this the turn ends as a plain final answer and codex
-                // never runs the tool.
-                emitAssistantText(dsmlSuppressor.flush());
-                if (dsmlSuppressor.capturing) {
-                  const salvaged = salvageDsmlToolCalls(dsmlSuppressor.capturedText);
-                  salvaged.calls.forEach((call, index) => {
-                    const tcIndex = syntheticToolIndex++;
-                    const callId = dsmlCallId(call, index);
-                    toolCalls.set(tcIndex, {
-                      callId,
-                      name: call.name,
-                      arguments: call.arguments,
-                      isCustom: isCustomToolCallName(call.name, codexTools),
-                    });
-                    const outIdx = nextOutputIndex++;
-                    toolOutputIndex.set(tcIndex, outIdx);
-                    emitEvent({
-                      type: 'response.output_item.added',
-                      output_index: outIdx,
-                      item: encodeToolCallItem(callId, call.name, '', 'in_progress', codexTools),
-                    });
-                  });
-                }
-                const output: Array<Record<string, unknown>> = [];
-                // A reasoning-only close (no prose/tool followed) still owes the
-                // client the item's done events; otherwise closeReasoningItem
-                // already ran on the first non-reasoning output.
-                closeReasoningItem();
-                if (reasoningItemAdded && reasoningOutputIndex !== undefined) {
-                  output[reasoningOutputIndex] = {
-                    id: reasoningItemId,
-                    type: 'reasoning',
-                    summary: reasoningText ? [{ type: 'summary_text', text: reasoningText }] : [],
-                  };
-                }
-                if (messageItemAdded) {
-                  emitEvent({
-                    type: 'response.output_text.done',
-                    output_index: messageOutputIndex,
-                    content_index: 0,
-                    text: accumulatedContent,
-                  });
-                  const messageItem = {
-                    id: messageId,
-                    type: 'message',
-                    role: 'assistant',
-                    status: 'completed',
-                    content: [{ type: 'output_text', text: accumulatedContent }],
-                  };
-                  emitEvent({
-                    type: 'response.output_item.done',
-                    output_index: messageOutputIndex,
-                    item: messageItem,
-                  });
-                  output[messageOutputIndex!] = messageItem;
-                }
-                for (const [tcIndex, entry] of toolCalls) {
-                  const outIdx = toolOutputIndex.get(tcIndex);
-                  const item = encodeToolCallItem(
-                    entry.callId,
-                    entry.name,
-                    entry.arguments,
-                    'completed',
-                    codexTools
-                  );
-                  // The custom-tool input was withheld during streaming (see the
-                  // delta branch); emit it now as one delta + done so codex still
-                  // receives the input-stream lifecycle it expects.
-                  if (entry.isCustom) {
-                    emitEvent({
-                      type: 'response.custom_tool_call_input.delta',
-                      output_index: outIdx,
-                      delta: item.input,
-                    });
-                    emitEvent({
-                      type: 'response.custom_tool_call_input.done',
-                      output_index: outIdx,
-                      input: item.input,
-                    });
-                  }
-                  output[outIdx!] = item;
-                  // The streamed `added` event carried status in_progress; mark done.
-                  emitEvent({
-                    type: 'response.output_item.done',
-                    output_index: outIdx,
-                    item,
-                  });
-                }
-                emitEvent({
-                  type: 'response.completed',
-                  response: {
-                    id: responseId,
-                    status: 'completed',
-                    model,
-                    output,
-                    usage: chatUsageToResponsesUsage(chunk.usage),
-                  },
-                });
-              }
-            } catch {
-              // Ignore parse errors
+              item.extra_content = { ...item.extra_content, omnicross: { thinking: retained } };
+            }
+            if (reasoning) {
+              const part = item.summary![0];
+              part.text = (part.text ?? '') + reasoning;
+              emit({ type: 'response.reasoning_summary_text.delta', item_id: item.id, output_index: reasoningIndex, summary_index: 0, delta: reasoning });
             }
           }
-        }
-
-        // A stream that ended without a finish_reason (truncated upstream) still
-        // owes the client the prose the suppressor was holding: it withholds the
-        // trailing partial line, and dropping it would eat the last words of an
-        // otherwise complete answer.
-        if (!finalized) emitAssistantText(dsmlSuppressor.flush());
-      } catch (e) {
-        if (!isClosed) controller.error(e);
-      } finally {
-        if (!isClosed) {
-          try {
-            controller.close();
-          } catch {
-            // Already closed
+          if (typeof delta.content === 'string') {
+            salvage ||= isDsmlSalvageArmed(undefined, undefined, chunk.model);
+            if (!salvage && hasDsmlMarkup(delta.content)) warnDsmlUnarmed(chunk.model);
+            text(salvage ? suppressor.push(delta.content) : delta.content, false, hasReasoning ? undefined : delta.extra_content);
           }
+          if (typeof delta.refusal === 'string') text(delta.refusal, true, hasReasoning ? undefined : delta.extra_content);
+          for (const tc of delta.tool_calls ?? []) {
+            const index = tc.index ?? 0;
+            let call = calls.get(index);
+            if (!call) {
+              call = { callId: '', name: '', arguments: '' };
+              calls.set(index, call);
+            }
+            if (typeof tc.id === 'string') call.callId = tc.id;
+            if (typeof tc.function?.name === 'string') call.name += tc.function.name;
+            const fragment = tc.function?.arguments ?? '';
+            call.arguments += fragment;
+            if (tc.extra_content) call.extra_content = mergeWireExtra(call.extra_content, tc.extra_content);
+            if (!hasReasoning && !delta.content && !delta.refusal && delta.extra_content && tc === delta.tool_calls?.[0]) {
+              call.extra_content = mergeWireExtra(call.extra_content, delta.extra_content);
+            }
+            const opened = call.outputIndex !== undefined;
+            openCall(call);
+            if (opened && fragment && !isCustomToolCallName(call.name, codexTools)) {
+              emit({ type: 'response.function_call_arguments.delta', item_id: output[call.outputIndex!].id, output_index: call.outputIndex, delta: fragment });
+            }
+          }
+          if (!hasReasoning && delta.content === undefined && delta.refusal === undefined && !delta.tool_calls?.length && delta.extra_content) {
+            const item = output.at(-1);
+            if (item) item.extra_content = mergeWireExtra(item.extra_content, delta.extra_content);
+            else text('', false, delta.extra_content);
+          }
+          if (choice.finish_reason) finish = choice.finish_reason;
+        });
+        if (cancelled) return;
+        if (failed) { controller.close(); return; }
+        text(suppressor.flush());
+        if (!finish) throw new Error('Chat stream ended before a finish reason');
+        if (suppressor.capturing) {
+          const recovered = salvageDsmlToolCalls(suppressor.capturedText);
+          if (!calls.size && recovered.calls.length) {
+            for (const [index, call] of recovered.calls.entries()) {
+              const entry = { callId: dsmlCallId(call, index), name: call.name, arguments: call.arguments };
+              calls.set(index, entry);
+              openCall(entry);
+            }
+          } else if (!recovered.calls.length) text(suppressor.capturedText);
         }
-        reader.releaseLock();
+        for (const call of calls.values()) {
+          openCall(call, true);
+          if (call.outputIndex === undefined) throw new Error('Chat tool call is missing its id or name');
+          const item = encodeToolCallItem(call.callId, call.name, call.arguments, 'completed', codexTools);
+          if (call.extra_content) item.extra_content = call.extra_content;
+          output[call.outputIndex] = item as WireItem;
+          const custom = item.type === 'custom_tool_call';
+          if (custom) emit({ type: 'response.custom_tool_call_input.delta', item_id: item.id, output_index: call.outputIndex, delta: item.input });
+          emit({ type: custom ? 'response.custom_tool_call_input.done' : 'response.function_call_arguments.done', item_id: item.id, output_index: call.outputIndex, ...(custom ? { input: item.input } : { arguments: item.arguments }) });
+        }
+        closeReasoning();
+        for (const [index, item] of output.entries()) {
+          if (closedReasoning.has(index)) continue;
+          if (item.type === 'message') {
+            item.status = finish === 'length' || finish === 'content_filter' ? 'incomplete' : 'completed';
+            for (const [contentIndex, part] of item.content!.entries()) {
+              const refusal = part.type === 'refusal';
+              emit({ type: refusal ? 'response.refusal.done' : 'response.output_text.done', item_id: item.id, output_index: index, content_index: contentIndex, ...(refusal ? { refusal: part.refusal } : { text: part.text }) });
+              emit({ type: 'response.content_part.done', item_id: item.id, output_index: index, content_index: contentIndex, part });
+            }
+          }
+          emit({ type: 'response.output_item.done', output_index: index, item });
+        }
+        const incomplete = finish === 'length' || finish === 'content_filter';
+        emit({
+          type: incomplete ? 'response.incomplete' : 'response.completed',
+          response: { id: responseId, object: 'response', status: incomplete ? 'incomplete' : 'completed', model, output,
+            ...(incomplete ? { incomplete_details: { reason: finish === 'length' ? 'max_output_tokens' : 'content_filter' } } : {}),
+            usage: chatUsageToResponsesUsage(usage) },
+        });
+        controller.close();
+      } catch (error) {
+        if (!cancelled) controller.error(error);
+      } finally {
+        try { await reader.cancel(); } finally { reader.releaseLock(); }
       }
+    },
+    cancel(reason) {
+      cancelled = true;
+      return reader.cancel(reason);
     },
   });
 }

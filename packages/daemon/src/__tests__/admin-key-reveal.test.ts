@@ -1,13 +1,14 @@
 /**
  * admin-key-reveal.test.ts — reversible "view key" storage + the
- * `GET /admin/api/keys/:id/reveal` admin route (outbound-key-reveal).
+ * `POST /admin/api/keys/:id/reveal` admin route (outbound-key-reveal).
  *
  * Covers:
  *  - `JsonOutboundKeyDb` persists a `keySecret` envelope on create ONLY when a
  *    `SecretBox` is wired, and `outboundApiKeysReveal` decrypts it back (round-
  *    trips through the file). Without a box the store stays hash-only (legacy).
- *  - The reveal route: 200 with the decrypted plaintext (matching the one-time
- *    `plaintextOnce`), 404 for an unknown id, 409 for a legacy hash-only row.
+ *  - The password-authorized reveal route: 200 with decrypted plaintext
+ *    (matching `plaintextOnce`), 404 for an unknown id, 409 for a legacy row.
+ *  - Unauthorized reads remain forbidden and never disclose key plaintext.
  *  - The keys-list DTO carries `revealable` (true for new keys, false for
  *    legacy) and still never leaks `keyHash` or the stored envelope.
  *
@@ -30,6 +31,7 @@ import { SecretBox } from '../secrets/SecretBox';
 // ── Admin fetch helper ────────────────────────────────────────────────────────
 
 let adminBase: string;
+const VIEWING_PASSWORD = 'view7777';
 
 async function adminFetch(
   method: string,
@@ -174,16 +176,31 @@ describe('JsonOutboundKeyDb revealable storage', () => {
   });
 });
 
-// ── Route: GET /admin/api/keys/:id/reveal ─────────────────────────────────────
+// ── Route: POST /admin/api/keys/:id/reveal ────────────────────────────────────
 
-describe('GET /admin/api/keys/:id/reveal', () => {
+describe('POST /admin/api/keys/:id/reveal', () => {
   it('returns the decrypted plaintext matching plaintextOnce → 200', async () => {
     await bootDaemon();
     const { id, plaintext } = await createKey();
 
-    const r = await adminFetch('GET', `/admin/api/keys/${id}/reveal`);
+    const denied = await adminFetch('GET', `/admin/api/keys/${id}/reveal`);
+    expect(denied.status).toBe(403);
+    expect(denied.text).toContain('view-password-not-set');
+    expect(denied.text).not.toContain(plaintext);
+
+    // The first authorized read sets the viewing password; later reads verify it.
+    const r = await adminFetch('POST', `/admin/api/keys/${id}/reveal`, { viewingPassword: VIEWING_PASSWORD });
     expect(r.status).toBe(200);
     expect((r.json as { key: string }).key).toBe(plaintext);
+
+    const missing = await adminFetch('GET', `/admin/api/keys/${id}/reveal`);
+    expect(missing.status).toBe(403);
+    expect(missing.text).toContain('view-password-required');
+    expect(missing.text).not.toContain(plaintext);
+    const wrong = await adminFetch('POST', `/admin/api/keys/${id}/reveal`, { viewingPassword: 'wrong777' });
+    expect(wrong.status).toBe(403);
+    expect(wrong.text).toContain('view-password-invalid');
+    expect(wrong.text).not.toContain(plaintext);
   });
 
   it('surfaces revealable on the list (true for new keys) without leaking the envelope', async () => {
@@ -201,7 +218,7 @@ describe('GET /admin/api/keys/:id/reveal', () => {
 
   it('unknown id → 404', async () => {
     await bootDaemon();
-    const r = await adminFetch('GET', '/admin/api/keys/does-not-exist/reveal');
+    const r = await adminFetch('POST', '/admin/api/keys/does-not-exist/reveal', { viewingPassword: VIEWING_PASSWORD });
     expect(r.status).toBe(404);
   });
 
@@ -223,7 +240,7 @@ describe('GET /admin/api/keys/:id/reveal', () => {
     });
     writeFileSync(keysPath, JSON.stringify(rows, null, 2), 'utf8');
 
-    const r = await adminFetch('GET', '/admin/api/keys/legacy/reveal');
+    const r = await adminFetch('POST', '/admin/api/keys/legacy/reveal', { viewingPassword: VIEWING_PASSWORD });
     expect(r.status).toBe(409);
 
     const list = await adminFetch('GET', '/admin/api/keys');

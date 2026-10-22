@@ -136,7 +136,7 @@ describe('ThinkingResolver public budget compatibility', () => {
     });
   });
 
-  it('retains Anthropic legacy adjustment and thinking config', async () => {
+  it('keeps thinking within the requested total Anthropic output bound', async () => {
     const result = await resolveThinkingBudget(
       async () => provider('anthropic', 'Anthropic'),
       makeLogger(),
@@ -147,7 +147,7 @@ describe('ThinkingResolver public budget compatibility', () => {
     );
 
     expect(result).toEqual({
-      adjustedMaxTokens: 4000,
+      adjustedMaxTokens: 16_000,
       thinkingBudget: 12_000,
       thinkingConfig: { type: 'enabled', budget_tokens: 12_000 },
     });
@@ -167,6 +167,29 @@ describe('ThinkingResolver public budget compatibility', () => {
       adjustedMaxTokens: 16_000,
       thinkingBudget: 12_000,
       thinkingConfig: { type: 'enabled', budget_tokens: 12_000 },
+    });
+  });
+
+  it('returns native adaptive controls for modern Claude callers', async () => {
+    expect(await resolveThinkingBudget(
+      async () => provider('anthropic', 'Anthropic'),
+      makeLogger(), 'anthropic', 'claude-opus-4-7', 32000, 'high',
+    )).toEqual({
+      adjustedMaxTokens: 32000,
+      thinkingBudget: undefined,
+      thinkingConfig: { type: 'adaptive' },
+      outputConfig: { effort: 'high' },
+    });
+  });
+
+  it('returns explicit disable controls rather than reverting to the upstream default', async () => {
+    expect(await resolveThinkingBudget(
+      async () => provider('anthropic', 'Anthropic'),
+      makeLogger(), 'anthropic', 'claude-opus-4-7', 32000, 'none',
+    )).toEqual({
+      adjustedMaxTokens: 32000,
+      thinkingBudget: undefined,
+      thinkingConfig: { type: 'disabled' },
     });
   });
 });

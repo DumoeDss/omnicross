@@ -50,7 +50,8 @@ import {
 import {
   getRequiredMaxTokens,
   resolveEffectiveMaxTokens,
-  resolveThinkingBudget
+  resolveThinkingBudget,
+  type ResolvedThinkingBudget,
 } from './ThinkingResolver';
 import {
   streamWithTools,
@@ -626,14 +627,7 @@ export class CompletionService {
     modelId: string,
     maxTokens: number,
     thinkLevel: ThinkLevel
-  ): Promise<{
-    adjustedMaxTokens: number;
-    thinkingBudget: number | undefined;
-    thinkingConfig: {
-      type?: 'enabled' | 'disabled';
-      budget_tokens?: number;
-    } | undefined;
-  }> {
+  ): Promise<ResolvedThinkingBudget> {
     return resolveThinkingBudget(
       this.getProvider.bind(this),
       this.logger,

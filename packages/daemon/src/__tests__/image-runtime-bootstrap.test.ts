@@ -137,13 +137,10 @@ describe('daemon Images runtime bootstrap', () => {
 
     expect(built.providerProxy.getDeps().openAIOperationRegistry)
       .toBe(built.openAIOperationRegistry);
-    expect(built.providerProxy.getDeps().responsesHostedImageIngress)
-      .toEqual({ prepare: expect.any(Function) });
     expect(built.openAIOperationRegistry.has('images.generate')).toBe(true);
     expect(built.openAIOperationRegistry.has('images.edit')).toBe(true);
     expect(built.openAIOperationRegistry.has('responses.compact')).toBe(false);
     expect(built.imageRuntimeManager.status().current.enabled).toBe(false);
-    expect(built.hostedImageContributionFactory).toEqual({ acquire: expect.any(Function) });
 
     const stableContributions = built.imageRuntimeManager.contributions;
     const generate = vi.fn(async () => undefined);

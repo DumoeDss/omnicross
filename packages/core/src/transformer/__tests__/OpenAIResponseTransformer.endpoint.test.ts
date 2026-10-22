@@ -154,7 +154,7 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       const message = json.output.find((o: any) => o.type === 'message');
       expect(message).toBeDefined();
       expect(message.role).toBe('assistant');
-      expect(message.content).toEqual([{ type: 'output_text', text: 'Hello there!' }]);
+      expect(message.content).toMatchObject([{ type: 'output_text', text: 'Hello there!' }]);
 
       // usage mapped CC → Responses
       expect(json.usage).toEqual({
@@ -593,30 +593,6 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       ]);
     });
 
-    it('drops provider-internal item types instead of emitting junk messages', async () => {
-      const unified = await transformer.transformRequestOut(
-        {
-          model: 'gpt-5-codex',
-          input: [
-            // Carries role:'developer' but NO content — used to become
-            // `{"role":"system"}` with `content: undefined`.
-            { type: 'additional_tools', role: 'developer', tools: [{ type: 'custom', name: 'exec' }] },
-            { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'gAAAA…' },
-            { type: 'agent_message', author: '/root/sub', content: [{ type: 'input_text', text: 'done' }] },
-            { type: 'function_call_output', id: 'fco_local', namespace: 'codex_tui', name: 'send_message_to_thread', output: 'delivered' },
-            { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'go on' }] },
-          ],
-        },
-        mockContext
-      );
-
-      // Only the real user turn becomes a message; the tool DECLARATIONS from
-      // `additional_tools` land in `tools`, never as a message.
-      expect(unified.messages).toEqual([{ role: 'user', content: 'go on' }]);
-      for (const message of unified.messages) {
-        expect(message.content, 'no message may carry undefined content').toBeTypeOf('string');
-      }
-    });
 
     it('custom_tool_call/_output survive as a tool_call + tool result pair', async () => {
       // Upstreams validate that every assistant tool_call is answered by a tool

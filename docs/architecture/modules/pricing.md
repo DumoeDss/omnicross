@@ -75,7 +75,7 @@ OpenRouter Models API 字段依据其官方文档：<https://openrouter.ai/docs/
 ### Core
 
 - `PricingEngine.getAll()`：从内存索引返回完整本地表。
-- `PricingEngine.getEntry(providerId, modelId)`：按精确键、通配供应商、模型名依次查找。
+- `PricingEngine.getEntry(providerId, modelId)`：先查完整 ID 的精确供应商、通配供应商、同名模型，再查发布者/分隔符归一化的完整 ID，最后回退到去掉日期后缀的基础型号。
 - `PricingEngine.calculateCost(...)`：计算输入、输出和缓存 Token 的估算成本。
 - `PricingEngine.upsertManual(...)`：写入受保护的用户价格。
 - `PricingEngine.fetchLatestFromSource()`：并行刷新两个来源、合并并持久化，支持并发合并和部分成功。
@@ -105,6 +105,16 @@ costUsd = (
 缓存节省只在明确存在且低于输入价格的缓存读价格时计算；缺价模型成本为 0，并由 usage DTO 的 `unpriced` 标志交给 UI 标识。
 
 LiteLLM 解析器映射 `vertex_ai/google → gemini`、`bedrock → anthropic`、`azure → openai`。OpenRouter 解析器不去掉 `author/` 前缀，避免聚合路由价格与直连模型键碰撞。
+
+### 模型名称匹配
+
+- 计价归一化与请求模型重定向分离，不修改发往上游或记入 usage 的模型 ID。
+- `deepseek/deepseek-v4.1-flash`、`deepseek-v4.1-flash-1017`、`deepseek/deepseek-v4.1-flash-1017` 可回退到已有的 `deepseek-v4.1-flash` 价格；支持末尾 `MMDD`、`YYYYMMDD`、`YYYY-MM-DD` 日期。
+- 完整 ID 或具体日期版本存在价格时优先使用，不被基础型号覆盖。归一化匹配仍按当前供应商、`*`、其他非 OpenRouter 供应商的顺序查找；手工编辑立即更新变体查找结果。
+- 不再用任意子串猜价格：`v4.1` 不匹配 `v4`，`flash` 不匹配 `pro`，日期版本不借用另一日期版本的价格；`:free` 等计费限定符不会被剥离。
+- OpenRouter 来源价格只用于它所属供应商，不自动套给 Command Code 或厂商直连。没有可匹配的本地基础价格时仍为 `unpriced`。
+- 费用在请求记录时计算并保存；本次匹配修复不会追溯重算已经落盘的历史金额。
+
 
 ## 依赖关系
 

@@ -48,13 +48,6 @@ vi.mock('../../pipeline/executeProviderCall', () => ({
   executeProviderCall: (ctx: ProviderCallContext) => executeProviderCallMock(ctx),
 }));
 
-vi.mock('../../pipeline/resolveProviderChain', () => ({
-  resolveProviderChain: vi.fn(async () => ({
-    chain: { providerTransformers: [], modelTransformers: [] },
-    mainTransformer: null,
-    hasTransformers: false,
-  })),
-}));
 
 import { ApiKeyPoolService } from '../../completion/ApiKeyPoolService';
 import type { ProviderConfigSource } from '../../ports';

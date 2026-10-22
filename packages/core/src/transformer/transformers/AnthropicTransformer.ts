@@ -114,6 +114,7 @@ export class AnthropicTransformer implements Transformer {
     response: Response,
     context?: TransformerContext
   ): Promise<Response> {
+    if (!response.ok) return response;
     const contentType = response.headers.get('Content-Type') ?? '';
 
     if (contentType.includes('text/event-stream')) {
@@ -158,6 +159,7 @@ export class AnthropicTransformer implements Transformer {
     response: Response,
     _context: TransformerContext
   ): Promise<Response> {
+    if (!response.ok) return response;
     const contentType = response.headers.get('Content-Type') ?? '';
 
     if (contentType.includes('text/event-stream')) {

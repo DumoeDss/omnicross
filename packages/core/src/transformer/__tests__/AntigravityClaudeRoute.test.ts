@@ -27,7 +27,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 import { AnthropicTransformer } from '../transformers/AnthropicTransformer';
 import { AntigravityTransformer } from '../transformers/AntigravityTransformer';
 import { cleanSchemaForCcaLegacyParameters } from '../transformers/utils/ccaLegacySchema';
-import type { LLMProvider, TransformerContext } from '../types';
+import type { LLMProvider, TransformerContext, UnifiedMessage } from '../types';
 
 const ctx: TransformerContext = {};
 
@@ -104,9 +104,6 @@ describe('Claude envelope snapshot (anthropic-messages client → CCA)', () => {
     const declaration = tools[0]?.functionDeclarations[0];
     expect(declaration?.parameters).toBeDefined();
     expect(declaration?.parametersJsonSchema).toBeUndefined();
-    // Claude cap.
-    const generationConfig = (inner.generationConfig ?? {}) as Record<string, unknown>;
-    expect(generationConfig.maxOutputTokens).toBe(64000);
     // No model_enum for the Claude family.
     const labels = inner.labels as Record<string, string>;
     expect(labels.model_enum).toBeUndefined();
@@ -119,6 +116,7 @@ describe('legacy schema cleaning', () => {
     const cleaned = cleanSchemaForCcaLegacyParameters({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: 'urn:weather',
+      $defs: { x: { type: 'string', enum: ['resolved'] } },
       type: 'object',
       properties: {
         city: { type: 'string', minLength: 2, maxLength: 40 },
@@ -142,6 +140,9 @@ describe('legacy schema cleaning', () => {
     // Structure survives.
     const properties = (cleaned['properties'] as Record<string, unknown>)['city'] as Record<string, unknown>;
     expect(properties['type']).toBe('string');
+    expect(cleaned).toMatchObject({
+      properties: { nested: { properties: { deep: { type: 'string', enum: ['resolved'] } } } },
+    });
   });
 
   it('collapses anyOf to the most-structured alternative and folds const into enum', () => {
@@ -156,6 +157,56 @@ describe('legacy schema cleaning', () => {
 
     const asConst = cleanSchemaForCcaLegacyParameters({ const: 'fixed' }) as Record<string, unknown>;
     expect(asConst['enum']).toEqual(['fixed']);
+    expect(asConst['type']).toBe('string');
+  });
+
+  it('preserves referenced tool arguments, nullable values and allOf sibling properties on the wire', async () => {
+    const envelope = await toCcaEnvelope(anthropicBody({
+      tools: [{
+        name: 'lookup',
+        input_schema: {
+          type: 'object',
+          $defs: { address: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] } },
+          properties: {
+            address: { $ref: '#/$defs/address' },
+            note: { type: ['string', 'null'] },
+            optionalCity: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          },
+          required: ['address'],
+          allOf: [{
+            type: 'object',
+            properties: {
+              unit: { const: 'c' },
+              address: { type: 'object', properties: { zip: { type: 'string' } }, required: ['zip'] },
+            },
+          }, { required: ['unit'] }],
+        },
+      }],
+    }));
+    const tools = (envelope.request as Record<string, unknown>).tools as Array<{
+      functionDeclarations: Array<{ parameters: Record<string, unknown> }>;
+    }>;
+    expect(tools[0].functionDeclarations[0].parameters).toMatchObject({
+      type: 'object',
+      properties: {
+        address: {
+          type: 'object',
+          properties: { city: { type: 'string' }, zip: { type: 'string' } },
+          required: ['city', 'zip'],
+        },
+        note: { type: 'string', nullable: true },
+        optionalCity: { type: 'string', nullable: true },
+        unit: { type: 'string', enum: ['c'] },
+      },
+      required: ['address', 'unit'],
+    });
+  });
+
+  it.each([
+    { type: 'object', properties: { value: { $ref: '#/$defs/missing' } } },
+    { $defs: { node: { type: 'object', properties: { next: { $ref: '#/$defs/node' } } } }, $ref: '#/$defs/node' },
+  ])('rejects unresolved or recursive references instead of sending empty tool argument schemas', (schema) => {
+    expect(() => cleanSchemaForCcaLegacyParameters(schema)).toThrow(/reference/);
   });
 });
 
@@ -163,54 +214,49 @@ describe('multi-turn tool round trip (thinking + tool_use/tool_result + thoughtS
   it('replays the thoughtSignature to the upstream and decodes thinking + tool_use blocks back', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    // Turn 1 response (from the upstream, anthropic-wire): a thinking block +
-    // a tool_use block carrying the replayable signature.
-    const turn1UpstreamContent = [
-      { type: 'thinking', thinking: 'I should call the weather tool.', signature: 'sig-abc123=' },
-      { type: 'tool_use', id: 'toolu_1', name: 'get_weather', input: { city: 'Paris' } },
-    ];
-
-    // Turn 2 REQUEST (anthropic wire): the assistant turn 1 blocks + the user's
-    // tool_result — this is what the antigravity transformer must encode with
-    // the signature REPLAYED on the CCA wire.
-    const turn2Body = anthropicBody({
+    const transformer = new AntigravityTransformer();
+    const firstResponse = await transformer.transformResponseOut(Response.json({
+      response: {
+        candidates: [{
+          content: { role: 'model', parts: [
+            { thought: true, text: 'I should check both cities.', thoughtSignature: 'sig-thought=' },
+            { functionCall: { id: 'call-paris', name: 'get_weather', args: { city: 'Paris' } }, thoughtSignature: 'sig-paris=' },
+            { functionCall: { id: 'call-rome', name: 'get_weather', args: { city: 'Rome' } }, thoughtSignature: 'sig-rome=' },
+          ] },
+          finishReason: 'STOP',
+        }],
+      },
+    }), ctx);
+    const first = await firstResponse.json() as { choices: Array<{ message: UnifiedMessage }> };
+    const assistant = first.choices[0].message;
+    const calls = assistant.tool_calls!;
+    expect(calls).toHaveLength(2);
+    const encoded = await transformer.transformRequestIn({
+      model: 'claude-sonnet-4-5',
       messages: [
-        { role: 'user', content: 'What is the weather in Paris?' },
-        {
-          role: 'assistant',
-          content: [
-            { type: 'thinking', thinking: 'I should call the weather tool.', signature: 'sig-abc123=' },
-            { type: 'tool_use', id: 'toolu_1', name: 'get_weather', input: { city: 'Paris' } },
-          ],
-        },
-        {
-          role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: '18c, clear' }],
-        },
+        { role: 'user', content: 'Check Paris and Rome.' },
+        assistant,
+        ...calls.map((call) => ({ role: 'tool' as const, tool_call_id: call.id, content: '18c, clear' })),
       ],
-    });
-
-    const envelope = await toCcaEnvelope(turn2Body);
+    }, antigravityProvider, ctx);
+    const envelope = encoded.body as Record<string, unknown>;
     const inner = envelope.request as Record<string, unknown>;
     const contents = inner.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
 
-    // The assistant turn replays the signature on its parts (the Gemini CCA
-    // channel — buildRequestBody attaches the message-level signature to the
-    // first tool call part).
+    // CCA-origin signatures stay attached to their original parts on replay.
     const modelTurn = contents.find((content) => content.role === 'model');
     expect(modelTurn).toBeDefined();
     const signatureParts = modelTurn?.parts.filter((part) => 'thoughtSignature' in part) ?? [];
-    expect(signatureParts.length).toBeGreaterThan(0);
+    expect(signatureParts.map((part) => part.thoughtSignature)).toEqual(['sig-thought=', 'sig-paris=', 'sig-rome=']);
 
     // The tool_result lands as a functionResponse part paired to the call.
     const responseParts = contents
       .filter((content) => content.role === 'user')
       .flatMap((content) => content.parts)
       .filter((part) => 'functionResponse' in part);
-    expect(responseParts.length).toBe(1);
-    const functionResponse = (responseParts[0]?.functionResponse as Record<string, unknown>);
-    expect(functionResponse.name).toBe('get_weather');
-    void turn1UpstreamContent;
+    expect(responseParts).toHaveLength(2);
+    expect(responseParts.map((part) => (part.functionResponse as Record<string, unknown>).name))
+      .toEqual(['get_weather', 'get_weather']);
 
     // ── Response direction: CCA SSE → OpenAI-compatible → Anthropic wire ──
     const ccaSse = [

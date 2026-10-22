@@ -11,6 +11,7 @@
  */
 
 import { compactionItemToText, isOnePixelPngDataUrl } from './compaction';
+import { CHATGPT_WEB_LUNA_MODEL_ROUTES, CHATGPT_WEB_MODEL_ROUTES } from './models';
 import type {
   CodexAgentMessage,
   CodexAssistantMessage,
@@ -55,14 +56,10 @@ function inputContentParts(blocks: unknown[] | string | undefined): string | Cod
           ...(b.detail ? { detail: normalizeImageDetail(b.detail) } : {}),
         });
       } else {
-        parts.push({ type: 'text', text: `[image: ${b.file_id ?? '?'}]` });
+        throw new Error('ChatGPT Web bridge requires input_image.image_url; file_id images cannot be resolved');
       }
     } else if (block.type === 'input_file') {
-      const ref =
-        (block as { file_id?: string; filename?: string }).file_id ??
-        (block as { filename?: string }).filename ??
-        '?';
-      parts.push({ type: 'text', text: `[file: ${ref}]` });
+      throw new Error('ChatGPT Web bridge does not support input_file; supply text or an image_url instead');
     }
   }
   if (parts.length === 1 && parts[0].type === 'text') return parts[0].text;
@@ -217,6 +214,14 @@ export function parseRequest(body: unknown): CodexParsedRequest {
         'disable_response_storage (the omnicross launch wiring sets it) and send full context',
     );
   }
+  if ('messages' in body) {
+    throw new Error('ChatGPT Web bridge requires Responses input, not Chat Completions messages');
+  }
+  for (const field of ['max_output_tokens', 'temperature', 'top_p']) {
+    if (body[field] !== undefined && body[field] !== null) {
+      throw new Error(`ChatGPT Web bridge cannot enforce ${field}; omit this unsupported parameter`);
+    }
+  }
   const data = body;
   const modelId = String(data['model']);
   const now = Date.now();
@@ -342,12 +347,9 @@ export function parseRequest(body: unknown): CodexParsedRequest {
         let args: Record<string, unknown> = {};
         const rawArgs = typeof item['arguments'] === 'string' ? item['arguments'].trim() : '';
         if (rawArgs) {
-          try {
-            const parsed: unknown = JSON.parse(rawArgs);
-            if (isObj(parsed)) args = parsed;
-          } catch {
-            // Tolerate non-JSON arguments rather than poisoning the session.
-          }
+          const parsed: unknown = JSON.parse(rawArgs);
+          if (!isObj(parsed)) throw new Error('function_call arguments must be a JSON object');
+          args = parsed;
         }
         const toolCall: CodexToolCall = {
           type: 'toolCall',
@@ -464,14 +466,22 @@ export function parseRequest(body: unknown): CodexParsedRequest {
   });
 
   const options: CodexRequestOptions = {};
-  if (data['max_output_tokens'] !== undefined) options.maxOutputTokens = data['max_output_tokens'] as number;
-  if (data['temperature'] !== undefined) options.temperature = data['temperature'] as number;
-  if (data['top_p'] !== undefined) options.topP = data['top_p'] as number;
+  const route = CHATGPT_WEB_MODEL_ROUTES.find((entry) => entry.slug === modelId) ??
+    CHATGPT_WEB_LUNA_MODEL_ROUTES.find((entry) => entry.slug === modelId);
   const reasoning = isObj(data['reasoning']) ? data['reasoning'] : {};
   // codex-rs converts "ultra" to "max" at the inference boundary.
   const requestedEffort = reasoning['effort'] === 'ultra' ? 'max' : reasoning['effort'];
   if (typeof requestedEffort === 'string' && REASONING_EFFORTS.has(requestedEffort)) {
     options.reasoning = requestedEffort;
+  }
+  if (requestedEffort !== undefined && requestedEffort !== null) {
+    const fixedEffort = route?.codexEffort === 'ultra' ? 'max' : route?.codexEffort;
+    if (typeof requestedEffort !== 'string' || !REASONING_EFFORTS.has(requestedEffort)) {
+      throw new Error('ChatGPT Web bridge received an unsupported reasoning.effort');
+    }
+    if (fixedEffort && requestedEffort !== fixedEffort) {
+      throw new Error(`${modelId} pins reasoning.effort to ${fixedEffort}; select the matching chatgpt-web model`);
+    }
   }
   const summaryMode = reasoning['summary'];
   if (!summaryMode || summaryMode === 'none') options.hideThinkingSummary = true;

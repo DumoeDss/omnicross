@@ -65,16 +65,6 @@ describe('aggregateAnthropicSseToJsonBody', () => {
     expect(msg.model).toBe('claude-sonnet-5');
   });
 
-  it('skips malformed data lines without throwing', async () => {
-    const sse =
-      ev('message_start', { message: { id: 'm', model: 'x' } }) +
-      'data: not-json\n\n' +
-      ev('content_block_start', { index: 0, content_block: { type: 'text', text: '' } }) +
-      ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'ok' } }) +
-      ev('message_stop', {});
-    const msg = JSON.parse(await aggregateAnthropicSseToJsonBody(sseResponse(sse)));
-    expect(msg.content).toEqual([{ type: 'text', text: 'ok' }]);
-  });
 
   it('preserves block order by index regardless of arrival', async () => {
     // index 1 starts before index 0 (codex/parallel emit can interleave)
@@ -115,5 +105,25 @@ describe('aggregateAnthropicSseToJsonBody', () => {
       signature: 'sig_abc',
     });
     expect(msg.content[1]).toEqual({ type: 'text', text: 'Answer.' });
+  });
+  it.each([
+    ['malformed frame', 'data: not-json\n\n' + ev('message_stop', {})],
+    ['upstream error', ev('error', { error: { type: 'overloaded_error', message: 'capacity' } })],
+    ['truncated completion', ev('content_block_start', { index: 0, content_block: { type: 'text', text: 'partial' } })],
+    ['invalid tool JSON', ev('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'c', name: 'f', input: {} } }) +
+      ev('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: '{"broken":' } }) + ev('message_stop', {})],
+  ])('rejects %s rather than returning a successful buffered message', async (_name, body) => {
+    await expect(aggregateAnthropicSseToJsonBody(sseResponse(body))).rejects.toThrow();
+  });
+
+  it('retains complete start-block data and redacted reasoning without requiring deltas', async () => {
+    const content = [
+      { type: 'thinking', thinking: 'Already complete.', signature: 'opaque-signature' },
+      { type: 'redacted_thinking', data: 'opaque-redacted' },
+      { type: 'tool_use', id: 'call', name: 'lookup', input: { directory: 'src' } },
+    ];
+    const body = content.map((content_block, index) => ev('content_block_start', { index, content_block })).join('') +
+      ev('message_delta', { delta: { stop_reason: 'tool_use' } }) + ev('message_stop', {});
+    expect(JSON.parse(await aggregateAnthropicSseToJsonBody(sseResponse(body)))).toMatchObject({ content });
   });
 });

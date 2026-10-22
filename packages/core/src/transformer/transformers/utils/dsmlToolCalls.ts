@@ -59,13 +59,6 @@
  */
 const DSML_MARKER_PREFIX = /<(\/?)[｜|]{1,3}[ \t]*DSML[｜|]{1,3}[ \t]*/g;
 
-/**
- * A line that OPENS a DSML block or a bare invoke. Anchored to the line start
- * (the marker always begins its own line) and deliberately matched WITHOUT the
- * marker prefix, so it is applied to the normalized text.
- */
-const DSML_OPENER = /^[ \t]*<(calls|tool_calls|function_calls|invoke)\b/;
-
 /** A line that opens a DSML block/invoke while still carrying its marker. */
 const DSML_OPENER_MARKED =
   /^[ \t]*<[｜|]{1,3}[ \t]*DSML[｜|]{1,3}[ \t]*(calls|tool_calls|function_calls|invoke)\b/;
@@ -105,11 +98,13 @@ function indexOfTag(text: string, tag: string, from: number): number {
 function findMarkupStart(text: string): number {
   if (!text.includes('DSML')) return -1;
   let offset = 0;
-  let inFence = false;
+  let fence = '';
   for (const line of text.split('\n')) {
-    if (/^[ \t]*```/.test(line)) {
-      inFence = !inFence;
-    } else if (!inFence && DSML_OPENER_MARKED.test(line)) {
+    const marker = /^[ \t]*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker) {
+      if (!fence) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = '';
+    } else if (!fence && DSML_OPENER_MARKED.test(line)) {
       return offset;
     }
     offset += line.length + 1;
@@ -259,96 +254,51 @@ export function dsmlCallId(call: DsmlSalvagedCall, index: number): string {
  * never be taken back.
  */
 export class DsmlStreamSuppressor {
-  /**
-   * Ceiling on a single buffered line. A marker opens its own short line, so
-   * holding the incomplete line is what makes split markers un-leakable — but a
-   * response with one enormous line (a minified blob, a long JSON answer) must
-   * not stall the whole stream waiting for a newline that may never come. Past
-   * the cap the head is released as prose; no marker can span that far.
-   */
-  private static readonly MAX_HELD_LINE = 4096;
-  /** How much of an over-long line to keep back — ample for any marker. */
-  private static readonly HELD_TAIL = 512;
-
-  /** Text from the last line break on — never yet emitted. */
   private pending = '';
-  /** Raw markup withheld since the opener; null while still emitting prose. */
   private captured: string | null = null;
+  private fence = '';
+  private releasedLine = false;
 
-  /** True once an opener was seen — the tail is markup, not prose. */
-  get capturing(): boolean {
-    return this.captured !== null;
-  }
+  get capturing(): boolean { return this.captured !== null; }
+  get capturedText(): string { return this.captured ?? ''; }
 
-  /** The withheld markup, for `salvageDsmlToolCalls` at end-of-turn. */
-  get capturedText(): string {
-    return this.captured ?? '';
-  }
-
-  /** Feed one content delta; returns the prose that is safe to emit now. */
   push(delta: string): string {
     if (this.captured !== null) {
       this.captured += delta;
       return '';
     }
-
     this.pending += delta;
-    const lastBreak = this.pending.lastIndexOf('\n');
-    if (lastBreak === -1) {
-      // A marker always OPENS its line, so a partial line whose start can no
-      // longer be an opener prefix is plain prose — release it immediately.
-      // This is what keeps a healthy stream byte-timely: only lines that begin
-      // like `<｜…` are ever held back.
-      if (canStillOpenLine(this.pending) && this.pending.length <= DsmlStreamSuppressor.MAX_HELD_LINE) {
-        return '';
-      }
-      if (this.pending.length > DsmlStreamSuppressor.MAX_HELD_LINE) {
-        const cut = this.pending.length - DsmlStreamSuppressor.HELD_TAIL;
-        const released = this.pending.slice(0, cut);
-        this.pending = this.pending.slice(cut);
-        return released;
-      }
-      const released = this.pending;
-      this.pending = '';
-      return released;
-    }
-
-    const complete = this.pending.slice(0, lastBreak + 1);
-    this.pending = this.pending.slice(lastBreak + 1);
-
-    // Scan complete lines for an opener, fence-aware like `findMarkupStart`.
-    let offset = 0;
-    let inFence = false;
-    for (const line of complete.split('\n')) {
-      if (/^[ \t]*```/.test(line)) {
-        inFence = !inFence;
-      } else if (!inFence && DSML_OPENER_MARKED.test(line)) {
-        this.captured = complete.slice(offset) + this.pending;
+    let prose = '';
+    while (true) {
+      if (!this.releasedLine && !this.fence && DSML_OPENER_MARKED.test(this.pending)) {
+        this.captured = this.pending;
         this.pending = '';
-        return complete.slice(0, offset).trimEnd();
+        return prose;
       }
-      offset += line.length + 1;
+      const newline = this.pending.indexOf('\n');
+      if (newline === -1) break;
+      const line = this.pending.slice(0, newline + 1);
+      this.pending = this.pending.slice(newline + 1);
+      const marker = !this.releasedLine ? /^[ \t]*(`{3,}|~{3,})/.exec(line)?.[1] : undefined;
+      if (marker) {
+        if (!this.fence) this.fence = marker;
+        else if (marker[0] === this.fence[0] && marker.length >= this.fence.length) this.fence = '';
+      }
+      prose += line;
+      this.releasedLine = false;
     }
-
-    // Same early release as the no-newline branch, for the partial line the
-    // split left behind: prose that cannot become an opener flows now.
-    if (
-      this.pending !== '' &&
-      !canStillOpenLine(this.pending) &&
-      this.pending.length <= DsmlStreamSuppressor.MAX_HELD_LINE
-    ) {
-      const released = this.pending;
+    // Only a potential line-start marker/fence needs buffering. Remember that
+    // a released prefix belongs to the same line across future push calls.
+    const prefix = this.pending.trimStart();
+    const markerPrefix = prefix === '<' || /^<\/?[｜|]/.test(prefix);
+    if (this.releasedLine || (prefix && !markerPrefix && !prefix.startsWith('`') && !prefix.startsWith('~')) || this.pending.length > 4096) {
+      prose += this.pending;
+      this.releasedLine = this.releasedLine || this.pending.length > 0;
       this.pending = '';
-      return complete + released;
     }
-
-    return complete;
+    return prose;
   }
 
-  /**
-   * End of turn. Returns prose still held back, or `''` when the tail was
-   * markup — callers then salvage `capturedText` instead of showing it.
-   */
   flush(): string {
     if (this.captured !== null) return '';
     const rest = this.pending;
@@ -357,49 +307,6 @@ export class DsmlStreamSuppressor {
   }
 }
 
-/**
- * Every opener spelling the model might emit — `<` or `</`, a run of 1-3
- * vertical bars (U+FF5C or ASCII), optional space, one of the block/invoke
- * keywords, `>`. A partial line is holdable only while it is a PREFIX of one
- * of these; `canStillOpenLine` answers exactly that.
- */
-const OPENER_TAG_CANDIDATES: ReadonlyArray<string> = (() => {
-  const bars: string[] = [];
-  for (const a of ['｜', '|']) {
-    bars.push(a);
-    for (const b of ['｜', '|']) {
-      bars.push(a + b);
-      for (const c of ['｜', '|']) bars.push(a + b + c);
-    }
-  }
-  const keywords = ['calls', 'tool_calls', 'function_calls', 'invoke'];
-  const tags: string[] = [];
-  for (const close of ['', '/']) {
-    for (const run1 of bars) {
-      for (const sep1 of ['', ' ', '\t']) {
-        for (const run2 of bars) {
-          for (const sep2 of ['', ' ', '\t']) {
-            for (const keyword of keywords) {
-              tags.push(`<${close}${run1}${sep1}DSML${run2}${sep2}${keyword}>`);
-            }
-          }
-        }
-      }
-    }
-  }
-  return tags;
-})();
-
-/**
- * Can this partial line (no newline yet) still turn out to open a DSML block?
- * All-whitespace still can (the marker follows the indent); anything else must
- * be a strict prefix of one opener tag spelling.
- */
-function canStillOpenLine(line: string): boolean {
-  const stripped = line.replace(/^[ \t]+/, '');
-  if (stripped === '') return true;
-  return OPENER_TAG_CANDIDATES.some((tag) => tag.startsWith(stripped));
-}
 
 // ============================================================================
 // Kill switch

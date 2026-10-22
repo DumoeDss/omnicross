@@ -14,6 +14,9 @@ import {
   __resetSharedAccountHealthForTests,
   getSharedAccountHealth,
 } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import { TransformerChainExecutor } from '@omnicross/core/transformer/TransformerChainExecutor';
+import { TransformerService } from '@omnicross/core/transformer/TransformerService';
+import { AnthropicTransformer } from '@omnicross/core/transformer/transformers/AnthropicTransformer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -54,7 +57,7 @@ function makeProfile(onUnauthorized = vi.fn(async () => false)): SubscriptionDis
     } as unknown as SubscriptionDispatchProfile['authStrategy'],
     mode: 'transformer',
     resolveUpstreamUrl: () => 'https://opencode.ai/zen/go/v1/messages',
-    providerTransformerNames: ['opencodego'],
+    providerTransformerNames: ['anthropic'],
     modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
     // No nextFallback ⇒ a single attempt, then the error surfaces.
   } as unknown as SubscriptionDispatchProfile;
@@ -63,11 +66,16 @@ function makeProfile(onUnauthorized = vi.fn(async () => false)): SubscriptionDis
 /** Hooks whose `fetchWithRetry` throws a supplied sequence of errors (one per call). */
 function makeHooks(errors: Array<FakeProviderApiError | Error>): DispatcherHooks {
   let call = 0;
+  const transformerService = new TransformerService();
+  transformerService.registerTransformer('anthropic', new AnthropicTransformer());
   return {
-    endpointTransformer: {} as DispatcherHooks['endpointTransformer'],
-    executor: {} as DispatcherHooks['executor'],
-    transformerService: {} as DispatcherHooks['transformerService'],
-    fetchWithRetry: vi.fn(async () => {
+    endpointTransformer: new AnthropicTransformer(),
+    executor: new TransformerChainExecutor(),
+    transformerService,
+    fetchWithRetry: vi.fn(async (_url: string, headers: Record<string, string>, body: unknown, model: string) => {
+      expect(headers.Authorization).toBe('Bearer fake');
+      expect(model).toBe('minimax-m2.5');
+      expect(body).toMatchObject({ model: 'minimax-m2.5' });
       throw errors[Math.min(call++, errors.length - 1)];
     }),
     writeProxyResponse: vi.fn(async () => undefined),
@@ -75,11 +83,12 @@ function makeHooks(errors: Array<FakeProviderApiError | Error>): DispatcherHooks
 }
 
 function makeReq(): DispatchRequest {
+  const anthropicBody = { model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] };
   return {
     reqId: 1,
     res: {} as http.ServerResponse,
-    rawBody: JSON.stringify({ model: 'cli', messages: [] }),
-    anthropicBody: { model: 'cli', messages: [] },
+    rawBody: JSON.stringify(anthropicBody),
+    anthropicBody,
     isStream: false,
     sdkModel: 'cli',
     fallbackModel: 'minimax-m2.5',

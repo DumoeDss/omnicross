@@ -66,7 +66,7 @@ describe('decoder captures the R7 hub fields', () => {
     expect((unified as unknown as Record<string, unknown>)._transformWarnings).toBeUndefined();
   });
 
-  it('assistant thinking blocks concatenate IN ORDER with redacted placeholders', () => {
+  it('replays separate signed and redacted thinking blocks without exposing opaque data as thought text', () => {
     const unified = decode({
       messages: [
         {
@@ -74,7 +74,7 @@ describe('decoder captures the R7 hub fields', () => {
           content: [
             { type: 'thinking', thinking: 'part-a', signature: 'sig1' },
             { type: 'redacted_thinking', data: 'opaque' },
-            { type: 'thinking', thinking: 'part-b' },
+            { type: 'thinking', thinking: 'part-b', signature: 'sig2' },
             { type: 'text', text: 'answer' },
           ],
         },
@@ -82,11 +82,17 @@ describe('decoder captures the R7 hub fields', () => {
       ],
     });
     const assistant = unified.messages.find((m) => m.role === 'assistant');
-    expect(assistant?.thinking?.content).toBe(
-      'part-a\n[redacted thinking omitted]\npart-b',
-    );
-    expect(assistant?.thinking?.signature).toBe('sig1');
-    expect(droppedFieldCounts['redacted_thinking\0unified']).toBe(1);
+    expect(assistant?.thinking?.content).toBe('part-apart-b');
+    const body = buildAnthropicRequestBody(unified);
+    expect(body.messages).toEqual([
+      { role: 'assistant', content: [
+        { type: 'thinking', thinking: 'part-a', signature: 'sig1' },
+        { type: 'redacted_thinking', data: 'opaque' },
+        { type: 'thinking', thinking: 'part-b', signature: 'sig2' },
+        { type: 'text', text: 'answer' },
+      ] },
+      { role: 'user', content: 'next' },
+    ]);
   });
 
   it('a single thinking block is unchanged (regression)', () => {
@@ -98,8 +104,9 @@ describe('decoder captures the R7 hub fields', () => {
         },
       ],
     });
-    const assistant = unified.messages.find((m) => m.role === 'assistant');
-    expect(assistant?.thinking).toEqual({ content: 'only', signature: 'sig' });
+    expect(buildAnthropicRequestBody(unified).messages).toEqual([
+      { role: 'assistant', content: [{ type: 'thinking', thinking: 'only', signature: 'sig' }] },
+    ]);
     expect(droppedFieldCounts['redacted_thinking\0unified']).toBeUndefined();
   });
 });
@@ -169,14 +176,41 @@ describe('Responses encoder (top_p mapped; stop/top_k/metadata audited)', () => 
 });
 
 describe('Gemini builder (conditional generationConfig)', () => {
-  it('omits sampling controls for Gemini 4 while retaining output limits', () => {
+  it.each(['gemini-4-argon', 'models/gemini-4-argon'])(
+    'audits ignored sampling controls for %s while preserving output limits',
+    (model) => {
+      const request = {
+        ...decode({ temperature: 0.5, top_p: 0.6, top_k: 40, max_tokens: 4096 }),
+        model,
+      };
+      const body = buildGeminiRequestBody(request);
+      expect(body.generationConfig).toEqual({ maxOutputTokens: 4096 });
+      for (const field of ['temperature', 'top_p', 'top_k']) {
+        expect(droppedFieldCounts[`${field}\0gemini`]).toBe(1);
+      }
+      expect(body).not.toHaveProperty('_transformWarnings');
+    },
+  );
+
+  it.each(['temperature', 'topP', 'topK'] as const)(
+    'preserves native Argon %s for upstream interpretation',
+    (field) => {
+      const request: UnifiedChatRequest & { extra_content: Record<string, unknown> } = {
+        messages: [{ role: 'user', content: 'hi' }],
+        model: 'models/gemini-4-argon',
+        extra_content: { google: { request: { generationConfig: { [field]: 0.5 } } } },
+      };
+      expect(buildGeminiRequestBody(request).generationConfig).toEqual({ [field]: 0.5 });
+      expect(Object.keys(droppedFieldCounts)).toHaveLength(0);
+    },
+  );
+
+  it('retains Argon output limits without adding sampling controls', () => {
     const body = buildGeminiRequestBody({
-      ...decode({ top_p: 0.5, top_k: 40, max_tokens: 4096 }),
+      ...decode({ max_tokens: 4096 }),
       model: 'gemini-4-argon',
     });
-    expect(body.generationConfig).toMatchObject({ maxOutputTokens: 4096 });
-    expect(body.generationConfig).not.toHaveProperty('topP');
-    expect(body.generationConfig).not.toHaveProperty('topK');
+    expect(body.generationConfig).toEqual({ maxOutputTokens: 4096 });
   });
   it('maps stop→stopSequences, top_p→topP, top_k→topK', () => {
     const body = buildGeminiRequestBody(decode({

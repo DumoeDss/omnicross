@@ -39,6 +39,8 @@ export function mapAnthropicStopReason(
       return 'tool_calls';
     case 'stop_sequence':
       return 'stop';
+    case 'refusal':
+      return 'content_filter';
     default:
       return 'stop';
   }
@@ -49,7 +51,7 @@ export function mapAnthropicStopReason(
  */
 export function mapOpenAIFinishReason(
   finishReason: string
-): 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence' {
+): 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence' | 'refusal' {
   switch (finishReason) {
     case 'stop':
       return 'end_turn';
@@ -58,7 +60,7 @@ export function mapOpenAIFinishReason(
     case 'tool_calls':
       return 'tool_use';
     case 'content_filter':
-      return 'end_turn';
+      return 'refusal';
     default:
       return 'end_turn';
   }
@@ -93,28 +95,19 @@ export function hasImageContent(request: OpenAIChatRequest | AnthropicChatReques
  */
 export function hasThinkingEnabled(request: OpenAIChatRequest | AnthropicChatRequest): boolean {
   // Anthropic format
-  if ('thinking' in request && request.thinking?.type === 'enabled') {
+  if ('thinking' in request && (request.thinking?.type === 'enabled' || request.thinking?.type === 'adaptive')) {
     return true;
   }
   // OpenAI format (through special parameter)
-  if ('reasoning' in request) {
-    return true;
+  if ('reasoning' in request && request.reasoning) {
+    return request.reasoning.enabled !== false && request.reasoning.effort !== 'none';
   }
   return false;
 }
 
 /**
- * Flatten an Anthropic `tool_result.content` into the plain string an
- * OpenAI-chat `tool` message carries.
- *
- * Claude Code sends tool results as a BLOCK ARRAY (`[{type:'text',text:…}]`)
- * far more often than as a bare string, so `JSON.stringify` made the upstream
- * model read the literal envelope `[{"type":"text","text":"…"}]` on EVERY tool
- * result — and a screenshot tool dumped its whole base64 payload into the
- * prompt. Text blocks are concatenated; an image block becomes a short
- * placeholder because a chat `tool` message cannot carry image parts at all.
- * A non-array object still falls back to JSON, a fair rendering of structured
- * data.
+ * Convert text-only tool results without silently dropping unsupported media.
+ * OpenAI Chat tool messages cannot represent Anthropic image/document results.
  */
 export function flattenToolResultContent(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -129,11 +122,46 @@ export function flattenToolResultContent(content: unknown): string {
     }
     if (!block || typeof block !== 'object') continue;
     const typed = block as Record<string, unknown>;
-    if (typed.type === 'image' || typed.type === 'image_url') {
-      parts.push('[image omitted]');
-    } else if (typeof typed.text === 'string') {
+    if (typeof typed.text === 'string' && typed.type === 'text') {
       parts.push(typed.text);
+    } else {
+      throw new Error(`Cannot convert tool result content type: ${String(typed.type)}`);
     }
   }
   return parts.filter((text) => text !== '').join('\n');
+}
+
+/** Read SSE data from either complete lines or arbitrarily split wire chunks. */
+export async function* readSSEData(stream: AsyncIterable<string>): AsyncGenerator<string> {
+  let buffer = '';
+  let data: string[] = [];
+  for await (const chunk of stream) {
+    if (!buffer && !chunk.includes('\n') && /^(event:|id:|retry:|:)/.test(chunk)) continue;
+    // The public converters historically also accepted individual lines.
+    if (!buffer && !chunk.includes('\n') && !chunk.includes('\r') && chunk.startsWith('data:')) {
+      const value = chunk.slice(5).replace(/^ /, '');
+      let complete = value === '[DONE]';
+      if (!complete) {
+        try { JSON.parse(value); complete = true; } catch { /* Partial wire chunk. */ }
+      }
+      if (complete) {
+        if (data.length) { yield data.join('\n'); data = []; }
+        yield value;
+        continue;
+      }
+    }
+    buffer += chunk;
+    let match: RegExpExecArray | null;
+    while ((match = /\r\n|\r(?!$)|\n/.exec(buffer))) {
+      const line = buffer.slice(0, match.index);
+      buffer = buffer.slice(match.index + match[0].length);
+      if (!line) {
+        if (data.length) { yield data.join('\n'); data = []; }
+      } else if (line.startsWith('data:')) {
+        data.push(line.slice(5).replace(/^ /, ''));
+      }
+    }
+  }
+  if (buffer.startsWith('data:')) data.push(buffer.slice(5).replace(/^ /, '').replace(/\r$/, ''));
+  if (data.length) yield data.join('\n');
 }

@@ -8,16 +8,20 @@
 import type { ReasoningConfig, ThinkingContent } from './thinking';
 
 export interface OpenAIMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: 'system' | 'developer' | 'user' | 'assistant' | 'tool';
   content: string | OpenAIContentPart[] | null;
   name?: string;
   tool_calls?: OpenAIToolCall[];
   tool_call_id?: string;
+  reasoning_content?: string;
+  /** Native Anthropic replay extension; reasoning_content remains the Chat text field. */
+  thinking?: ThinkingContent;
 }
 
 export interface OpenAIContentPart {
-  type: 'text' | 'image_url' | 'audio_url' | 'video_url' | 'input_audio';
+  type: 'text' | 'image_url' | 'audio_url' | 'video_url' | 'input_audio' | 'file';
   text?: string;
+  file?: { file_data?: string; file_id?: string; filename?: string };
   image_url?: {
     url: string;
     detail?: 'auto' | 'low' | 'high';
@@ -58,6 +62,10 @@ export interface OpenAIChatRequest {
   model: string;
   messages: OpenAIMessage[];
   max_tokens?: number;
+  max_completion_tokens?: number;
+  n?: number;
+  stop?: string | string[];
+  parallel_tool_calls?: boolean;
   temperature?: number;
   top_p?: number;
   stream?: boolean;
@@ -81,6 +89,7 @@ export interface OpenAIChatResponse {
       role: 'assistant';
       content: string | null;
       tool_calls?: OpenAIToolCall[];
+      reasoning_content?: string;
       /** Thinking content for reasoning models */
       thinking?: ThinkingContent;
     };
@@ -90,6 +99,7 @@ export interface OpenAIChatResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    cache_creation_input_tokens?: number;
     /** Detailed prompt token breakdown */
     prompt_tokens_details?: {
       cached_tokens?: number;
@@ -113,9 +123,19 @@ export interface OpenAIStreamChunk {
     delta: {
       role?: 'assistant';
       content?: string;
-      tool_calls?: Partial<OpenAIToolCall>[];
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: 'function';
+        function?: { name?: string; arguments?: string };
+      }>;
       /** Thinking content delta for reasoning models */
-      thinking?: Partial<ThinkingContent>;
+      thinking?: Partial<ThinkingContent> & {
+        index?: number;
+        done?: boolean;
+        type?: 'redacted_thinking';
+        data?: string;
+      };
       /** DeepSeek style reasoning content */
       reasoning_content?: string;
     };

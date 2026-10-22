@@ -33,6 +33,33 @@ describe('resolveReasoningPlan discrete effort', () => {
     })).toEqual({ kind: 'level', effort: 'high', enabled: true });
   });
 
+  it.each(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
+    'preserves the supported low effort for %s rather than escalating to high', (model) => {
+      expect(resolveReasoningPlan({
+        intent: enabled('low'), model, target: 'openai-chat',
+      })).toEqual({ kind: 'level', effort: 'low', enabled: true });
+    },
+  );
+
+  it.each([
+    ['minimal', 'low'], ['low', 'low'], ['medium', 'high'],
+    ['high', 'high'], ['xhigh', 'high'], ['max', 'max'],
+  ] as const)('uses the official DeepSeek %s to %s mapping on both OpenAI wires', (requested, expected) => {
+    for (const target of ['openai-chat', 'openai-responses'] as const) {
+      expect(resolveReasoningPlan({
+        intent: enabled(requested), model: 'deepseek-v4-pro', target,
+        provider: { baseUrl: 'https://api.deepseek.com/v1' },
+      })).toEqual({ kind: 'level', effort: expected, enabled: true });
+    }
+  });
+
+  it('does not impose the official DeepSeek mapping on unknown or aggregator endpoints', () => {
+    expect(resolveReasoningPlan({
+      intent: enabled('xhigh'), model: 'deepseek-v4-pro', target: 'openai-chat',
+      provider: { baseUrl: 'https://aggregator.example/v1' },
+    })).toEqual({ kind: 'level', effort: 'max', enabled: true });
+  });
+
   it('handles sparse levels, lower ties, and provider overrides', () => {
     expect(resolveReasoningPlan({
       intent: enabled('medium'),
@@ -72,11 +99,11 @@ describe('resolveReasoningPlan discrete effort', () => {
       model: 'gpt-5.6',
       target: 'openai-chat',
     })).toBeUndefined();
-    expect(resolveReasoningPlan({
+    expect(() => resolveReasoningPlan({
       intent: { effort: 'none', enabled: false },
       model: 'gpt-5.3-codex',
       target: 'openai-chat',
-    })).toEqual({ kind: 'off' });
+    })).toThrow('cannot be disabled');
   });
 
   it.each([
@@ -144,11 +171,11 @@ describe('resolveReasoningPlan token budgets', () => {
       model,
       target: 'openai-chat',
     })).toEqual({ kind: 'level', effort: 'high', enabled: true });
-    expect(resolveReasoningPlan({
+    expect(() => resolveReasoningPlan({
       intent: { effort: 'none', enabled: false },
       model: 'gemini-2.5-pro',
       target: 'gemini',
-    })).toEqual({ kind: 'off' });
+    })).toThrow('cannot be disabled');
   });
 
   it.each([
@@ -313,11 +340,11 @@ describe('resolveReasoningPlan token budgets', () => {
   });
 
   it('uses supported native disabled encodings without positive promotion', () => {
-    expect(resolveReasoningPlan({
+    expect(() => resolveReasoningPlan({
       intent: { effort: 'none', enabled: false },
       model: 'gemini-3-flash',
       target: 'gemini',
-    })).toEqual({ kind: 'level', effort: 'none', enabled: false });
+    })).toThrow('cannot be disabled');
 
     expect(resolveReasoningPlan({
       intent: { effort: 'none', enabled: false },
@@ -325,5 +352,103 @@ describe('resolveReasoningPlan token budgets', () => {
       provider: { modelConfigs: [{ id: 'legacy-gemini-flash', thinkingLevels: [] }] },
       target: 'gemini',
     })).toEqual({ kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 });
+  });
+
+  it.each([1, 1023, 1024])('rejects Anthropic max_tokens=%s rather than sending an invalid budget', (requestMaxTokens) => {
+    expect(() => resolveReasoningPlan({
+      intent: enabled('low'),
+      model: 'claude-haiku-4-5',
+      target: 'anthropic',
+      requestMaxTokens,
+    })).toThrow('minimum thinking budget');
+  });
+
+  it('reserves final output at the smallest valid Anthropic bound', () => {
+    expect(resolveReasoningPlan({
+      intent: enabled('low'),
+      model: 'claude-haiku-4-5',
+      target: 'anthropic',
+      requestMaxTokens: 1025,
+    })).toMatchObject({ kind: 'budget', budgetTokens: 1024 });
+  });
+
+  it.each(['kimi-k2.5', 'mimo-v2.5-pro', 'claude-haiku-4-5'])(
+    'does not infer Anthropic adaptive support from %s effort presets', (model) => {
+      expect(resolveReasoningPlan({
+        intent: enabled('high'),
+        model,
+        target: 'anthropic',
+        requestMaxTokens: 16000,
+      })).toMatchObject({ kind: 'budget', budgetTokens: 12000 });
+    },
+  );
+
+  it.each(['claude-opus-4-7', 'claude-opus-4.8', 'claude-sonnet-5', 'claude-fable-5-1'])(
+    'uses adaptive thinking for %s instead of rejected manual budgets', (model) => {
+      expect(resolveReasoningPlan({
+        intent: enabled('high'),
+        model,
+        target: 'anthropic',
+      })).toEqual({ kind: 'level', effort: 'high', enabled: true });
+    },
+  );
+
+  it('uses the exact provider row before a normalized sibling deployment', () => {
+    expect(resolveReasoningPlan({
+      intent: enabled('high'),
+      model: 'vendor-b/gpt-5.6-sol',
+      provider: { modelConfigs: [
+        { id: 'vendor-a/gpt-5.6-sol', thinkingLevels: ['low'] },
+        { id: 'vendor-b/gpt-5.6-sol', thinkingLevels: ['max'] },
+      ] },
+      target: 'openai-chat',
+    })).toEqual({ kind: 'level', effort: 'max', enabled: true });
+  });
+
+  it.each(['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.5-flash-lite'])(
+    'uses native levels for %s instead of legacy thinkingBudget', (model) => {
+      expect(resolveReasoningPlan({
+        intent: enabled('high'), model, target: 'gemini',
+      })).toEqual({ kind: 'level', effort: 'high', enabled: true });
+    },
+  );
+
+  it('honors an explicit non-reasoning capability instead of applying a name heuristic', () => {
+    expect(() => resolveReasoningPlan({
+      intent: enabled('high'),
+      model: 'gemini-2.5-flash-image',
+      target: 'gemini',
+    })).toThrow('not supported');
+  });
+
+  it.each(['glm-5.3', 'glm-5.3-flash', 'MiniMax-M2.5', 'claude-opus-5-5'])(
+    'rejects disabling the mandatory thinking in %s', (model) => {
+      expect(() => resolveReasoningPlan({
+        intent: { effort: 'none', enabled: false }, model, target: 'openai-chat',
+      })).toThrow('cannot be disabled');
+    },
+  );
+
+  it.each(['MiniMax-M3', 'MiniMax-M2.5'])(
+    'uses adaptive rather than manual budgets for %s Anthropic requests', (model) => {
+      expect(resolveReasoningPlan({
+        intent: enabled('high'), model, target: 'anthropic',
+      })).toEqual({ kind: 'level', effort: 'high', enabled: true });
+    },
+  );
+
+  it.each(['claude-opus-4-6', 'gpt-5.6-sol', 'deepseek-v4-pro'])(
+    'does not emit another protocol’s max level on a Gemini envelope for %s', (model) => {
+      expect(resolveReasoningPlan({
+        intent: enabled('max'), model, target: 'gemini',
+      })).toEqual({ kind: 'level', effort: 'high', enabled: true });
+    },
+  );
+
+  it('rejects a level set with no legal target-wire encoding', () => {
+    expect(() => resolveReasoningPlan({
+      intent: enabled('max'), model: 'custom', target: 'gemini',
+      provider: { modelConfigs: [{ id: 'custom', thinkingLevels: ['max'] }] },
+    })).toThrow('Thinking levels are not supported');
   });
 });

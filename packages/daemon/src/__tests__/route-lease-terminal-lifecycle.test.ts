@@ -37,30 +37,55 @@ async function runLifecycleChild(
   source: string,
   watchdogMs = LIFECYCLE_CHILD_WATCHDOG_MS,
 ): Promise<{ code: number | null; stdout: string; stderr: string; elapsedMs: number }> {
-  const startedAt = Date.now();
-  const wrappedSource = `(async () => {${source}})().catch((error) => { console.error(error); process.exitCode = 1; });`;
-  const child = spawn(process.execPath, [join(process.cwd(), 'node_modules/tsx/dist/cli.mjs'), '--eval', wrappedSource], {
+  const readyMarker = '\u001eomnicross-lifecycle-ready\u001f';
+  const wrappedSource = `
+    import * as net from 'node:net';
+    import { openTerminal } from ${JSON.stringify(CLI_LAUNCH_MODULE_URL)};
+    process.stdout.write(${JSON.stringify(readyMarker)});
+    (async () => {${source}})().catch((error) => { console.error(error); process.exitCode = 1; });
+  `;
+  // The tsx CLI adds a launcher process; on Windows killing it can leave the
+  // evaluated Node process alive. Load tsx in the process the watchdog owns.
+  const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', wrappedSource], {
     cwd: process.cwd(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';
   let stderr = '';
-  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+  let readyAt: number | undefined;
+  // A stdout frame avoids an IPC channel adding a ref to the child under test.
+  child.stdout.setEncoding('utf8').on('data', (chunk) => {
+    stdout += chunk;
+    if (readyAt !== undefined) return;
+    const markerIndex = stdout.indexOf(readyMarker);
+    if (markerIndex === -1) return;
+    readyAt = Date.now();
+    stdout = stdout.slice(0, markerIndex) + stdout.slice(markerIndex + readyMarker.length);
+  });
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
   let watchdog: NodeJS.Timeout | undefined;
   try {
     const result = await Promise.race([
-      new Promise<{ code: number | null }>((resolve) => child.once('exit', (code) => resolve({ code }))),
+      new Promise<{ code: number | null }>((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code) => resolve({ code }));
+      }),
+      // A real watchdog bounds the independent Node event loop: fake timers
+      // cannot detect whether its listener or sockets keep that process alive.
       new Promise<never>((_resolve, reject) => {
         watchdog = setTimeout(() => {
-          child.kill();
-          reject(new Error(`lifecycle child did not exit: ${stderr}`));
+          const phase = readyAt === undefined ? 'startup' : 'listener lifecycle';
+          reject(new Error(`lifecycle child did not exit during ${phase}: stdout=${JSON.stringify(stdout)}, stderr=${JSON.stringify(stderr)}`));
         }, watchdogMs);
       }),
     ]);
-    return { ...result, stdout, stderr, elapsedMs: Date.now() - startedAt };
+    if (readyAt === undefined) {
+      throw new Error(`lifecycle child exited before module readiness: ${stderr}`);
+    }
+    return { ...result, stdout, stderr, elapsedMs: Date.now() - readyAt };
   } finally {
     if (watchdog) clearTimeout(watchdog);
+    if (child.exitCode === null && child.signalCode === null) child.kill();
   }
 }
 
@@ -171,7 +196,6 @@ describe('POSIX terminal launch secret boundary', () => {
 
   it('an unconsumed listener cannot keep a child process alive before its timeout', async () => {
     const source = `
-      const { openTerminal } = await import(${JSON.stringify(CLI_LAUNCH_MODULE_URL)});
       const cleanup = openTerminal(
         { cli: 'codex', command: 'codex', extraArgs: [], env: { OMNICROSS_CODEX_ROUTE_TOKEN: 'child-canary' }, platform: 'darwin' },
         () => ({ once() {}, unref() {} }),
@@ -191,8 +215,6 @@ describe('POSIX terminal launch secret boundary', () => {
 
   it('a claimed non-closing peer cannot keep a child process alive', async () => {
     const source = `
-      const net = await import('node:net');
-      const { openTerminal } = await import(${JSON.stringify(CLI_LAUNCH_MODULE_URL)});
       const socketPath = ${JSON.stringify(privatePipe('child-peer'))};
       let cleanup;
       const claimWatchdog = setTimeout(() => {

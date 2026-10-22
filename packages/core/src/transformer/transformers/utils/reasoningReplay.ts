@@ -26,7 +26,7 @@
  *    so an immediate retry is not possible the way the json_schema fallback
  *    retries; the next turn injects.)
  *  - {@link isReasoningContentForbidden} — the mirror image: an upstream that
- *    rejects `reasoning_content` in INPUT (classic deepseek-reasoner "not
+ *    rejects `reasoning_content` in INPUT (classic deepseek-r1 "not
  *    allowed in input messages"). The driver strips the field and retries
  *    once, so a mis-classified provider still completes its turn.
  *
@@ -63,9 +63,9 @@ function readsDeepSeek(provider: ReasoningReplayProvider | undefined): boolean {
  * WITH `reasoning_content`.
  *
  * Identity is provider-level (name/base URL reads DeepSeek), but the model
- * must ALSO be v4-era: the same endpoint still serves deepseek-reasoner
- * (R1), which is the opposite regime — it FORBIDS `reasoning_content` in
- * input. The catalog draws that line for us: the v4 family declares discrete
+ * must ALSO be v4-era: legacy deepseek-r1 deployments use the opposite
+ * regime — they FORBID `reasoning_content` in input. The catalog draws that
+ * line for us: the v4 family declares discrete
  * `thinkingLevels` while R1/v3 do not, so the capability check keeps legacy
  * models out of the replay.
  */
@@ -91,7 +91,7 @@ export function isReasoningReplayRejection(status: number, errorText: string): b
 
 /**
  * The mirror rejection: `reasoning_content` present in INPUT is refused
- * (classic deepseek-reasoner behavior). Names the field and refuses it.
+ * (classic deepseek-r1 behavior). Names the field and refuses it.
  * Deliberately excludes bare "invalid" — the passback DEMAND above rides an
  * `invalid_request_error` envelope, and a demand must never trigger a strip.
  */
@@ -107,8 +107,9 @@ export function isReasoningContentForbidden(status: number, errorText: string): 
  */
 export function reasoningReplayKey(
   provider: ReasoningReplayProvider | undefined,
+  model: string,
 ): string {
-  return `${(provider?.name ?? '').toLowerCase()}|${provider?.baseUrl ?? ''}`;
+  return `${(provider?.name ?? '').toLowerCase()}|${provider?.baseUrl ?? ''}|${model}`;
 }
 
 /**
@@ -139,7 +140,7 @@ export function shouldReplayReasoning(
   provider: ReasoningReplayProvider | undefined,
   model: string,
 ): boolean {
-  const key = reasoningReplayKey(provider);
+  const key = reasoningReplayKey(provider, model);
   return isReasoningReplayProvider(provider, model) || isReasoningReplayLearned(key);
 }
 
@@ -155,6 +156,7 @@ export function applyReasoningReplay(
     if (
       target &&
       target.role === 'assistant' &&
+      target.reasoning_content === undefined &&
       typeof entry.text === 'string' &&
       entry.text.length > 0
     ) {

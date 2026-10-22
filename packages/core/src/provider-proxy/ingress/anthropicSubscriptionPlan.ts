@@ -31,10 +31,12 @@
 import type http from 'node:http';
 
 import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
+import { getGeminiCodeAssistResolver } from '../../ports/gemini-code-assist-resolver';
 import type { AccountRouteActivityRecord } from '../../pipeline/AccountRouteActivity';
 import { fetchUpstream, type AccountRouteActivityContext } from '../../pipeline/upstreamFetch';
 import { maybeAntigravityFailoverUrl } from '../../transformer/transformers/antigravityFailover';
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import type { OpenCodeGoScenario } from '@omnicross/contracts/subscription-types';
 
@@ -45,6 +47,7 @@ import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChai
 import {
   type SubscriptionAuthProfile,
   SubscriptionAuthSource,
+  applyModelSelection,
 } from '../../pipeline/SubscriptionAuthSource';
 import type {
   LLMProvider as TransformerLLMProvider,
@@ -74,6 +77,8 @@ import {
   getSharedExecutor,
   writeError,
 } from './providerProxyShared';
+import { DocumentNotSupportedError, UnsupportedContentBlockError } from './anthropicTranslateBodyPrep';
+import { OpenAIOperationError } from '../../openai-operation';
 
 /** Optional inputs threaded from the ingress handler (which holds the raw `req`). */
 export interface AnthropicByoOptions {
@@ -143,6 +148,8 @@ export interface AnthropicCallPlan {
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
+  /** Original selection key, retained for configured fallback traversal. */
+  readonly configuredModel?: string;
   readonly isStream: boolean;
   readonly resolveUrl: (config: RequestConfig) => string;
   readonly upstreamUrl: string;
@@ -184,6 +191,56 @@ export interface AnthropicCallPlan {
   /** PER-REQUEST diagnostics: the upstream's own 4xx/5xx body (truncated) so
    *  this request's log line can carry it. See `ProviderProxyDeps.upstreamErrorSink`. */
   readonly onUpstreamError?: ((info: { status: number; body: string }) => void) | null;
+  readonly subscriptionContext?: { route: RouteContext; deps: ProviderProxyDeps };
+  readonly modelDefaults?: SubscriptionModelDefaults;
+  readonly prepareTranslateBody?: (body: Record<string, unknown>) => Promise<void>;
+}
+
+export interface SubscriptionModelDefaults {
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/** Look up defaults for an already selected target without mapping it again. */
+export function subscriptionModelDefaults(config: unknown, model: string): SubscriptionModelDefaults {
+  if (!config || typeof config !== 'object') return {};
+  const record = config as Record<string, unknown>;
+  const entries: unknown[] = [];
+  if (record.modelMap && typeof record.modelMap === 'object') {
+    entries.push(...Object.values(record.modelMap));
+  }
+  if (record.fallbacks && typeof record.fallbacks === 'object') {
+    for (const candidates of Object.values(record.fallbacks)) {
+      if (Array.isArray(candidates)) entries.push(...candidates);
+    }
+  }
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const candidate = entry as Record<string, unknown>;
+    if (candidate.modelId !== model) continue;
+    return {
+      temperature: typeof candidate.temperature === 'number' ? candidate.temperature : undefined,
+      maxTokens: typeof candidate.maxTokens === 'number' ? candidate.maxTokens : undefined,
+    };
+  }
+  return {};
+}
+
+/** Each attempt starts from the caller's fields, never another attempt's defaults. */
+export function withSubscriptionDefaults(
+  body: Record<string, unknown>,
+  model: string,
+  defaults: SubscriptionModelDefaults | undefined,
+  tokenField: 'max_tokens' | 'max_output_tokens',
+): Record<string, unknown> {
+  return {
+    ...body,
+    model,
+    ...(body.temperature === undefined && defaults?.temperature !== undefined
+      ? { temperature: defaults.temperature } : {}),
+    ...(body[tokenField] === undefined && body.max_completion_tokens === undefined && defaults?.maxTokens !== undefined
+      ? { [tokenField]: defaults.maxTokens } : {}),
+  };
 }
 
 /**
@@ -222,18 +279,20 @@ export async function buildSubscriptionPlan(
   // — it never names `OpenCodeGoTokenConfig`.
   let resolvedModel = routeModel;
   let scenario: OpenCodeGoScenario | undefined;
+  let modelDefaults: SubscriptionModelDefaults | undefined;
   if (profile.modelMapper) {
     const summary = buildSubscriptionRequestSummary(anthropicBody);
     const mapped = profile.modelMapper(routeModel, summary, route.subscriptionConfig as never);
     resolvedModel = mapped.resolvedModel;
     scenario = mapped.scenario;
+    modelDefaults = mapped;
   }
 
   // Derive the account-pool session key ONCE (D5) from the stable request anchor
   // and carry it on every iteration plan (fallbacks reuse it).
   const sessionKey = deriveSubscriptionSessionKey(anthropicBody);
 
-  const plan = await buildSubscriptionIterationPlan(profile, route, deps, resolvedModel, isStream, scenario, sessionKey);
+  const plan = await buildSubscriptionIterationPlan(profile, route, deps, resolvedModel, isStream, scenario, sessionKey, modelDefaults);
   if (!plan) {
     writeError(res, 502, 'Subscription profile is missing resolveUpstreamUrl');
     return null;
@@ -261,7 +320,11 @@ export async function buildSubscriptionIterationPlan(
   isStream: boolean,
   scenario: OpenCodeGoScenario | undefined,
   sessionKey?: string,
+  modelDefaults?: SubscriptionModelDefaults,
 ): Promise<AnthropicCallPlan | null> {
+  const configuredModel = resolvedModel;
+  modelDefaults ??= subscriptionModelDefaults(route.subscriptionConfig, configuredModel);
+  resolvedModel = resolveModelRedirect(resolvedModel);
   // D1: pass the opaque per-account config so the opencodego profile honors a
   // user `baseUrl`/`zenBaseUrl` override + the per-model go/zen half; byte-
   // identical when unset.
@@ -307,36 +370,18 @@ export async function buildSubscriptionIterationPlan(
     baseUrl: upstreamUrl,
     apiKey: '',
     models: [resolvedModel],
+    responsesDialect: profile.authStrategy.providerId === 'codex' ? 'codex' : undefined,
   };
-  // Antigravity: thread the Code Assist project (REQUIRED on its envelope).
-  // The gemini profile intentionally does NOT resolve here today — its
-  // project seam lives on the Responses ingress + the daemon dispatcher; this
-  // branch adds only the antigravity path (byte-identical for every other
-  // provider).
-  let antigravityAccountId: string | undefined;
-  if (profile.authStrategy.providerId === 'antigravity') {
-    const headers: Record<string, string> = {};
-    await auth.applyHeaders(headers, {
-      upstreamUrl, model: resolvedModel, sessionKey,
-      preferredAccountId: route.preferredAccountId,
-      preferredAccountGroup: route.preferredAccountGroup,
-      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
-      reportSelection: (accountId) => { antigravityAccountId = accountId; },
-    });
-    const bearer = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
-    if (bearer) {
-      transformerProvider.geminiProject = await getAntigravityProjectResolver().resolveProject(bearer);
-    }
-  }
 
   return {
     auth,
-    preferredAccountId: antigravityAccountId ?? route.preferredAccountId,
-    preferredAccountGroup: antigravityAccountId ? undefined : route.preferredAccountGroup,
-    boundAccountFallbackPolicy: antigravityAccountId ? 'strict' : route.boundAccountFallbackPolicy,
+    preferredAccountId: route.preferredAccountId,
+    preferredAccountGroup: route.preferredAccountGroup,
+    boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
+    configuredModel,
     isStream,
     // EXCEPTION (the Responses chain) (Phase 3 task 3.3): the `openai-response`
     // provider transformer emits an ABSOLUTE-path `config.url`
@@ -367,6 +412,8 @@ export async function buildSubscriptionIterationPlan(
     isSubscription: true,
     scenario,
     sessionKey,
+    subscriptionContext: { route, deps },
+    modelDefaults,
   };
 }
 
@@ -497,6 +544,53 @@ export interface AnthropicRunResult {
   activityRecordId?: string;
 }
 
+interface SelectedAnthropicAttempt {
+  plan: AnthropicCallPlan;
+  headers: Record<string, string>;
+  accountId?: string;
+}
+
+async function selectAnthropicAttempt(
+  plan: AnthropicCallPlan,
+  reportSelection: ((accountId: string, isActive: boolean, remappedModel?: string) => void) | undefined,
+  callerOpenCodeSession?: string,
+): Promise<SelectedAnthropicAttempt> {
+  const context = plan.subscriptionContext;
+  const profile = context?.route.subscriptionProfile;
+  const selected = await applyModelSelection(plan.auth, {
+    upstreamUrl: plan.upstreamUrl,
+    model: plan.resolvedModel,
+    sessionKey: plan.sessionKey,
+    callerOpenCodeSession,
+    preferredAccountId: plan.preferredAccountId,
+    preferredAccountGroup: plan.preferredAccountGroup,
+    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
+    reportSelection,
+  }, profile ? (model) => profile.resolveUpstreamUrl?.(model, context?.route.subscriptionConfig as never) : undefined);
+  if (selected.model !== plan.resolvedModel || selected.configuredModel !== plan.resolvedModel) {
+    if (context && profile) {
+      const rebuilt = await buildSubscriptionIterationPlan(
+        profile, { ...context.route, auth: plan.auth }, context.deps,
+        selected.configuredModel, plan.isStream, plan.scenario, plan.sessionKey,
+      );
+      if (!rebuilt) throw new Error('Subscription profile is missing resolveUpstreamUrl');
+      plan = { ...rebuilt, prepareTranslateBody: plan.prepareTranslateBody };
+    } else {
+      plan = { ...plan, resolvedModel: selected.model,
+        transformerProvider: { ...plan.transformerProvider, models: [selected.model] } };
+    }
+  }
+  const bearer = (selected.headers.Authorization ?? selected.headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (plan.transformerProvider.name === 'antigravity') {
+    plan.transformerProvider.geminiProject = bearer
+      ? await getAntigravityProjectResolver().resolveProject(bearer) : undefined;
+  } else if (plan.transformerProvider.name === 'gemini') {
+    plan.transformerProvider.geminiProject = bearer
+      ? await getGeminiCodeAssistResolver()?.resolveProject(bearer) : undefined;
+  }
+  return { plan, headers: selected.headers, accountId: selected.accountId };
+}
+
 export async function runPipeline(
   anthropicBody: Record<string, unknown>,
   plan: AnthropicCallPlan,
@@ -506,34 +600,22 @@ export async function runPipeline(
    *  `AnthropicByoOptions.callerOpenCodeSession`. Optional so BYO callers and
    *  tests are unchanged; the subscription relay passes it from its options. */
   callerOpenCodeSession?: string,
+  selected?: SelectedAnthropicAttempt,
 ): Promise<AnthropicRunResult> {
   const executor = getSharedExecutor();
   const endpointTransformer = getAnthropicEndpointTransformer();
-  const { auth, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
-
-  // Pre-resolve auth headers (applyHeaders MAY be async for OAuth refresh while
-  // buildHeaders is sync). Auth wins — chain headers never clobber a key the
-  // AuthSource set.
-  // upstream-proxy: capture the effective account so a per-account proxy resolves.
-  // Wrap the caller's `reportSelection` so the health-marking capture still fires.
-  let proxyAccountId: string | undefined;
-  const authHeaders: Record<string, string> = {};
-  await auth.applyHeaders(authHeaders, {
-    upstreamUrl,
-    model: resolvedModel,
-    sessionKey: plan.sessionKey,
-    callerOpenCodeSession,
-    preferredAccountId: plan.preferredAccountId,
-    preferredAccountGroup: plan.preferredAccountGroup,
-    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
-    reportSelection: (accountId, isActive) => {
-      proxyAccountId = accountId;
-      reportSelection?.(accountId, isActive);
-    },
-  });
-  if (plan.transformerProvider.name === 'antigravity') {
-    const bearer = (authHeaders.Authorization ?? authHeaders.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
-    if (bearer) transformerProvider.geminiProject = await getAntigravityProjectResolver().resolveProject(bearer);
+  selected ??= await selectAnthropicAttempt(plan, reportSelection, callerOpenCodeSession);
+  plan = selected.plan;
+  if (plan.isSubscription && plan.sameFormat) {
+    return runSubscriptionSameFormatFetch(JSON.stringify(anthropicBody), plan, reportSelection,
+      { signal, callerOpenCodeSession }, undefined, selected);
+  }
+  const { chain, transformerProvider, resolvedModel, isStream, resolveUrl } = plan;
+  const { headers: authHeaders, accountId: proxyAccountId } = selected;
+  let requestBody = withSubscriptionDefaults(anthropicBody, resolvedModel, plan.modelDefaults, 'max_tokens');
+  if (plan.prepareTranslateBody) {
+    requestBody = structuredClone(requestBody);
+    await plan.prepareTranslateBody(requestBody);
   }
 
   let rawStatus: number | null = null;
@@ -543,7 +625,7 @@ export async function runPipeline(
 
   const { response } = await executeProviderCall({
     executor,
-    request: anthropicBody,
+    request: requestBody,
     provider: transformerProvider,
     chain,
     endpointTransformer,
@@ -580,9 +662,10 @@ export async function runPipeline(
       });
     },
     runResponseChain: true,
+    preserveEndpointRequestForResponseChain: true,
   });
 
-  return { response, rawStatus, accountId: proxyAccountId, activityRecordId };
+  return { response, rawStatus, actualModel: resolvedModel, accountId: proxyAccountId, activityRecordId };
 }
 
 /**
@@ -606,27 +689,22 @@ export async function runSubscriptionSameFormatFetch(
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void,
   options: AnthropicByoOptions = {},
   urlOverride?: string,
+  selected?: SelectedAnthropicAttempt,
 ): Promise<AnthropicRunResult> {
-  // upstream-proxy: capture the effective account (per-account proxy override).
-  // subscription-account-model-map (D3): capture the selected account's ACTUAL
-  // upstream model when its `supportedModels` object remaps the request model.
-  let proxyAccountId: string | undefined;
-  let remappedModel: string | undefined;
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  await plan.auth.applyHeaders(headers, {
-    upstreamUrl: plan.upstreamUrl,
-    model: plan.resolvedModel,
-    sessionKey: plan.sessionKey,
-    callerOpenCodeSession: options.callerOpenCodeSession ?? undefined,
-    preferredAccountId: plan.preferredAccountId,
-    preferredAccountGroup: plan.preferredAccountGroup,
-    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
-    reportSelection: (accountId, isActive, remapped) => {
-      proxyAccountId = accountId;
-      remappedModel = remapped;
-      reportSelection?.(accountId, isActive, remapped);
-    },
-  });
+  const originalUpstreamUrl = plan.upstreamUrl;
+  selected ??= await selectAnthropicAttempt(plan, reportSelection, options.callerOpenCodeSession ?? undefined);
+  plan = selected.plan;
+  if (urlOverride && plan.upstreamUrl !== originalUpstreamUrl) {
+    if (!plan.sameFormat) throw new Error('Selected subscription model does not support Anthropic count_tokens');
+    urlOverride = plan.upstreamUrl + urlOverride.slice(originalUpstreamUrl.length);
+  }
+  const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+  if (!plan.sameFormat && !urlOverride) {
+    return runPipeline(parsed, plan, reportSelection, options.signal,
+      options.callerOpenCodeSession ?? undefined, selected);
+  }
+  const { headers, accountId: proxyAccountId } = selected;
+  fillMissingHeaders(headers, { 'content-type': 'application/json' });
   // subscription-client-fingerprint #7: AFTER `applyHeaders` reported the selected
   // account (accountId known) and BEFORE `fetchUpstream` (#3 proxy), merge the
   // frozen per-account client identity into `headers`. Scoped to the CLAUDE
@@ -667,15 +745,12 @@ export async function runSubscriptionSameFormatFetch(
   fillMissingHeaders(headers, { 'anthropic-version': DEFAULT_ANTHROPIC_VERSION });
   // Never let the upstream answer with a body we cannot decode (see the constant).
   headers['accept-encoding'] = FORCED_ACCEPT_ENCODING;
-  // Rewrite `body.model` ONLY when a per-account remap was reported AND the remap
-  // applies to this plan's provider (claude — model-INDEPENDENT upstream URL; see
-  // `outboundRemapApplies`). Otherwise the body is forwarded BYTE-FOR-BYTE (map-less
-  // / array-form / no-mapping / opencodego-shape accounts stay verbatim, preserving
-  // Anthropic-native server-tool `type` fields; opencodego per-model-URL remap is
-  // OQ3-deferred so its skip-only allow-list still works but body.model is untouched).
-  const applyRemap = remappedModel !== undefined && outboundRemapApplies(plan);
-  const outboundBody = applyRemap ? rewriteBodyModel(rawBody, remappedModel as string) : rawBody;
-  const outboundModel = applyRemap ? (remappedModel as string) : plan.resolvedModel;
+  const outboundModel = plan.resolvedModel;
+  const outboundRequest = withSubscriptionDefaults(parsed, outboundModel, plan.modelDefaults, 'max_tokens');
+  const outboundBody = parsed.model === outboundRequest.model
+    && parsed.temperature === outboundRequest.temperature
+    && parsed.max_tokens === outboundRequest.max_tokens
+    ? rawBody : JSON.stringify(outboundRequest);
   // PROTOCOL, not fingerprint — set whenever this is the claude subscription.
   // `oauth-2025-04-20` is the load-bearing flag: that path authenticates with a
   // subscription OAuth token, not an API key. Keyed off the model ACTUALLY sent,
@@ -717,40 +792,6 @@ export async function runSubscriptionSameFormatFetch(
   };
 }
 
-/**
- * Rewrite the `model` field of a serialized JSON relay body to `model`
- * (subscription-account-model-map remap). Parse-failure-safe: an unparseable body
- * (or one that is not a JSON object) is returned UNCHANGED so a remap never turns
- * a relayable request into a broken one.
- */
-/**
- * Whether the per-account model remap (subscription-account-model-map) may rewrite
- * the outbound `body.model` for this plan. Scoped to the claude subscription
- * provider: its upstream URL (`api.anthropic.com/v1/messages`) is model-INDEPENDENT,
- * so a `body.model` rewrite is clean. opencodego / transformer providers resolve
- * their upstream URL (and, for the transformer path, the chain) FROM the model —
- * a per-account remap there would leave the URL pointing at the LOGICAL model while
- * the body carried the actual (a half-mismatch), so it is OQ3-deferred. Skip-only
- * (the allow-list) still applies to those providers via `gateSchedulable`; only the
- * body rewrite is gated here. `isSubscription` guards against a stray BYO plan.
- */
-export function outboundRemapApplies(plan: {
-  isSubscription: boolean;
-  transformerProvider: { name: string };
-}): boolean {
-  return plan.isSubscription && plan.transformerProvider.name === 'claude';
-}
-
-export function rewriteBodyModel(rawBody: string, model: string): string {
-  try {
-    const parsed = JSON.parse(rawBody) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return rawBody;
-    (parsed as Record<string, unknown>).model = model;
-    return JSON.stringify(parsed);
-  } catch {
-    return rawBody;
-  }
-}
 
 /**
  * Run ONE subscription attempt for a given `plan` (same-format verbatim relay OR
@@ -940,6 +981,9 @@ async function runSubscriptionAttemptOutcome(
   try {
     return { kind: 'result', result: await runSubscriptionAttemptWith401Retry(anthropicBody, relayBody, plan, options) };
   } catch (error) {
+    // Invalid client content is not a model outage and must not advance fallback.
+    if (error instanceof DocumentNotSupportedError || error instanceof UnsupportedContentBlockError
+      || error instanceof OpenAIOperationError) throw error;
     return { kind: 'thrown', error };
   }
 }
@@ -1000,6 +1044,7 @@ export async function runPipelineWithSubscriptionRetry(
    */
   prepareTranslateBody?: (body: Record<string, unknown>) => Promise<void>,
 ): Promise<AnthropicRunResult> {
+  initialPlan = { ...initialPlan, prepareTranslateBody };
   const profile = route.subscriptionProfile;
   const scenario = initialPlan.scenario;
   /**
@@ -1015,29 +1060,12 @@ export async function runPipelineWithSubscriptionRetry(
    */
   const clientGone = (): boolean => options.signal?.aborted === true;
 
-  /**
-   * Prepare a translate attempt's body: deep clone (JSON round-trip — these
-   * bodies are JSON by construction), then run the pre-pass on the clone.
-   * Typed pre-pass errors propagate to the caller's 400 mapping; the ORIGINAL
-   * body objects stay untouched for any same-format iteration.
-   */
-  const prepareTranslateAttempt = async (
-    body: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> => {
-    if (!prepareTranslateBody) return body;
-    const clone = JSON.parse(JSON.stringify(body)) as Record<string, unknown>;
-    await prepareTranslateBody(clone);
-    return clone;
-  };
-
   // No fallback machinery (claude/codex/gemini, or a profile without a scenario):
   // exactly one attempt, byte-identical (verbatim `rawBody` on the same-format
   // path, the parsed `anthropicBody` on the transformer path). No breaker gating
   // and `recordModelOutcome` is unset on those profiles → a pure no-op record.
   if (!profile?.nextFallback || scenario === undefined) {
-    const loneBody = initialPlan.sameFormat
-      ? anthropicBody
-      : await prepareTranslateAttempt(anthropicBody);
+    const loneBody = anthropicBody;
     let loneOutcome = await runSubscriptionAttemptOutcome(loneBody, rawBody, initialPlan, options);
     if (!clientGone()) recordBreakerOutcome(profile, initialPlan.resolvedModel, outcomeStatus(loneOutcome));
     // Antigravity sandbox failover (design D5): when the switch is ON and the
@@ -1087,19 +1115,17 @@ export async function runPipelineWithSubscriptionRetry(
   if (profile.allowModel && !profile.allowModel(initialPlan.resolvedModel)) {
     // Primary open: mark it attempted (skipped, chain index 0)
     // and pick the first admitting fallback as the real first attempt.
-    attempted.push(initialPlan.resolvedModel);
+    attempted.push(initialPlan.configuredModel ?? initialPlan.resolvedModel);
     const firstAdmitting = profile.nextFallback(scenario, attempted, route.subscriptionConfig as never);
     const gatedPlan = firstAdmitting
-      ? await buildSubscriptionIterationPlan(profile, route, deps, firstAdmitting.modelId, initialPlan.isStream, scenario, initialPlan.sessionKey)
+      ? await buildSubscriptionIterationPlan(profile, route, deps, firstAdmitting.modelId, initialPlan.isStream, scenario, initialPlan.sessionKey, firstAdmitting)
       : null;
     if (firstAdmitting && gatedPlan) {
       console.warn(
         `[ProviderProxy:anthropic] subscription primary ${initialPlan.resolvedModel} circuit open -> first admitting fallback ${firstAdmitting.modelId}`,
       );
-      plan = gatedPlan;
-      firstBodyObj = gatedPlan.sameFormat
-        ? { ...anthropicBody, model: firstAdmitting.modelId }
-        : await prepareTranslateAttempt({ ...anthropicBody, model: firstAdmitting.modelId });
+      plan = { ...gatedPlan, prepareTranslateBody };
+      firstBodyObj = { ...anthropicBody, model: gatedPlan.resolvedModel };
       firstRelayBody = gatedPlan.sameFormat ? JSON.stringify(firstBodyObj) : rawBody;
     } else {
       // All circuits open (or the profile lost resolveUpstreamUrl): fail open —
@@ -1112,17 +1138,12 @@ export async function runPipelineWithSubscriptionRetry(
     }
   }
 
-  // Non-gated primary (or failed-open primary) on a TRANSLATE plan: prep the
-  // attempt body (C-M3). The gated branch already prepared its own body above.
-  if (plan === initialPlan && !initialPlan.sameFormat) {
-    firstBodyObj = await prepareTranslateAttempt(anthropicBody);
-  }
-
   // First real attempt (the mapped primary, the gated first-admitting fallback,
   // or the failed-open primary). Record its outcome to the breaker.
   let outcome = await runSubscriptionAttemptOutcome(firstBodyObj, firstRelayBody, plan, options);
   if (!clientGone()) recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
-  if (!attempted.includes(plan.resolvedModel)) attempted.push(plan.resolvedModel);
+  const attemptedModel = plan.configuredModel ?? plan.resolvedModel;
+  if (!attempted.includes(attemptedModel)) attempted.push(attemptedModel);
 
   while (attempted.length < MAX_FALLBACK_ATTEMPTS) {
     if (clientGone()) return settleOutcome(outcome);
@@ -1139,6 +1160,7 @@ export async function runPipelineWithSubscriptionRetry(
       plan.isStream,
       scenario,
       initialPlan.sessionKey,
+      next,
     );
     if (!nextPlan) return settleOutcome(outcome); // profile lost resolveUpstreamUrl — surface last.
 
@@ -1159,12 +1181,10 @@ export async function runPipelineWithSubscriptionRetry(
     // clone + the content pre-pass (C-M3); a same-format iteration re-serializes
     // the ORIGINAL, unmutated content. The dispatcher's
     // `req.anthropicBody.model = currentModel` rewrite is mirrored on the copy.
-    const fallbackBodyObj: Record<string, unknown> = nextPlan.sameFormat
-      ? { ...anthropicBody, model: next.modelId }
-      : await prepareTranslateAttempt({ ...anthropicBody, model: next.modelId });
+    const fallbackBodyObj: Record<string, unknown> = { ...anthropicBody, model: nextPlan.resolvedModel };
     const fallbackRelayBody = nextPlan.sameFormat ? JSON.stringify(fallbackBodyObj) : rawBody;
 
-    plan = nextPlan;
+    plan = { ...nextPlan, prepareTranslateBody };
     attempted.push(next.modelId);
     outcome = await runSubscriptionAttemptOutcome(fallbackBodyObj, fallbackRelayBody, plan, options);
     if (!clientGone()) recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));

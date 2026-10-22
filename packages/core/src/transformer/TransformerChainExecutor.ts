@@ -9,6 +9,8 @@
  */
 
 import { injectExtendedContextBeta } from './anthropicBetaInject';
+import { OpenAIOperationError } from '../openai-operation';
+import { recordDroppedField } from './transformWarnings';
 import type {
   LLMProvider,
   RequestConfig,
@@ -98,7 +100,7 @@ export class TransformerChainExecutor {
     let bypass = false;
 
     // Check if we should bypass transformers (optimization)
-    bypass = this.shouldBypassTransformers(
+    bypass = endpointTransformer?.name !== 'openai' && this.shouldBypassTransformers(
       chain,
       endpointTransformer,
       requestBody as UnifiedChatRequest
@@ -131,6 +133,10 @@ export class TransformerChainExecutor {
         throw error;
       }
       endpointRequest = requestBody as UnifiedChatRequest;
+    }
+
+    if (!bypass) {
+      this.validateGoogleCapabilities(requestBody, chain);
     }
 
     // Step 2: Execute provider-level transformers (transformRequestIn)
@@ -341,6 +347,60 @@ export class TransformerChainExecutor {
     }
 
     return { requestBody, config };
+  }
+
+  /**
+   * Admit native Google contracts only when the selected encoder can retain
+   * them. Session hints may be audited away; server context and output/tool
+   * constraints must never silently become an ordinary text request.
+   */
+  private validateGoogleCapabilities(request: unknown, chain: ResolvedTransformerChain): void {
+    const record = (value: unknown): value is Record<string, unknown> =>
+      !!value && typeof value === 'object' && !Array.isArray(value);
+    if (!record(request) || !record(request.extra_content) ||
+        !record(request.extra_content.google) || !record(request.extra_content.google.request)) return;
+    const native = request.extra_content.google.request;
+    const isEncoder = (transformer: Transformer): boolean => !!transformer.endPoint ||
+      transformer.name === 'gemini-code-assist' || transformer.name === 'antigravity';
+    const target = chain.providerTransformers.find(isEncoder) ?? chain.modelTransformers.find(isEncoder);
+    // An unconfigured main encoder is the identity-shaped OpenAI Chat wire.
+    const targetName = target?.name ?? 'openai';
+    if (['gemini', 'gemini-code-assist', 'antigravity'].includes(targetName)) return;
+    const fail = (field: string): never => {
+      throw new OpenAIOperationError({
+        status: 400,
+        code: 'unsupported_capability',
+        message: `${field} cannot be represented by the ${targetName} wire`,
+      });
+    };
+    if (typeof native.cachedContent === 'string' && native.cachedContent.length > 0) fail('$.cachedContent');
+    if (Array.isArray(native.tools)) {
+      native.tools.forEach((tool: unknown, index: number) => {
+        if (!record(tool)) return;
+        for (const key of Object.keys(tool)) {
+          if (key !== 'functionDeclarations') fail(`$.tools[${index}].${key}`);
+        }
+      });
+    }
+    if (record(native.toolConfig) && record(native.toolConfig.functionCallingConfig) &&
+        native.toolConfig.functionCallingConfig.mode === 'VALIDATED') {
+      fail('$.toolConfig.functionCallingConfig.mode');
+    }
+    if (record(native.generationConfig)) {
+      const generation = native.generationConfig;
+      if (Array.isArray(generation.responseModalities) &&
+          generation.responseModalities.some((value: unknown) => value !== 'TEXT')) {
+        fail('$.generationConfig.responseModalities');
+      }
+      if (generation.responseMimeType !== undefined &&
+          generation.responseMimeType !== 'application/json' &&
+          generation.responseMimeType !== 'text/plain') fail('$.generationConfig.responseMimeType');
+    }
+    for (const field of ['safetySettings', 'labels']) {
+      if (native[field] !== undefined) {
+        recordDroppedField(request as unknown as UnifiedChatRequest, field, targetName);
+      }
+    }
   }
 
   /**

@@ -267,3 +267,28 @@ export function transformTool(tool: Record<string, unknown>): Record<string, unk
 
   return tool;
 }
+
+/** Convert Google's enum-based Schema into JSON Schema for non-Google targets. */
+export function schemaToJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...schema };
+  if (typeof schema.type === 'string') result.type = schema.type.toLowerCase();
+  if (schema.nullable === true) {
+    if (typeof result.type === 'string') result.type = [result.type, 'null'];
+    else if (Array.isArray(result.anyOf)) result.anyOf = [...result.anyOf, { type: 'null' }];
+    delete result.nullable;
+  }
+  for (const key of ['items', 'additionalProperties']) {
+    const child = result[key];
+    if (child && typeof child === 'object' && !Array.isArray(child)) {
+      result[key] = schemaToJsonSchema(child as Record<string, unknown>);
+    }
+  }
+  if (result.properties && typeof result.properties === 'object') {
+    result.properties = Object.fromEntries(Object.entries(result.properties).map(([key, value]) =>
+      [key, schemaToJsonSchema(value as Record<string, unknown>)]));
+  }
+  for (const key of ['anyOf', 'oneOf', 'allOf']) {
+    if (Array.isArray(result[key])) result[key] = result[key].map((child) => schemaToJsonSchema(child));
+  }
+  return result;
+}

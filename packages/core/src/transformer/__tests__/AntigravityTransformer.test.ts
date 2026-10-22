@@ -180,6 +180,16 @@ describe('effort variant mapping', () => {
     // …and clamps maxOutputTokens to the wire profile (65536 for -extra-low).
     expect(generationConfig.maxOutputTokens).toBe(65536);
   });
+
+  it('does not restore thinkingConfig after removing the only generation setting', async () => {
+    const { body } = await envelopeFor(request({
+      model: 'gemini-3.8-flash',
+      reasoning: { effort: 'medium', enabled: true },
+    }));
+    expect(body.model).toBe('gemini-3.8-flash-medium');
+    const generationConfig = (body.request as Record<string, unknown>).generationConfig as Record<string, unknown> | undefined;
+    expect(generationConfig?.thinkingConfig).toBeUndefined();
+  });
 });
 
 describe('maxOutputTokens profile clamp', () => {
@@ -192,6 +202,15 @@ describe('maxOutputTokens profile clamp', () => {
     expect(generationConfig.maxOutputTokens).toBe(64000);
     expect(body.model).toBe('claude-opus-4-6-thinking');
   });
+
+  it.each(['claude-sonnet-4-5', 'gemini-3.5-flash', 'gpt-oss-120b'])(
+    'preserves a smaller caller output limit for %s',
+    async (model) => {
+      const { body } = await envelopeFor(request({ model, max_tokens: 64 }));
+      const generationConfig = (body.request as Record<string, unknown>).generationConfig as Record<string, unknown>;
+      expect(generationConfig.maxOutputTokens).toBe(64);
+    },
+  );
 
   it('keeps the request value for ids without a profile', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -220,6 +239,40 @@ describe('tool mode decoration', () => {
     const none = await envelopeFor(request({ tools: [tool], tool_choice: 'none' }));
     const noneToolConfig = (none.body.request as Record<string, unknown>).toolConfig as { functionCallingConfig: { mode: string } };
     expect(noneToolConfig.functionCallingConfig.mode).toBe('NONE');
+  });
+
+  it('respects native uppercase NONE when decoding a CCA request', async () => {
+    const transformer = new AntigravityTransformer();
+    const decoded = await transformer.transformRequestOut({
+      model: 'gemini-3.5-flash',
+      request: {
+        contents: [{ role: 'user', parts: [{ text: 'Do not call tools' }] }],
+        tools: [{ functionDeclarations: [{ name: 'get_weather', parametersJsonSchema: tool.function.parameters }] }],
+        toolConfig: { functionCallingConfig: { mode: 'NONE' } },
+      },
+    }, ctx);
+    const { body } = await envelopeFor(decoded);
+    expect((body.request as Record<string, unknown>).toolConfig)
+      .toEqual({ functionCallingConfig: { mode: 'NONE' } });
+  });
+
+  it('preserves the native VALIDATED allowlist instead of enabling every declared tool', async () => {
+    const transformer = new AntigravityTransformer();
+    const decoded = await transformer.transformRequestOut({
+      model: 'claude-sonnet-4-5',
+      request: {
+        contents: [{ role: 'user', parts: [{ text: 'Only read weather' }] }],
+        tools: [{ functionDeclarations: [
+          { name: 'get_weather', parametersJsonSchema: tool.function.parameters },
+          { name: 'delete_weather', parametersJsonSchema: tool.function.parameters },
+        ] }],
+        toolConfig: { functionCallingConfig: { mode: 'VALIDATED', allowedFunctionNames: ['get_weather'] } },
+      },
+    }, ctx);
+    const { body } = await envelopeFor(decoded);
+    expect((body.request as Record<string, unknown>).toolConfig).toEqual({
+      functionCallingConfig: { mode: 'VALIDATED', allowedFunctionNames: ['get_weather'] },
+    });
   });
 
   it('injects the pinned forced-tool directive for forced choice on non-Claude families', async () => {

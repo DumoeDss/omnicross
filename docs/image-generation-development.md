@@ -1,6 +1,6 @@
 # Omnicross 生图功能开发文档
 
-本文说明 Omnicross 0.6.8 源码中的共享图片 Provider、参考图编辑和 Responses 图片工具。面向维护者、协议适配器开发者和需要排查图片链路的贡献者；正式依赖交付状态见[实施清单](./design/shared-image-providers-plan.md)。
+本文说明当前源码中的共享图片 Provider、参考图编辑和 Responses 图片工具。面向维护者、协议适配器开发者和需要排查图片链路的贡献者；正式依赖交付状态见[实施清单](./design/shared-image-providers-plan.md)。
 
 面向最终用户的安装、配置和调用方式见 [生图功能使用文档](./image-generation-usage.md)。
 
@@ -43,6 +43,9 @@ Omnicross 对外提供三种图片入口，复用 ImageOrchestrator 和模型路
 - 不支持 mask、多参考图和上游图片流式输出。
 - 远程图片 URL 默认关闭；启用时必须注入经过验证的远程解析器。
 - 实际可用的质量、尺寸、输出格式等选项还要经过适配器、账号和上游证据三层取交集，不能仅凭配置开关对外宣称支持。
+- Antigravity 只声明并发送原生 `aspectRatio`，不把比例支持冒充任意像素尺寸或 resolution 支持；thought 中的图片不是最终产物。
+- `history` 只交给实际实现历史编码的 Google/OpenRouter 路径；OpenAI Images、xAI、WaveSpeed、Imagen、Codex、Antigravity 对不可表达的 history 明确拒绝。参考图 `images` 编辑不受这个限制影响。
+- Responses 直接 `input_image` 尚无本地图片工具的安全素材转换路径：只有确定由本地 mediator 执行图片调用时拒绝，不阻断普通视觉请求、原生图片透传或已保留引用的编辑。
 
 ## 2. 整体架构
 
@@ -119,6 +122,8 @@ Codex 持久集成创建或绑定的 key 会同时具备 `responses` 和 `images
 5. 归一化模型、质量、尺寸、背景、输出格式、压缩、审核和流式选项。
 6. 在任何上游调用前拒绝未知字段和不支持的组合。
 
+multipart 拒绝重复 mask、未知文件 part、超长字段或过多图片时，尚未交给 materializer 的文件流也必须由同一请求错误路径接管；销毁解析器不能产生未监听的 `error` 事件。已交给 materializer 的流仍以其原始错误为准，不能让随后产生的 `AbortError` 覆盖配额错误。真实 HTTP 回归覆盖这些拒绝路径，以及拒绝后同一进程继续接受合法编辑请求。
+
 公共解析器可以表达比当前订阅适配器更广的 Images 协议；最终仍由能力检查拒绝当前上游不能兑现的多图、mask、流式等请求。
 
 ### 3.3 统一编排
@@ -132,6 +137,8 @@ Codex 持久集成创建或绑定的 key 会同时具备 `responses` 和 `images
 - 传播取消信号并保证 provider、队列和临时资源最终释放；
 - 生成只含安全元数据的遥测；
 - 按策略保留完成图片，并在失败或取消时回滚未完成的引用。
+
+`InMemoryImageAsset` 拥有独立字节副本，`open()` 也返回独立副本；即使输入是 Node Buffer，释放一个 asset 也不能清零调用者或另一张 asset 的图片。
 
 ## 4. 订阅上游分流
 
@@ -148,7 +155,7 @@ Codex 持久集成创建或绑定的 key 会同时具备 `responses` 和 `images
 - `tool_choice` 强制选择图片工具
 - 上游使用 SSE，Omnicross 收集最终 `image_generation_call.result`
 
-上游 SSE 可以包含 partial image，但当前公共能力不把这些 partial 直接广告为可用流式图片。最终产物必须通过 Base64、容器和完整像素解码校验后才能进入 `completed`。
+上游 SSE 可以包含 partial image，但当前公共能力不把这些 partial 直接广告为可用流式图片。只有 preview、没有最终 result 必须失败；最终 result 优先于 preview，之后若收到 failed/incomplete/cancelled 也不能报成功。最终产物必须通过 Base64、容器和完整像素解码校验后才能进入 `completed`。
 
 ### 4.2 参考图编辑
 
@@ -175,6 +182,8 @@ Codex 持久集成创建或绑定的 key 会同时具备 `responses` 和 `images
 ```
 
 适配器在编码前再次执行生产能力限制：必须恰好一张图片、不得包含 mask，图片 MIME 必须为 PNG/JPEG/WebP，读取上限为 50 MiB。编码完成后会清零临时字节缓冲区。
+
+已通过能力检查的 `output_format`、`output_compression`、`moderation` 会编码到私有 edit 请求，不能仅接受字段却不发送。本地 HTTP/解码回归验证了其传输；非默认选项的真实上游可用性仍以账号能力证据为准，不由离线回归代替。
 
 ### 4.3 上游响应完整性
 
@@ -367,11 +376,15 @@ npm run typecheck -w @omnicross/daemon
 
 ### 14.2 Antigravity 图像 wire
 
-`packages/subscriptions/src/image-generation/AntigravitySubscriptionImageProvider.ts` 走 antigravity 身份（同账号 project 握手、401 刷新重试一次），自构非流式 CCA `generateContent`（`responseModalities: ['TEXT','IMAGE']`，`size` 精确约分为 aspectRatio，无精确比例则省略 imageConfig），不走 transformer 链。能力声明 PNG-only、单参考图、无 mask/多图；非 PNG 实际格式按 `upstream_protocol_changed` 暴露。证据默认 `Unknown…` source（entitlement-unknown + protocol-unverified → bootstrap-eligible，同 Codex 先例）。
+`packages/subscriptions/src/image-generation/AntigravitySubscriptionImageProvider.ts` 走 antigravity 身份（同账号 project 握手、401 刷新重试一次），自构非流式 CCA `generateContent`（`responseModalities: ['TEXT','IMAGE']`、原生 `aspectRatio`），不走 transformer 链。能力声明 PNG-only、单参考图、无 mask/多图；不支持的精确像素尺寸/resolution 在请求前拒绝，非 PNG 实际格式按 `upstream_protocol_changed` 暴露。证据默认 `Unknown…` source（entitlement-unknown + protocol-unverified → bootstrap-eligible，同 Codex 先例）。
 
 ### 14.3 会话内嵌图 v1
 
-共享 gemini 解析器（`gemini.stream.ts`）保留 `inlineData`：非流式 `message.images`、流式 `delta.images`（data URL 数组，一 chunk 多图合并）；纯文本流量输出字节等价。请求侧 `buildRequestBody` 对 gemini 系 `-image` 模型注入 `responseModalities: ['TEXT','IMAGE']`（未显式携带时）。OpenAI Chat 面透出 images；Anthropic Messages 面诚实丢弃并记有界计数（`anthropicImageDrop.ts`）；Responses 面 `image_generation_call` 输出映射为后续工作。
+共享 Gemini 解析器保留 `inlineData`：非流式 `message.images`、流式 `delta.images`（data URL 数组，一 chunk 多图合并），文本与思考分开。请求侧 `buildRequestBody` 对 gemini 系 `-image` 模型注入 `responseModalities: ['TEXT','IMAGE']`（未显式携带时）。OpenAI Chat 面透出 images；Anthropic Messages 不伪造可显示的 image 响应块，并对这种显示降级记有界计数（`anthropicImageDrop.ts`）；普通 inline 图片也不冒充 Responses 托管 `image_generation_call`。
+
+跨协议 `extra_content.google.parts` 仍保留完整原生 parts，可能包含图片 Base64 和 thoughtSignature，供支持该扩展的客户端下一轮回放。**可见图片降级不等于从响应字节中删除图片**；不能宣称这种路径自动脱敏，也不能删改原 part 后继续声称签名可完整恢复。严格 SDK 若丢弃扩展，仍无法实现原生图片/签名的透明回放。
+
+图像分类不等于不支持思考。依据 [Google 图像思考文档](https://ai.google.dev/gemini-api/docs/generate-content/image-generation#thinking-process)，Gemini 3.1 Flash Image（含 preview）支持 `minimal/high`，不能关闭；Gemini 3 Pro Image 有内建自动 thinking，但未声明可调 level/budget，转换器不会为显式 effort 编造预算。原生已提供的配置仍走原生保真路径。
 
 ### 14.4 观测与 doctor
 
@@ -379,4 +392,4 @@ npm run typecheck -w @omnicross/daemon
 
 ### 14.5 验证边界
 
-Antigravity 图像 provider 只有离线证据与单元测试覆盖（信封快照对照 antigravity change 冻结形态、size→aspectRatio 矩阵、错误分类、账号绑定）。在真实订阅上完成实机验证（三模型真实出图、会话内嵌图客户端实测）之前，不宣称线上可用。
+Antigravity 图像 provider 有离线信封/错误分类/账号绑定回归，以及本地 HTTP → 实际 PNG 解码的烟测；这些不是真实订阅证据。在真实订阅上完成实机验证（三模型真实出图、会话内嵌图客户端实测）之前，不宣称线上可用。全图片协议烟测还覆盖七种 API protocol 的模型分支、Codex JSON/SSE、multipart edit/mask、WaveSpeed 尺寸映射和最终像素解码，不以 mock HTTP 成功推断厂商支持。

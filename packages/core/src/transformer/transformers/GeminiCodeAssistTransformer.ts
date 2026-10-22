@@ -49,7 +49,7 @@ import type {
   UnifiedChatRequest,
 } from '../types';
 
-import { buildCcaMethodUrl, unwrapCcaResponse } from './ccaEnvelope';
+import { buildCcaMethodUrl, unwrapCcaResponse, wrapCcaResponse } from './ccaEnvelope';
 import { transformResponseIn } from './utils/gemini.response-in';
 import { transformResponseOut } from './utils/gemini.stream';
 import { buildRequestBody, transformRequestOut as toUnifiedRequest } from './utils/gemini.util';
@@ -189,10 +189,11 @@ export class GeminiCodeAssistTransformer implements Transformer {
       unknown
     >;
     // Preserve the top-level `model` if the inner body omits it.
-    if (inner && typeof inner === 'object' && !('model' in inner) && 'model' in r) {
-      inner.model = r.model;
-    }
-    return toUnifiedRequest(inner);
+    return toUnifiedRequest(
+      inner && typeof inner === 'object' && !('model' in inner) && r && 'model' in r
+        ? { ...inner, model: r.model }
+        : inner,
+    );
   }
 
   /**
@@ -217,19 +218,6 @@ export class GeminiCodeAssistTransformer implements Transformer {
     response: Response,
     _context?: TransformerContext,
   ): Promise<Response> {
-    const geminiResponse = await transformResponseIn(response, this.logger);
-    const contentType = geminiResponse.headers.get('Content-Type') ?? '';
-    if (contentType.includes('text/event-stream')) {
-      // Streaming endpoint-encode is not exercised on the subscription path;
-      // return the gemini stream unchanged (wrapping each chunk is unnecessary
-      // for the dispatch direction we wire).
-      return geminiResponse;
-    }
-    const data = await geminiResponse.json().catch(() => null);
-    return new Response(JSON.stringify({ response: data }), {
-      status: geminiResponse.status,
-      statusText: geminiResponse.statusText,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return wrapCcaResponse(await transformResponseIn(response, this.logger));
   }
 }

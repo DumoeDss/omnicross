@@ -78,6 +78,24 @@ describe('image asset/reference ports', () => {
     await expect(readImageAssetBytes(asset, 4, controller.signal)).rejects.toThrow('cancelled');
   });
 
+  it('owns Buffer input bytes and isolates reader mutation and disposal', async () => {
+    const source = Buffer.from([1, 2, 3, 4]);
+    const metadata = { mimeType: 'image/png' as const, width: 1, height: 1 };
+    const first = new InMemoryImageAsset(source, metadata);
+    const second = new InMemoryImageAsset(source, metadata);
+    source.fill(9);
+    expect(await readImageAssetBytes(first, 4)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    const reader = (await first.open()).getReader();
+    const chunk = await reader.read();
+    chunk.value!.fill(0);
+    reader.releaseLock();
+    expect(await readImageAssetBytes(first, 4)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    first.dispose();
+    expect(await readImageAssetBytes(second, 4)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(source).toEqual(Buffer.from([9, 9, 9, 9]));
+    second.dispose();
+  });
+
   it('hides cross-tenant entries, reports same-tenant expiry, and pins active leases', async () => {
     let now = 100;
     const store = new InMemoryImageReferenceStore(() => now);

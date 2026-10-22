@@ -19,6 +19,11 @@ export interface ThinkingContent {
   content: string;
   /** Optional cryptographic signature for thinking verification */
   signature?: string;
+  /** Original Anthropic blocks with each opaque signature kept on its own block. */
+  blocks?: Array<
+    | { type: 'thinking'; thinking: string; signature?: string }
+    | { type: 'redacted_thinking'; data: string }
+  >;
 }
 
 /**

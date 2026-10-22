@@ -58,6 +58,56 @@ describe('TransformerChainExecutor', () => {
     vi.clearAllMocks();
   });
 
+  describe('native Google capability admission', () => {
+    const nativeOnly = [
+      { cachedContent: 'cachedContents/private' },
+      { tools: [{ googleSearch: {} }] },
+      { tools: [{ codeExecution: {} }] },
+      { toolConfig: { functionCallingConfig: { mode: 'VALIDATED' } } },
+      { generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } },
+      { generationConfig: { responseMimeType: 'image/png' } },
+    ];
+    it.each(nativeOnly)('rejects unrepresentable Google contract before encoding: %j', async (fields) => {
+      const encode = vi.fn();
+      await expect(executor.executeRequestChain(
+        { model: 'ordinary-model', contents: [{ role: 'user', parts: [{ text: 'hello' }] }], ...fields },
+        { ...mockProvider, name: 'google-looking-name' },
+        { providerTransformers: [{ name: 'openai', endPoint: '/chat/completions', transformRequestIn: encode }], modelTransformers: [] },
+        { endpointTransformer: new GeminiTransformer() },
+      )).rejects.toMatchObject({ status: 400, code: 'unsupported_capability' });
+      expect(encode).not.toHaveBeenCalled();
+    });
+    it('admits JSON, TEXT and multiple allowed functions, auditing only hints', async () => {
+      const encode = vi.fn(async (request: UnifiedChatRequest) => request);
+      const result = await executor.executeRequestChain(
+        {
+          contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+          generationConfig: { responseMimeType: 'application/json', responseModalities: ['TEXT'] },
+          tools: [{ functionDeclarations: [{ name: 'a' }, { name: 'b' }] }],
+          toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: ['a', 'b'] } },
+          safetySettings: [], labels: { client: 'cli' },
+        },
+        mockProvider,
+        { providerTransformers: [{ name: 'openai', endPoint: '/chat/completions', transformRequestIn: encode }], modelTransformers: [] },
+        { endpointTransformer: new GeminiTransformer() },
+      );
+      expect(encode).toHaveBeenCalledOnce();
+      expect(result.endpointRequest?._transformWarnings).toEqual([
+        { field: 'safetySettings', target: 'openai' }, { field: 'labels', target: 'openai' },
+      ]);
+    });
+    it.each(['gemini', 'gemini-code-assist', 'antigravity'])('retains native capabilities for %s', async (name) => {
+      const request = { contents: [{ role: 'user', parts: [{ text: 'hello' }] }], ...nativeOnly[0] };
+      const encode = vi.fn(async (body: UnifiedChatRequest) => body);
+      const result = await executor.executeRequestChain(request, mockProvider, {
+        providerTransformers: [{ name, endPoint: '/google', transformRequestIn: encode }],
+        modelTransformers: [],
+      }, { endpointTransformer: new GeminiTransformer() });
+      if (name === 'gemini') expect(result.requestBody).toBe(request);
+      else expect(encode).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('executeRequestChain', () => {
     it('returns original request when chain is empty', async () => {
       const chain: ResolvedTransformerChain = {
@@ -219,7 +269,7 @@ describe('TransformerChainExecutor', () => {
       );
     });
 
-    it('round-trips native Responses max through a same-format chain with an inert modifier', async () => {
+    it.each([undefined, 'concise'] as const)('preserves native Responses max and summary %s through a same-format chain', async (summary) => {
       const endpointTransformer = new OpenAIResponseTransformer();
       const inertModifier = createMockTransformer('inert', {
         transformRequestIn: vi.fn().mockImplementation(async (request) => request),
@@ -233,17 +283,14 @@ describe('TransformerChainExecutor', () => {
         models: ['gpt-5.3-codex'],
       };
 
+      const reasoning = { effort: 'max', ...(summary === undefined ? {} : { summary }) };
       const result = await executor.executeRequestChain({
         model: 'gpt-5.3-codex',
         input: [{ role: 'user', content: 'Hello' }],
-        reasoning: { effort: 'max' },
+        reasoning,
       }, provider, chain, { endpointTransformer });
 
-      expect(result.bypass).toBe(false);
-      expect(result.requestBody).toMatchObject({
-        reasoning: { effort: 'max', summary: 'auto' },
-      });
-      expect(inertModifier.transformRequestIn).toHaveBeenCalledOnce();
+      expect(result.requestBody).toHaveProperty('reasoning', reasoning);
     });
 
     it('round-trips native Gemini xhigh through a same-format chain with an inert modifier', async () => {

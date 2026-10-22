@@ -8,7 +8,7 @@
  */
 
 import type { MessageBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock } from '@omnicross/contracts/message-blocks';
-import type { SimpleChatAudio, SimpleChatVideo } from '@omnicross/contracts/completion-types';
+import type { SimpleChatAudio, SimpleChatImage, SimpleChatMessage, SimpleChatVideo } from '@omnicross/contracts/completion-types';
 
 // Debug logging for SSE parsing
 const DEBUG_SSE = true;
@@ -68,6 +68,7 @@ interface SSEParserState {
   reasoning: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   isDone: boolean;
+  error?: string;
   /** Timestamp when stream started (first chunk received) */
   streamStartTime?: number;
   /** Timestamp when first content token received */
@@ -76,12 +77,6 @@ interface SSEParserState {
   streamEndTime?: number;
   /** Accumulated structured content blocks (e.g., tool_use, tool_result) */
   blocks: MessageBlock[];
-  /** Index of the currently active content block (Anthropic streaming) */
-  currentBlockIndex: number;
-  /** Type of the currently active content block */
-  currentBlockType: string;
-  /** Buffer for accumulating input_json_delta partials */
-  inputJsonBuffer: string;
   /** Accumulated audio content */
   audios: SimpleChatAudio[];
   /** Accumulated video content */
@@ -122,12 +117,37 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
     firstTokenTime: undefined,
     streamEndTime: undefined,
     blocks: [],
-    currentBlockIndex: -1,
-    currentBlockType: '',
-    inputJsonBuffer: '',
     audios: [],
     videos: [],
   };
+  let anthropicUsage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+  const pendingTools = new Map<number, { id: string; name: string; arguments: string }>();
+  const toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+  let thinkingSignature = '';
+  let nativeContent: Record<string, unknown>[] = [];
+  const nativeInputs = new Map<number, string>();
+  let sawFinishReason = false;
+  const images: SimpleChatImage[] = [];
+  let nativeFormat: NonNullable<SimpleChatMessage['providerMetadata']>['apiFormat'] | undefined =
+    format === 'openai' ? undefined : format === 'gemini' ? 'google' : format;
+  const nativeThinking = new Map<number, Record<string, unknown>>();
+
+  function fail(message: string): void {
+    if (state.error) return;
+    state.error = message;
+    state.isDone = true;
+    callbacks.onError?.(message);
+  }
+
+  function finishTools(): void {
+    for (const pending of pendingTools.values()) {
+      if (!pending.id || !pending.name) throw new Error('Incomplete streaming tool identity');
+      const args: unknown = JSON.parse(pending.arguments || '{}');
+      if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be a JSON object');
+      toolCalls.push({ id: pending.id, name: pending.name, args: args as Record<string, unknown> });
+    }
+    pendingTools.clear();
+  }
 
   /**
    * Parse OpenAI format SSE event
@@ -135,6 +155,8 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
   function parseOpenAIEvent(data: string): void {
     if (data === '[DONE]') {
       debugSSE('OpenAI [DONE] received, content length:', state.content.length);
+      if (!sawFinishReason) { fail('OpenAI stream ended without a finish reason'); return; }
+      try { finishTools(); } catch (error) { fail(String(error)); return; }
       state.isDone = true;
       callbacks.onDone?.();
       return;
@@ -143,9 +165,34 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
     try {
       const json = JSON.parse(data);
       callbacks.onRawEvent?.({ data: json, raw: data });
+      if (json.error) { fail(json.error.message || JSON.stringify(json.error)); return; }
+      for (const tc of json.choices?.[0]?.delta?.tool_calls ?? []) {
+        const index = tc.index ?? 0;
+        const pending = pendingTools.get(index) ?? { id: '', name: '', arguments: '' };
+        if (tc.id) pending.id += tc.id;
+        if (tc.function?.name) pending.name += tc.function.name;
+        if (tc.function?.arguments) pending.arguments += tc.function.arguments;
+        pendingTools.set(index, pending);
+      }
 
       const delta = json.choices?.[0]?.delta;
       const finishReason = json.choices?.[0]?.finish_reason;
+      if (finishReason) sawFinishReason = true;
+      if (Array.isArray(delta?.extra_content?.google?.parts)) {
+        nativeFormat = 'google';
+        nativeContent.push(...delta.extra_content.google.parts);
+      }
+      if (Array.isArray(delta?.extra_content?.responses?.reasoning)) {
+        nativeFormat = 'openai-response';
+        nativeContent.push(...delta.extra_content.responses.reasoning);
+      }
+      if (Array.isArray(delta?.extra_content?.omnicross?.thinking?.blocks)) {
+        for (const [index, block] of delta.extra_content.omnicross.thinking.blocks.entries()) nativeThinking.set(index, block);
+      }
+      for (const image of delta?.images ?? []) {
+        const url = typeof image === 'string' ? image : image?.image_url?.url;
+        if (typeof url === 'string') images.push({ url });
+      }
 
       // Log significant events
       if (finishReason) {
@@ -161,9 +208,23 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
         callbacks.onDelta?.(delta.content);
       }
 
-      if (delta?.reasoning_content) {
-        state.reasoning += delta.reasoning_content;
-        callbacks.onReasoning?.(delta.reasoning_content);
+      const reasoning = delta?.reasoning_content ?? delta?.thinking?.content;
+      if (reasoning) {
+        state.reasoning += reasoning;
+        callbacks.onReasoning?.(reasoning);
+      }
+      if (delta?.thinking?.signature && delta.thinking.index === undefined) thinkingSignature += delta.thinking.signature;
+      if (delta?.thinking?.index !== undefined) {
+        const thinking = delta.thinking;
+        const index = thinking.index;
+        if (thinking.type === 'redacted_thinking') {
+          nativeThinking.set(index, { type: 'redacted_thinking', data: thinking.data });
+        } else {
+          const block = nativeThinking.get(index) ?? { type: 'thinking', thinking: '' };
+          if (thinking.content) block.thinking = String(block.thinking ?? '') + thinking.content;
+          if (thinking.signature) block.signature = String(block.signature ?? '') + thinking.signature;
+          nativeThinking.set(index, block);
+        }
       }
 
       // Handle audio content (OpenAI TTS responses)
@@ -188,7 +249,7 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
         state.usage = {
           promptTokens: json.usage.prompt_tokens || 0,
           completionTokens: json.usage.completion_tokens || 0,
-          totalTokens: json.usage.total_tokens || 0,
+          totalTokens: json.usage.total_tokens ?? ((json.usage.prompt_tokens ?? 0) + (json.usage.completion_tokens ?? 0)),
         };
         callbacks.onUsage?.(state.usage);
         // Don't set isDone here - wait for [DONE] marker or finish_reason
@@ -201,8 +262,8 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
         // Note: We don't set isDone here because [DONE] should come after
         // But log it for debugging
       }
-    } catch {
-      // Ignore parse errors for incomplete chunks
+    } catch (error) {
+      fail(`Invalid OpenAI stream event: ${String(error)}`);
     }
   }
 
@@ -213,11 +274,21 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
     try {
       const json = JSON.parse(data);
       callbacks.onRawEvent?.({ type: json.type, data: json, raw: data });
+      if (json.type === 'message_start') {
+        anthropicUsage = { ...anthropicUsage, ...json.message?.usage };
+      }
 
       // Handle content_block_start
       if (json.type === 'content_block_start') {
         const contentBlock = json.content_block;
-        const blockIndex = json.index ?? -1;
+        nativeContent[json.index] = { ...contentBlock };
+        if (contentBlock?.type === 'text' && contentBlock.text) {
+          state.content += contentBlock.text;
+          callbacks.onDelta?.(contentBlock.text);
+        } else if (contentBlock?.type === 'thinking' && contentBlock.thinking) {
+          state.reasoning += contentBlock.thinking;
+          callbacks.onReasoning?.(contentBlock.thinking);
+        }
 
         if (contentBlock?.type === 'thinking') {
           debugSSE('THINKING BLOCK STARTED!');
@@ -225,10 +296,6 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
 
         // Track server_tool_use blocks (e.g., web_search)
         if (contentBlock?.type === 'server_tool_use') {
-          state.currentBlockIndex = blockIndex;
-          state.currentBlockType = 'server_tool_use';
-          state.inputJsonBuffer = '';
-
           const toolUseBlock: ToolUseBlock = {
             id: contentBlock.id || `block_${Date.now()}`,
             type: 'tool_use',
@@ -243,9 +310,6 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
 
         // Track web_search_tool_result blocks
         if (contentBlock?.type === 'web_search_tool_result') {
-          state.currentBlockIndex = blockIndex;
-          state.currentBlockType = 'web_search_tool_result';
-
           // Format search results from content array
           const searchResults = contentBlock.content;
           let output = '';
@@ -259,14 +323,14 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
           }
 
           // Find the matching tool_use block to link via toolId
-          const lastToolUse = [...state.blocks].reverse().find(
-            (b): b is ToolUseBlock => b.type === 'tool_use',
+          const lastToolUse = state.blocks.find(
+            (b): b is ToolUseBlock => b.type === 'tool_use' && b.toolId === contentBlock.tool_use_id,
           );
 
           const toolResultBlock: ToolResultBlock = {
             id: `result_${Date.now()}`,
             type: 'tool_result',
-            toolId: lastToolUse?.toolId || '',
+            toolId: contentBlock.tool_use_id || '',
             toolName: lastToolUse?.toolName || 'web_search',
             output: output || '(no results)',
           };
@@ -284,6 +348,13 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       // Handle content_block_delta
       if (json.type === 'content_block_delta') {
         const delta = json.delta;
+        const native = nativeContent[json.index];
+        if (native) {
+          if (delta?.type === 'text_delta') native.text = String(native.text ?? '') + (delta.text ?? '');
+          if (delta?.type === 'thinking_delta') native.thinking = String(native.thinking ?? '') + (delta.thinking ?? '');
+          if (delta?.type === 'signature_delta') native.signature = String(native.signature ?? '') + (delta.signature ?? '');
+          if (delta?.type === 'input_json_delta') nativeInputs.set(json.index, (nativeInputs.get(json.index) ?? '') + (delta.partial_json ?? ''));
+        }
 
         if (delta?.type === 'text_delta' && delta?.text) {
           if (!state.firstTokenTime) {
@@ -296,38 +367,40 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
           state.reasoning += delta.thinking;
           callbacks.onReasoning?.(delta.thinking);
         }
-        // Accumulate input_json_delta for server_tool_use blocks
-        if (delta?.type === 'input_json_delta' && delta?.partial_json) {
-          state.inputJsonBuffer += delta.partial_json;
-        }
       }
 
       // Handle content_block_stop — finalize tool input
       if (json.type === 'content_block_stop') {
-        if (state.currentBlockType === 'server_tool_use' && state.inputJsonBuffer) {
-          const lastToolUse = [...state.blocks].reverse().find(
-            (b): b is ToolUseBlock => b.type === 'tool_use',
-          );
-          if (lastToolUse) {
-            try {
-              lastToolUse.input = JSON.parse(state.inputJsonBuffer);
-            } catch {
-              lastToolUse.input = { raw: state.inputJsonBuffer };
+        const native = nativeContent[json.index];
+        if (native && (native.type === 'tool_use' || native.type === 'server_tool_use')) {
+          const input = nativeInputs.get(json.index);
+          if (input) native.input = JSON.parse(input);
+          nativeInputs.delete(json.index);
+          if (native.type === 'tool_use') {
+            if (!native.id || !native.name) throw new Error('Incomplete Anthropic tool identity');
+            toolCalls.push({ id: String(native.id), name: String(native.name), args: (native.input ?? {}) as Record<string, unknown> });
+          } else {
+            const block = state.blocks.find((b): b is ToolUseBlock => b.type === 'tool_use' && b.toolId === native.id);
+            if (block) {
+              block.input = (native.input ?? {}) as Record<string, unknown>;
+              callbacks.onBlock?.(block);
             }
-            callbacks.onBlock?.(lastToolUse);
           }
         }
-        state.currentBlockIndex = -1;
-        state.currentBlockType = '';
-        state.inputJsonBuffer = '';
+        if (native?.type === 'thinking' && typeof native.signature === 'string') {
+          thinkingSignature = nativeContent.filter(block => block?.type === 'thinking').length === 1
+            ? native.signature : '';
+        }
       }
 
       // Handle message_delta with usage
       if (json.type === 'message_delta' && json.usage) {
+        anthropicUsage = { ...anthropicUsage, ...json.usage };
+        const promptTokens = anthropicUsage.input_tokens + anthropicUsage.cache_read_input_tokens + anthropicUsage.cache_creation_input_tokens;
         state.usage = {
-          promptTokens: json.usage.input_tokens || 0,
-          completionTokens: json.usage.output_tokens || 0,
-          totalTokens: (json.usage.input_tokens || 0) + (json.usage.output_tokens || 0),
+          promptTokens,
+          completionTokens: anthropicUsage.output_tokens,
+          totalTokens: promptTokens + anthropicUsage.output_tokens,
         };
         callbacks.onUsage?.(state.usage);
       }
@@ -340,10 +413,10 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
 
       // Handle error events
       if (json.type === 'error') {
-        callbacks.onError?.(json.error?.message || 'Unknown error');
+        fail(json.error?.message || 'Unknown error');
       }
-    } catch {
-      // Ignore parse errors for incomplete chunks
+    } catch (error) {
+      fail(`Invalid Anthropic stream event: ${String(error)}`);
     }
   }
 
@@ -377,7 +450,17 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
         const content = candidate.content;
 
         if (content?.parts) {
+          nativeContent.push(...content.parts);
           for (const part of content.parts) {
+            if (part.inlineData?.mimeType?.startsWith('image/') && part.inlineData.data) {
+              images.push({ url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`, mimeType: part.inlineData.mimeType });
+            }
+            if (part.functionCall) {
+              toolCalls.push({
+                id: part.functionCall.id || `call_${toolCalls.length}_${Date.now()}`,
+                name: part.functionCall.name, args: part.functionCall.args ?? {},
+              });
+            }
             // Gemini thinking models return thought parts with `thought: true` flag
             // The actual thinking text is in `part.text`, not in `part.thought`
             if (part.thought === true && part.text) {
@@ -398,6 +481,10 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
 
         // Check finish reason
         const finishReason = candidate.finishReason;
+        if (finishReason) sawFinishReason = true;
+        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+          fail(`Gemini generation stopped: ${finishReason}`);
+        }
         if (finishReason === 'STOP' || finishReason === 'MAX_TOKENS' || finishReason === 'SAFETY') {
           debugSSE('Gemini finish reason:', finishReason);
         }
@@ -408,19 +495,20 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       if (usage) {
         state.usage = {
           promptTokens: usage.promptTokenCount || 0,
-          completionTokens: usage.candidatesTokenCount || 0,
-          totalTokens: usage.totalTokenCount || 0,
+          completionTokens: (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0),
+          totalTokens: usage.totalTokenCount ?? ((usage.promptTokenCount ?? 0) + (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0)),
         };
         callbacks.onUsage?.(state.usage);
         debugSSE('Gemini usage:', state.usage);
       }
 
+      if (json.promptFeedback?.blockReason) fail(`Gemini prompt blocked: ${json.promptFeedback.blockReason}`);
       // Handle error
       if (json.error) {
-        callbacks.onError?.(json.error.message || 'Gemini API error');
+        fail(json.error.message || 'Gemini API error');
       }
-    } catch {
-      // Ignore parse errors for incomplete chunks
+    } catch (error) {
+      fail(`Invalid Gemini stream event: ${String(error)}`);
     }
   }
 
@@ -438,6 +526,9 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       callbacks.onRawEvent?.({ type: json.type, data: json, raw: data });
 
       switch (json.type) {
+        case 'response.output_item.done':
+          nativeContent[json.output_index] = json.item;
+          break;
         case 'response.output_text.delta':
           if (json.delta) {
             if (!state.firstTokenTime) {
@@ -455,8 +546,15 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
           }
           break;
 
+        case 'response.incomplete':
         case 'response.completed': {
           const response = json.response;
+          if (response?.output) nativeContent = response.output;
+          for (const item of nativeContent) {
+            if (item?.type === 'function_call') toolCalls.push({
+              id: String(item.call_id), name: String(item.name), args: JSON.parse(String(item.arguments || '{}')),
+            });
+          }
           if (response?.usage) {
             state.usage = {
               promptTokens: response.usage.input_tokens || 0,
@@ -470,8 +568,11 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
           break;
         }
 
+        case 'response.failed':
+          fail(json.response?.error?.message || 'Response failed');
+          break;
         case 'error':
-          callbacks.onError?.(json.error?.message || json.message || 'Unknown error');
+          fail(json.error?.message || json.message || 'Unknown error');
           break;
 
         // Informational events — no-op
@@ -481,8 +582,8 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
         default:
           break;
       }
-    } catch {
-      // Ignore parse errors for incomplete chunks
+    } catch (error) {
+      fail(`Invalid Responses stream event: ${String(error)}`);
     }
   }
 
@@ -490,13 +591,13 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
    * Process a single SSE event block
    */
   function processEventBlock(eventBlock: string): void {
-    const lines = eventBlock.split('\n');
+    const lines = eventBlock.split(/\r\n|\r|\n/);
     const dataLines: string[] = [];
 
     // Collect all consecutive data: lines and merge them
     for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        dataLines.push(line.slice(6));
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).replace(/^ /, ''));
       } else if (line.trim() !== '' && !line.startsWith(':')) {
         // Non-data, non-comment, non-empty line (e.g., event:, id:, retry:)
         // This typically shouldn't happen in a well-formed event block
@@ -537,7 +638,7 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       state.buffer += chunk;
 
       // Split by double newline (SSE event separator)
-      const events = state.buffer.split('\n\n');
+      const events = state.buffer.split(/\r?\n\r?\n|\r\r/);
 
       // Keep the last potentially incomplete event in buffer
       state.buffer = events.pop() || '';
@@ -554,7 +655,7 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
      */
     flush(): void {
       debugSSE('flush() called, buffer length:', state.buffer.length, 'isDone:', state.isDone);
-      if (state.buffer.trim()) {
+      if (!state.isDone && state.buffer.trim()) {
         debugSSE('flush() processing remaining buffer:', state.buffer.substring(0, 200));
         processEventBlock(state.buffer);
         state.buffer = '';
@@ -564,6 +665,12 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       state.streamEndTime = Date.now();
 
       // If not done yet, trigger onDone
+      if (!state.error && pendingTools.size) {
+        try { finishTools(); } catch (error) { fail(String(error)); }
+      }
+      if (!state.isDone && !sawFinishReason) {
+        fail('Upstream stream ended before completion');
+      }
       if (!state.isDone) {
         debugSSE('flush() marking stream as done, final content length:', state.content.length);
         state.isDone = true;
@@ -578,6 +685,11 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       content: string;
       reasoning: string;
       usage?: typeof state.usage;
+      error?: string;
+      thinkingSignature?: string;
+      thinkingBlocks?: NonNullable<SimpleChatMessage['thinking']>['blocks'];
+      toolCalls: typeof toolCalls;
+      providerMetadata?: SimpleChatMessage['providerMetadata'];
       metrics?: {
         completionTokens: number;
         timeCompletionMs: number;
@@ -586,6 +698,7 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       blocks: MessageBlock[];
       audios: SimpleChatAudio[];
       videos: SimpleChatVideo[];
+      images: SimpleChatImage[];
     } {
       // Calculate metrics if we have timing data
       let metrics: { completionTokens: number; timeCompletionMs: number; timeFirstTokenMs?: number } | undefined;
@@ -604,7 +717,7 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       }
 
       // Emit ThinkingBlock into blocks if reasoning was accumulated
-      if (state.reasoning) {
+      if (state.reasoning && !state.blocks.some(block => block.type === 'thinking')) {
         const thinkingBlock: ThinkingBlock = {
           id: `thinking_${Date.now()}`,
           type: 'thinking',
@@ -618,10 +731,19 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
         content: state.content,
         reasoning: state.reasoning,
         usage: state.usage,
+        error: state.error,
+        thinkingSignature: thinkingSignature || undefined,
+        thinkingBlocks: (nativeThinking.size ? Array.from(nativeThinking.values()) : nativeContent.filter(block => block?.type === 'thinking' || block?.type === 'redacted_thinking')) as NonNullable<SimpleChatMessage['thinking']>['blocks'],
+        toolCalls,
+        providerMetadata: nativeFormat ? {
+          apiFormat: nativeFormat,
+          content: nativeContent.filter(Boolean),
+        } : undefined,
         metrics,
         blocks: state.blocks,
         audios: state.audios,
         videos: state.videos,
+        images,
       };
     },
 
@@ -641,13 +763,21 @@ export function createSSEParser(format: SSEFormat, callbacks: SSEParserCallbacks
       state.reasoning = '';
       state.usage = undefined;
       state.isDone = false;
+      state.error = undefined;
+      anthropicUsage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+      pendingTools.clear();
+      toolCalls.length = 0;
+      thinkingSignature = '';
+      nativeContent = [];
+      nativeInputs.clear();
+      sawFinishReason = false;
+      images.length = 0;
+      nativeFormat = format === 'openai' ? undefined : format === 'gemini' ? 'google' : format;
+      nativeThinking.clear();
       state.streamStartTime = undefined;
       state.firstTokenTime = undefined;
       state.streamEndTime = undefined;
       state.blocks = [];
-      state.currentBlockIndex = -1;
-      state.currentBlockType = '';
-      state.inputJsonBuffer = '';
       state.audios = [];
       state.videos = [];
     },
@@ -670,16 +800,22 @@ export async function streamSSEResponse(
   content: string;
   reasoning: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+  error?: string;
+  thinkingSignature?: string;
+  thinkingBlocks?: NonNullable<SimpleChatMessage['thinking']>['blocks'];
+  toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }>;
+  providerMetadata?: SimpleChatMessage['providerMetadata'];
   metrics?: { completionTokens: number; timeCompletionMs: number; timeFirstTokenMs?: number };
   blocks: MessageBlock[];
   audios: SimpleChatAudio[];
   videos: SimpleChatVideo[];
+  images: SimpleChatImage[];
 }> {
   debugSSE('streamSSEResponse started, format:', format);
   const reader = response.body?.getReader();
   if (!reader) {
     callbacks.onError?.('No response body');
-    return { content: '', reasoning: '', blocks: [], audios: [], videos: [] };
+    return { content: '', reasoning: '', error: 'No response body', toolCalls: [], blocks: [], audios: [], videos: [], images: [] };
   }
 
   const decoder = new TextDecoder();
@@ -704,6 +840,7 @@ export async function streamSSEResponse(
       }
     }
 
+    parser.push(decoder.decode());
     parser.flush();
     const result = parser.getResult();
     debugSSE('streamSSEResponse complete, content length:', result.content.length, 'completionTokens:', result.usage?.completionTokens, 'usage:', result.usage);

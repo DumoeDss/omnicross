@@ -56,7 +56,7 @@ import type {
   UnifiedChatRequest,
   UnifiedMessage,
 } from '../types';
-import { extractReasoningIntent, resolveReasoningPlan } from '../reasoning-effort';
+import { extractReasoningIntent, resolveReasoningPlan, resolveTargetModelCapabilities } from '../reasoning-effort';
 import { recordDroppedField } from '../transformWarnings';
 import {
   downgradeJsonSchemaBody,
@@ -69,9 +69,10 @@ import {
   reasoningReplayKey,
   type ReasoningReplayEntry,
 } from './utils/reasoningReplay';
+import { readAnthropicSSE } from './AnthropicSSE';
 
 /** Message-level keys that must never reach an OpenAI chat upstream. */
-const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking'] as const;
+const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking', 'is_error'] as const;
 
 /**
  * Top-level keys that must never reach an OpenAI chat upstream.
@@ -116,11 +117,111 @@ function normalizeContent(content: UnifiedMessage['content']): unknown {
   return cleaned;
 }
 
+/** Remove proxy replay envelopes without stripping native provider extensions. */
+function chatExtraContent(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const extra = { ...value as Record<string, unknown> };
+  delete extra.omnicross;
+  delete extra.responses;
+  if (extra.google && typeof extra.google === 'object' && !Array.isArray(extra.google)) {
+    const google = { ...extra.google as Record<string, unknown> };
+    delete google.parts;
+    delete google.request;
+    delete google.finishReason;
+    if (Object.keys(google).length) extra.google = google;
+    else delete extra.google;
+  }
+  return Object.keys(extra).length ? extra : undefined;
+}
+
 export class OpenAITransformer implements Transformer {
   static TransformerName = 'openai';
   name = 'openai';
   endPoint = '/v1/chat/completions';
   logger?: TransformerLogger;
+
+  /** Decode native Chat history without discarding provider-specific fields. */
+  async transformRequestOut(request: unknown, _context: TransformerContext): Promise<UnifiedChatRequest> {
+    _context.chatSourceFormat = this.name;
+    const body = request as UnifiedChatRequest;
+    return {
+      ...body,
+      messages: body.messages.map((message) => {
+        const native = message as unknown as Record<string, unknown>;
+        const extra = native.extra_content as { omnicross?: { thinking?: UnifiedMessage['thinking'] } } | undefined;
+        const reasoning = native.reasoning_content;
+        if (message.role !== 'assistant') return message;
+        if (extra?.omnicross?.thinking) return { ...message, thinking: extra.omnicross.thinking };
+        return typeof reasoning === 'string' ? { ...message, thinking: { content: reasoning } } : message;
+      }),
+    };
+  }
+
+  /** Unified reasoning has a native Chat spelling at the client boundary. */
+  async transformResponseIn(response: Response, _context?: TransformerContext): Promise<Response> {
+    if (!response.ok) return response;
+    const encode = (data: Record<string, unknown>) => {
+      for (const choice of (Array.isArray(data.choices) ? data.choices : []) as Array<Record<string, unknown>>) {
+        const message = (choice.message ?? choice.delta) as Record<string, unknown> | undefined;
+        if (!message?.thinking || typeof message.thinking !== 'object') continue;
+        const thinking = message.thinking as Record<string, unknown>;
+        if (message.reasoning_content === undefined && typeof thinking.content === 'string') {
+          message.reasoning_content = thinking.content;
+        }
+        const extra = message.extra_content as Record<string, unknown> | undefined;
+        message.extra_content = {
+          ...extra,
+          omnicross: { ...(extra?.omnicross as Record<string, unknown> | undefined), thinking },
+        };
+        delete message.thinking;
+      }
+      return data;
+    };
+    if (!response.headers.get('content-type')?.includes('text/event-stream')) {
+      return new Response(JSON.stringify(encode(await response.json())), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (!response.body) return response;
+    const reader = response.body.getReader();
+    const encoder = new TextEncoder();
+    let cancelled = false;
+    return new Response(new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let terminal = false;
+        let failed = false;
+        try {
+          await readAnthropicSSE(reader, (event) => {
+            if (cancelled) return false;
+            const chunk = encode(event);
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+            if (chunk.error) {
+              failed = true;
+              return false;
+            }
+            if (Array.isArray(chunk.choices)) {
+              terminal ||= chunk.choices.some((choice: unknown) =>
+                choice !== null && typeof choice === 'object' && 'finish_reason' in choice
+                && typeof choice.finish_reason === 'string');
+            }
+          });
+          if (cancelled) return;
+          if (!failed && !terminal) throw new Error('Chat stream ended before a finish reason');
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (error) {
+          if (!cancelled) controller.error(error);
+        } finally {
+          try { await reader.cancel(); } finally { reader.releaseLock(); }
+        }
+      },
+      cancel(reason) {
+        cancelled = true;
+        return reader.cancel(reason);
+      },
+    }), { status: response.status, headers: { 'Content-Type': 'text/event-stream' } });
+  }
 
   /**
    * Unified → OpenAI Chat Completions.
@@ -131,8 +232,14 @@ export class OpenAITransformer implements Transformer {
     context: TransformerContext,
   ): Promise<Record<string, unknown>> {
     const source = request as unknown as Record<string, unknown>;
+    if (Array.isArray(source._serverSideTools) && source._serverSideTools.length) {
+      throw new Error('OpenAI Chat cannot represent Anthropic server-side tools');
+    }
     const out: Record<string, unknown> = {};
 
+    if (context.chatSourceFormat === this.name && !request.reasoning && source.thinking !== undefined) {
+      out.thinking = source.thinking;
+    }
     // Pass through every field the chat wire may legitimately carry.
     for (const key of Object.keys(source)) {
       if ((FOREIGN_BODY_KEYS as readonly string[]).includes(key)) continue;
@@ -159,18 +266,42 @@ export class OpenAITransformer implements Transformer {
         if (message.content !== undefined) {
           encoded.content = normalizeContent(message.content);
         }
+        if (message.role === 'tool') {
+          if (Array.isArray(message.content) && message.content.some((part) => part.type !== 'text')) {
+            throw new Error('OpenAI Chat tool results cannot contain images or other non-text content');
+          }
+          const text = Array.isArray(message.content)
+            ? message.content.map((part) => part.type === 'text' ? part.text : '').join('\n')
+            : message.content;
+          encoded.content = message.is_error ? `Tool execution failed.\n${text ?? ''}` : text;
+        }
+        if (encoded.extra_content !== undefined) {
+          const extra = chatExtraContent(encoded.extra_content);
+          if (extra) encoded.extra_content = extra;
+          else delete encoded.extra_content;
+        }
+        if (message.tool_calls?.some((call) => 'extra_content' in call)) {
+          encoded.tool_calls = message.tool_calls.map((call) => {
+            if (!('extra_content' in call)) return call;
+            const encodedCall = { ...call } as Record<string, unknown>;
+            const extra = chatExtraContent(call.extra_content);
+            if (extra) encodedCall.extra_content = extra;
+            else delete encodedCall.extra_content;
+            return encodedCall;
+          });
+        }
         // Anthropic thinking block → the chat wire's reasoning field. `signature`
         // is Anthropic-only and has nowhere to go.
         const thinkingContent = message.thinking?.content;
-        if (typeof thinkingContent === 'string' && thinkingContent.length > 0) {
+        if (context.responsesSourceFormat !== 'openai-response' && encoded.reasoning_content === undefined && typeof thinkingContent === 'string' && thinkingContent.length > 0) {
           encoded.reasoning_content = thinkingContent;
         }
         return encoded;
       });
     }
 
-    // `reasoning` → `reasoning_effort`. 'none' means "no thinking", which the
-    // chat wire spells by omitting the field entirely.
+    // Explicit off must survive the boundary; absence can enable a provider's
+    // default thinking mode. Native Chat fields otherwise remain untouched.
     // A native Chat field with no decoded unified reasoning is already present
     // in `out` and must remain byte/native-preserved on same-format paths.
     const reasoningPlan = request.reasoning
@@ -182,10 +313,36 @@ export class OpenAITransformer implements Transformer {
           requestMaxTokens: request.max_tokens,
         })
       : undefined;
-    if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+    const host = request.reasoning && provider.baseUrl ? new URL(provider.baseUrl).hostname : '';
+    const deepseek = host === 'api.deepseek.com'
+      && /^deepseek-(?:flash|v4-(?:flash|pro))$/.test(request.model);
+    const glm = (host === 'api.z.ai' || host === 'open.bigmodel.cn')
+      && /^(glm-5(?:\.[12]|\.3(?:-flash)?)?|glm-4\.7)$/.test(request.model);
+    const qwen = (host === 'dashscope.aliyuncs.com' || host === 'dashscope-intl.aliyuncs.com'
+      || host === 'dashscope-us.aliyuncs.com' || host.endsWith('.maas.aliyuncs.com'))
+      && /^(qwen3\.8-(?:max|flash|27b)|qwen3\.7-(?:max(?:-2026-(?:05-20|06-08))?|plus(?:-2026-05-26)?|flash(?:-2026-07-15)?)|qwen3\.6-(?:plus(?:-2026-04-02)?|flash(?:-2026-04-16)?)|qwen3\.5-(?:plus(?:-2026-02-15)?|flash(?:-2026-02-23)?)|qwen-(?:plus|flash)(?:-latest|-\d{4}-\d{2}-\d{2})?)$/.test(request.model);
+    if (request.reasoning && deepseek) {
+      const enabled = request.reasoning.enabled !== false && request.reasoning.effort !== 'none';
+      out.thinking = { type: enabled ? 'enabled' : 'disabled' };
+      if (enabled && reasoningPlan?.kind === 'level') out.reasoning_effort = reasoningPlan.effort;
+      else delete out.reasoning_effort;
+    } else if (request.reasoning && (glm || qwen)) {
+      const enabled = request.reasoning.enabled !== false && request.reasoning.effort !== 'none';
+      delete out.reasoning_effort;
+      if (glm) {
+        out.thinking = { ...(source.thinking as Record<string, unknown> | undefined), type: enabled ? 'enabled' : 'disabled' };
+      } else {
+        out.enable_thinking = enabled;
+      }
+    } else if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
       out.reasoning_effort = reasoningPlan.effort;
     } else if (request.reasoning) {
       delete out.reasoning_effort;
+      if (reasoningPlan?.kind === 'off' && (request.reasoning.enabled === false || request.reasoning.effort === 'none')) {
+        const capabilities = resolveTargetModelCapabilities(request.model, provider);
+        const omitEffort = capabilities.thinkingLevels?.length === 1 && capabilities.thinkingLevels[0] === 'none';
+        if (capabilities.reasoning !== false && !omitEffort) out.reasoning_effort = 'none';
+      }
     }
 
     // Reasoning replay: DeepSeek v4 thinking mode rejects a request whose
@@ -194,7 +351,7 @@ export class OpenAITransformer implements Transformer {
     // Responses ingress stashes the client's replayed `reasoning` items on the
     // shared context keyed by assistant-message index. Replay them only for
     // upstreams that demand it — for everyone else the field is at best noise
-    // and at worst a rejection (classic deepseek-reasoner FORBIDS it in
+    // and at worst a rejection (classic deepseek-r1 FORBIDS it in
     // input). Statically classified providers replay when this request engages
     // thinking (the demand is thinking-mode-scoped); a provider LEARNED from a
     // live rejection replays unconditionally — the 400 proved the demand, and
@@ -203,10 +360,8 @@ export class OpenAITransformer implements Transformer {
       | ReasoningReplayEntry[]
       | undefined;
     if (reasoningReplay?.length) {
-      const replayLearned = isReasoningReplayLearned(reasoningReplayKey(provider));
-      const replayStatic =
-        isReasoningReplayProvider(provider, request.model) &&
-        out.reasoning_effort !== undefined;
+      const replayLearned = isReasoningReplayLearned(reasoningReplayKey(provider, request.model));
+      const replayStatic = isReasoningReplayProvider(provider, request.model);
       if (replayLearned || replayStatic) {
         applyReasoningReplay(out, reasoningReplay);
       }

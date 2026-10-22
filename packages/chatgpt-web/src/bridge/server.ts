@@ -330,12 +330,13 @@ async function handleResponses(req: IncomingMessage, res: import('node:http').Se
     const body = await readJsonBody(req);
     parsed = parseRequest(body);
   } catch (error) {
-    respondJson(res, 400, formatErrorPayload(400, 'invalid_request_error', error instanceof Error ? error.message : String(error)));
+    const status = error instanceof BridgeHttpError ? error.status : 400;
+    respondJson(res, status, formatErrorPayload(status, 'invalid_request_error', error instanceof Error ? error.message : String(error)));
     return;
   }
 
   const abort = new AbortController();
-  req.on('close', () => abort.abort());
+  res.on('close', () => abort.abort());
   let events: AsyncGenerator<BridgeEvent>;
   try {
     events = context.worker.runRequest(parsed, abort.signal);
@@ -347,7 +348,10 @@ async function handleResponses(req: IncomingMessage, res: import('node:http').Se
   if (!parsed.stream) {
     const collected: BridgeEvent[] = [];
     try {
-      for await (const event of events) collected.push(event);
+      for await (const event of events) {
+        collected.push(event);
+        if (event.type === 'done' || event.type === 'error' || event.type === 'incomplete') break;
+      }
     } catch (error) {
       respondError(res, error, context);
       return;
@@ -386,19 +390,27 @@ async function handleCompact(req: IncomingMessage, res: import('node:http').Serv
     rawInput = (body as { input?: unknown })?.input;
     parsed = parseRequest(body);
   } catch (error) {
-    respondJson(res, 400, formatErrorPayload(400, 'invalid_request_error', error instanceof Error ? error.message : String(error)));
+    const status = error instanceof BridgeHttpError ? error.status : 400;
+    respondJson(res, status, formatErrorPayload(status, 'invalid_request_error', error instanceof Error ? error.message : String(error)));
     return;
   }
   // v1 compaction: run the summarization turn and return replacement history.
   const summarized = Object.assign(parsed, { _compactionRequest: true });
   const abort = new AbortController();
-  req.on('close', () => abort.abort());
+  res.on('close', () => abort.abort());
   let summary = '';
+  let completed = false;
   try {
     for await (const event of context.worker.runRequest(summarized, abort.signal)) {
       if (event.type === 'text_delta') summary += event.text;
       if (event.type === 'error') throw new BridgeHttpError(event.message, event.status ?? 502);
+      if (event.type === 'incomplete') throw new BridgeHttpError(event.message ?? event.reason, 502);
+      if (event.type === 'done') {
+        completed = true;
+        break;
+      }
     }
+    if (!completed) throw new BridgeHttpError('compaction adapter ended without completing', 502);
   } catch (error) {
     respondError(res, error, context);
     return;

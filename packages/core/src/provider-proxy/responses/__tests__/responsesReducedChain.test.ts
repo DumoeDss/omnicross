@@ -180,10 +180,10 @@ describe('reduced Responses target chains', () => {
     model: 'mapped-model',
     input: [
       { type: 'message', role: 'user', content: 'delegate' },
-      { type: 'function_call', call_id: 'call_img', name: 'view_image', arguments: '{}' },
-      { type: 'function_call_output', call_id: 'call_img', output: [
-        { type: 'input_text', text: 'shot' },
-        { type: 'input_image', image_url: 'data:image/png;base64,QUJD' },
+      { type: 'function_call', call_id: 'call_shell', name: 'shell', arguments: '{}' },
+      { type: 'function_call_output', call_id: 'call_shell', output: [
+        { type: 'input_text', text: 'exit code: 0' },
+        { type: 'input_text', text: 'stdout: done' },
       ] },
     ],
     tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' } }],
@@ -205,10 +205,8 @@ describe('reduced Responses target chains', () => {
       expect(body.parallel_tool_calls).toBe(false);
       expect(body.top_p).toBe(0.9);
       const toolMessage = (body.messages as Array<Record<string, unknown>>).find((m) => m.role === 'tool');
-      expect(toolMessage?.content).toEqual([
-        { type: 'text', text: 'shot' },
-        { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
-      ]);
+      expect(toolMessage?.tool_call_id).toBe('call_shell');
+      expect(toolMessage?.content).toBe('exit code: 0\nstdout: done');
     },
     Anthropic: (body) => {
       expect(body.tool_choice).toEqual({ type: 'auto', disable_parallel_tool_use: true });
@@ -220,23 +218,20 @@ describe('reduced Responses target chains', () => {
       const toolResult = (userTurn?.content as Array<Record<string, unknown>>).find(
         (block) => block.type === 'tool_result',
       );
-      expect(toolResult?.content).toEqual([
-        { type: 'text', text: 'shot' },
-        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
-      ]);
+      expect(toolResult?.tool_use_id).toBe('call_shell');
+      expect(toolResult?.content).toBe('exit code: 0\nstdout: done');
     },
     Gemini: (body) => {
-      expect(body.toolConfig).toEqual({ functionCallingConfig: { mode: 'auto' } });
+      expect(body.toolConfig).toMatchObject({ functionCallingConfig: { mode: 'AUTO' } });
       expect((body.generationConfig as Record<string, unknown>).topP).toBe(0.9);
       expect('parallel_tool_calls' in body).toBe(false);
-      // functionResponse has no image channel: text parts flatten into
-      // `result`, the image is audit-dropped (never a base64 token bomb).
       const allParts = (body.contents as Array<{ parts: Array<Record<string, unknown>> }>).flatMap((c) => c.parts);
       const functionResponse = allParts.find((part) => 'functionResponse' in part)?.functionResponse as {
+        name: string;
         response: { result: unknown };
       };
-      expect(functionResponse?.response.result).toBe('shot');
-      expect(JSON.stringify(body)).not.toContain('QUJD');
+      expect(functionResponse?.name).toBe('shell');
+      expect(functionResponse?.response.result).toBe('exit code: 0\nstdout: done');
     },
   };
 
@@ -274,6 +269,73 @@ describe('reduced Responses target chains', () => {
     expect(JSON.stringify(upstreamBody)).not.toContain('future_field');
   });
 
+  it.each(targets)('$name preserves tool-result images or rejects them before fetching', async ({
+    name,
+    transformer,
+    responseBody,
+  }) => {
+    const imageRequest = {
+      ...codexRequest,
+      input: [
+        { type: 'message', role: 'user', content: 'inspect the screenshot' },
+        { type: 'function_call', call_id: 'call_image', name: 'view_image', arguments: '{}' },
+        { type: 'function_call_output', call_id: 'call_image', output: [
+          { type: 'input_text', text: 'screenshot' },
+          { type: 'input_image', image_url: 'data:image/png;base64,QUJD' },
+        ] },
+      ],
+      tools: [{ type: 'function', name: 'view_image', parameters: { type: 'object' } }],
+    };
+    let upstreamBody: Record<string, unknown> | undefined;
+    const pending = executeProviderCall({
+      executor: new TransformerChainExecutor(),
+      request: imageRequest,
+      provider,
+      chain: { providerTransformers: [transformer], modelTransformers: [] },
+      endpointTransformer: new OpenAIResponseTransformer(),
+      resolveUrl: () => 'https://example.test/upstream',
+      buildHeaders: () => ({}),
+      fetchFn: async (_url, _headers, body) => {
+        upstreamBody = body as Record<string, unknown>;
+        return new Response(JSON.stringify(responseBody), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+
+    if (name === 'OpenAI Chat') {
+      await expect(pending).rejects.toThrow('OpenAI Chat tool results cannot contain images');
+      expect(upstreamBody).toBeUndefined();
+      return;
+    }
+    await pending;
+    expect(upstreamBody).toBeDefined();
+    if (name === 'Anthropic') {
+      const blocks = (upstreamBody!.messages as Array<{ content: unknown }>).flatMap(
+        (message) => Array.isArray(message.content) ? message.content as Array<Record<string, unknown>> : [],
+      );
+      expect(blocks.find((block) => block.type === 'tool_result')).toMatchObject({
+        tool_use_id: 'call_image',
+        content: [
+          { type: 'text', text: 'screenshot' },
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+        ],
+      });
+    } else {
+      const parts = (upstreamBody!.contents as Array<{ parts: Array<Record<string, unknown>> }>)
+        .flatMap((content) => content.parts);
+      expect(parts.find((part) => 'functionResponse' in part)).toMatchObject({
+        functionResponse: {
+          id: 'call_image',
+          name: 'view_image',
+          response: { result: 'screenshot' },
+          parts: [{ inlineData: { mimeType: 'image/png', data: 'QUJD' } }],
+        },
+      });
+    }
+  });
+
   // Structured output (codex TextControls' `text.format`): mapped onto the
   // wires with a counterpart; Anthropic-shaped targets refuse it loudly
   // before any upstream byte.
@@ -287,7 +349,12 @@ describe('reduced Responses target chains', () => {
         type: 'json_schema',
         name: 'plan',
         strict: true,
-        schema: { type: 'object', properties: { step: { type: 'string' } } },
+        schema: {
+          type: 'object',
+          properties: { step: { type: 'string', minLength: 1 } },
+          required: ['step'],
+          additionalProperties: false,
+        },
       },
     },
     stream: false,
@@ -333,16 +400,13 @@ describe('reduced Responses target chains', () => {
         json_schema: {
           name: 'plan',
           strict: true,
-          schema: { type: 'object', properties: { step: { type: 'string' } } },
+          schema: structuredRequest.text.format.schema,
         },
       });
     } else {
       const generationConfig = upstreamBody!.generationConfig as Record<string, unknown>;
       expect(generationConfig.responseMimeType).toBe('application/json');
-      expect(generationConfig.responseSchema).toEqual({
-        type: 'object',
-        properties: { step: { type: 'string' } },
-      });
+      expect(generationConfig.responseJsonSchema).toEqual(structuredRequest.text.format.schema);
     }
     // verbosity is a dropped knob — only the format maps.
     expect(JSON.stringify(upstreamBody)).not.toContain('verbosity');

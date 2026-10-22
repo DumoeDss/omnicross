@@ -7,11 +7,10 @@
  * `/v1/messages` SUBSCRIPTION routes end-to-end through the built-in
  * `anthropicMessagesByo` subscription branch (NO mocked fetch), asserting:
  *
- *   3.1 claude pass-through (`profile.mode === 'pass-through'`) → verbatim relay,
- *       upstream receives the body byte-for-byte + `Authorization: Bearer <oauth>`,
- *       no transformer chain run.
- *   3.2 opencodego-MiniMax (resolved upstream ends in `/v1/messages`) → verbatim
- *       relay, upstream receives `Authorization: Bearer <key>` AND `x-api-key: <key>`.
+ *   3.1 claude pass-through (`profile.mode === 'pass-through'`) preserves native
+ *       fields while sending the resolved model + `Authorization: Bearer <oauth>`.
+ *   3.2 opencodego-MiniMax (resolved upstream ends in `/v1/messages`) preserves
+ *       native fields with `Authorization: Bearer <key>` AND `x-api-key: <key>`.
  *   3.3 opencodego OpenAI-shape (upstream ends in `/v1/chat/completions`) →
  *       transformer chain path → Anthropic-shaped response.
  *   3.4 401-retry: claude `onUnauthorized` true → re-run once (two upstream hits +
@@ -389,7 +388,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     expect(records[0].model).toBe('claude-physical-model');
   });
 
-  it('claude pass-through → verbatim body + Bearer <oauth>, no transformer chain', async () => {
+  it('claude pass-through preserves native extensions with Bearer OAuth', async () => {
     await startProxy();
     const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'))));
     const sentBody = {
@@ -412,7 +411,6 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     expect(upstream.lastAuthHeader).toBe(`Bearer ${CLAUDE_OAUTH}`);
     // Verbatim: the server-tool `type` field survived (no Unified round-trip).
     const received = JSON.parse(upstream.lastBody ?? '{}') as typeof sentBody;
-    expect(upstream.lastBody).toBe(JSON.stringify(sentBody));
     expect(received.extra_server_tool.type).toBe('server_tool_use');
     expect(received.thinking).toEqual({ type: 'adaptive' });
     expect(received.output_config).toEqual({ effort: 'max' });
@@ -673,11 +671,9 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     });
 
     expect(res.status).toBe(200);
-    // 3 attempts total (cap). The FIRST (verbatim same-format) attempt relays the
-    // ORIGINAL body byte-for-byte (model 'cli' — happy-path byte-identity); each
-    // FALLBACK iteration re-serializes the body with the advanced model id.
+    // Every attempt sends its resolved wire model, including the primary.
     expect(upstream.hits).toBe(3);
-    expect(upstream.models).toEqual(['cli', 'fb-1', 'fb-2']);
+    expect(upstream.models).toEqual(['minimax-m2.5', 'fb-1', 'fb-2']);
   });
 
   // 3.9 — D6b: a fallback that FLIPS shape re-resolves the relay kind (verbatim → transformer).
@@ -713,10 +709,8 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     // response. The x-api-key was injected only on the first (Anthropic-shape) hit.
     expect(res.status).toBe(200);
     expect(upstream.hits).toBe(2);
-    // First (verbatim /v1/messages) hit relays the ORIGINAL body ('cli'); the
-    // shape-flipped fallback (OpenAI-shape transformer path) re-serializes the
-    // body with the resolved fallback model.
-    expect(upstream.models).toEqual(['cli', 'kimi-k2.6']);
+    expect(upstream.models).toEqual(['minimax-m2.5', 'kimi-k2.6']);
+    expect(upstream.paths).toEqual(['/v1/messages', '/v1/chat/completions']);
     const json = (await res.json()) as { type?: string };
     expect(json.type).toBe('message');
   });
@@ -744,11 +738,36 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       body: JSON.stringify({ model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
     });
 
-    // Cap = 3 attempts (initial + 2 fallbacks); the last 503 surfaces. The first
-    // (verbatim) attempt relays the ORIGINAL body ('cli'); fallbacks re-serialize.
+    // Cap = 3 attempts (initial + 2 fallbacks); the last 503 surfaces.
     expect(res.status).toBe(503);
     expect(upstream.hits).toBe(3);
-    expect(upstream.models).toEqual(['cli', 'fb-1', 'fb-2']);
+    expect(upstream.models).toEqual(['minimax-m2.5', 'fb-1', 'fb-2']);
+  });
+
+  it('retired same-format fallback keys remain traversable while every wire attempt uses flash', async () => {
+    await startProxy();
+    upstream.alwaysStatus = 503;
+    const fallbacks = [{ modelId: 'deepseek-chat' }, { modelId: 'deepseek-reasoner' }];
+    const profile: SubscriptionDispatchProfile = {
+      providerId: 'opencodego',
+      displayName: 'OpenCodeGo',
+      authStrategy: makeOpenCodeGoStrategy(),
+      mode: 'transformer',
+      resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
+      providerTransformerNames: ['openai'],
+      modelMapper: () => ({ resolvedModel: 'deepseek-chat', scenario: 'default' }),
+      nextFallback: (_scenario, attempted) => fallbacks.find(entry => !attempted.includes(entry.modelId)) ?? null,
+    };
+    const token = proxy.addRoute(subRoute(profile));
+    const response = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+    });
+    expect(response.status).toBe(503);
+    await response.text();
+    expect(upstream.hits).toBe(2);
+    expect(upstream.models).toEqual(['deepseek-flash', 'deepseek-flash']);
   });
 
   // 3.11 — D6b: claude (no nextFallback) is unaffected — single attempt even on 5xx.
@@ -766,14 +785,10 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     expect(upstream.hits).toBe(1);
   });
 
-  // 3.12 — D6b (review r1): a THROWN network error on model 1 is caught and
-  // advances to a fallback (NOT a bare 502). The primary's verbatim first attempt
-  // relays the original body ('cli') → upstream destroys the socket → fetch rejects
-  // → loop catches → advances to `minimax-fb` (succeeds).
+  // A thrown network error on the mapped primary advances to a fallback.
   it('opencodego network throw on model 1 → catches + advances → succeeds on fallback', async () => {
     await startProxy();
-    // Primary attempt's body model on the verbatim path is the ORIGINAL 'cli'.
-    upstream.throwForModels.add('cli');
+    upstream.throwForModels.add('minimax-m2.5');
     const profile: SubscriptionDispatchProfile = {
       providerId: 'opencodego',
       displayName: 'OpenCodeGo',
@@ -795,15 +810,13 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     // NOT a 502: the thrown primary advanced to the fallback, which succeeded.
     expect(res.status).toBe(200);
     expect(upstream.hits).toBe(2);
-    // hit 1 = primary verbatim body ('cli', socket destroyed); hit 2 = fallback model.
-    expect(upstream.models).toEqual(['cli', 'minimax-fb']);
+    expect(upstream.models).toEqual(['minimax-m2.5', 'minimax-fb']);
   });
 
   // 3.13 — D6b (review r1): a 429 (rate-limit) on model 1 ADVANCES (transient).
   it('opencodego 429 on model 1 → advances to fallback (rate-limit is transient)', async () => {
     await startProxy();
-    // Primary verbatim body model 'cli' → 429; fallback 'minimax-fb' → 200.
-    upstream.statusByModel.set('cli', 429);
+    upstream.statusByModel.set('minimax-m2.5', 429);
     const profile: SubscriptionDispatchProfile = {
       providerId: 'opencodego',
       displayName: 'OpenCodeGo',
@@ -824,7 +837,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
 
     expect(res.status).toBe(200);
     expect(upstream.hits).toBe(2);
-    expect(upstream.models).toEqual(['cli', 'minimax-fb']);
+    expect(upstream.models).toEqual(['minimax-m2.5', 'minimax-fb']);
   });
 
   // 3.14 — D6b (review r1): a 400 (client error) on model 1 SURFACES — does NOT
@@ -832,7 +845,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
   // criterion: `nextFallback` is never consulted.
   it('opencodego 400 on model 1 → surfaces the 400 WITHOUT advancing', async () => {
     await startProxy();
-    upstream.statusByModel.set('cli', 400);
+    upstream.statusByModel.set('minimax-m2.5', 400);
     const nextFallback = vi.fn(() => ({ modelId: 'minimax-fb' }));
     const profile: SubscriptionDispatchProfile = {
       providerId: 'opencodego',
@@ -854,7 +867,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     // The 400 surfaced verbatim; no fallback was consulted or attempted.
     expect(res.status).toBe(400);
     expect(upstream.hits).toBe(1);
-    expect(upstream.models).toEqual(['cli']);
+    expect(upstream.models).toEqual(['minimax-m2.5']);
     expect(nextFallback).not.toHaveBeenCalled();
   });
 

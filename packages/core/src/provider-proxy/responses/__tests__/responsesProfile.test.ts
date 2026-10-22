@@ -325,10 +325,7 @@ describe('validateReducedResponsesRequest', () => {
     }, chatCapabilities)).not.toThrow();
   });
 
-  // NOTE: item/bookkeeping FIELDS (id, status, phase, passthrough blocks,
-  // strict, format) are deliberately ABSENT from this list — they are
-  // metadata-tier, admitted and audit-dropped (see the codex-Lite surface
-  // test). Only TYPES and CONTENT shapes that cannot be served stay rejected.
+  // Bookkeeping remains droppable; executable tool contracts do not.
   it('relays inline input_image parts (message content and tool outputs)', () => {
     // codex's view_image results / pasted screenshots ride as input_image
     // parts; every reduced target has a vision shape, so they are relayed.
@@ -376,24 +373,28 @@ describe('validateReducedResponsesRequest', () => {
     ['top-level namespace declaration', { input: 'x', tools: [{ type: 'namespace', name: 'ns', tools: [] }] }, '$.tools'],
   ];
 
-  it('admits hosted/unknown tool DECLARATIONS alongside executable ones, audit-dropping them (codex-update compat)', () => {
-    const dropped = validateReducedResponsesRequest({
-      input: 'x',
-      tools: [
-        { type: 'function', name: 'shell', parameters: { type: 'object' } },
-        { type: 'web_search' },
-        { type: 'view_image' },
-        { type: 'brand_new_hosted_tool', vendor_field: 1 },
-        { type: 'custom', name: 'apply_patch' },
-      ],
-    }, chatCapabilities);
-    // The audit names carry the dropped type so operators can see the loss.
-    expect(dropped).toContain('$.tools[1](web_search)');
-    expect(dropped).toContain('$.tools[2](view_image)');
-    expect(dropped).toContain('$.tools[3](brand_new_hosted_tool)');
-    // Executable declarations are NOT in the dropped list.
-    expect(dropped).not.toContain(expect.stringMatching(/^\$.tools\[0\]/));
-    expect(dropped).not.toContain(expect.stringMatching(/^\$.tools\[4\]/));
+  it.each(['web_search', 'view_image', 'brand_new_hosted_tool'])(
+    'rejects native tool %s even alongside executable functions', (type) => {
+      expect(() => validateReducedResponsesRequest({
+        input: 'x',
+        tools: [{ type: 'function', name: 'shell' }, { type }],
+      }, chatCapabilities)).toThrow(expect.objectContaining({
+        code: 'unsupported_capability', status: 400,
+        message: expect.stringContaining('$.tools[1].type'),
+      }));
+    },
+  );
+
+  it('rejects custom grammar contracts but admits explicit free text', () => {
+    expect(() => validateReducedResponsesRequest({
+      input: 'x', tools: [{ type: 'custom', name: 'exec', format: { type: 'grammar', syntax: 'lark', definition: 'start: "x"' } }],
+    }, chatCapabilities)).toThrow(expect.objectContaining({
+      code: 'unsupported_capability', status: 400,
+      message: expect.stringContaining('$.tools[0].format'),
+    }));
+    expect(() => validateReducedResponsesRequest({
+      input: 'x', tools: [{ type: 'custom', name: 'exec', format: { type: 'text' } }],
+    }, chatCapabilities)).not.toThrow();
   });
 
   it('a tools array of ONLY hosted declarations fails loudly with the honest reason', () => {
@@ -404,7 +405,7 @@ describe('validateReducedResponsesRequest', () => {
       name: 'OpenAIOperationError',
       code: 'unsupported_capability',
       status: 400,
-      message: expect.stringContaining('could execute none of them'),
+      message: expect.stringContaining('$.tools[0].type'),
     }));
   });
 

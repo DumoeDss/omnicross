@@ -120,14 +120,14 @@ describe('image provider forms', () => {
     const imageConfig = { ...config, providers: { studio: { protocol: 'openrouter', sourceProviderId: 'image-key', models: [] } } } as ImagesServerConfig;
     const onUpdate = vi.fn().mockRejectedValueOnce(new Error('Config failed')).mockResolvedValue(undefined);
     mocks.discoverModels.mockResolvedValueOnce({ success: false, models: [], error: 'No access' })
-      .mockResolvedValueOnce({ success: true, models: [{ id: 'deepseek-chat' }, { id: 'google/gemini-nano-banana-2.1' }] });
+      .mockResolvedValueOnce({ success: true, models: [{ id: 'deepseek-flash' }, { id: 'google/gemini-nano-banana-2.1' }] });
     await act(async () => root.render(React.createElement(ImageProviderModels, { id: 'studio', config: imageConfig, busy: false, onUpdate })));
     await click('images.models.fetch');
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('No access');
     await click('images.models.fetch');
     expect(mocks.discoverModels).toHaveBeenLastCalledWith('image-key', { forceRefresh: true });
     expect(container.querySelector('input[aria-label="images.models.request 1"]')?.getAttribute('value')).toBe('google/gemini-nano-banana-2.1');
-    expect(container.textContent).not.toContain('deepseek-chat');
+    expect(container.textContent).not.toContain('deepseek-flash');
     await click('images.api.save');
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Config failed');
     await click('images.api.save');

@@ -146,4 +146,40 @@ describe('parseRequest', () => {
     expect(parseRequest({ model: 'm', reasoning: { summary: 'none' } }).options.hideThinkingSummary).toBe(true);
     expect(parseRequest({ model: 'm', reasoning: { summary: 'auto' } }).options.hideThinkingSummary).toBeUndefined();
   });
+
+  it.each(['max_output_tokens', 'temperature', 'top_p'])('rejects unsupported %s rather than silently changing generation', (field) => {
+    expect(() => parseRequest({ model: 'chatgpt-web/pro', input: 'hello', [field]: 1 }))
+      .toThrow(field);
+  });
+
+  it('rejects Chat input instead of sending an empty browser turn', () => {
+    expect(() => parseRequest({
+      model: 'chatgpt-web/pro', messages: [{ role: 'user', content: 'do not lose this' }],
+    })).toThrow(/Responses input/);
+  });
+
+  it.each([
+    { type: 'input_image', file_id: 'file-image' },
+    { type: 'input_file', file_id: 'file-document' },
+  ])('rejects unresolved file content instead of replacing it with a label', (content) => {
+    expect(() => parseRequest({
+      model: 'chatgpt-web/pro', input: [{ role: 'user', content: [content] }],
+    })).toThrow(/image_url|input_file/);
+  });
+
+  it.each(['{broken', '[]', 'null'])('rejects corrupt tool arguments rather than replaying an invented empty call', (args) => {
+    expect(() => parseRequest({
+      model: 'chatgpt-web/pro',
+      input: [{ type: 'function_call', name: 'shell', call_id: 'c', arguments: args }],
+    })).toThrow();
+  });
+
+  it('enforces the effort pinned by the requested browser model', () => {
+    expect(() => parseRequest({
+      model: 'chatgpt-web/pro', input: 'hello', reasoning: { effort: 'medium' },
+    })).toThrow(/pins reasoning.effort to max/);
+    expect(parseRequest({
+      model: 'chatgpt-web/pro', input: 'hello', reasoning: { effort: 'ultra' },
+    }).options.reasoning).toBe('max');
+  });
 });

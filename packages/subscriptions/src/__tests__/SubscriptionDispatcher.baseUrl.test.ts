@@ -8,6 +8,9 @@
 import type http from 'node:http';
 
 import type { OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
+import { TransformerChainExecutor } from '@omnicross/core/transformer/TransformerChainExecutor';
+import { TransformerService } from '@omnicross/core/transformer/TransformerService';
+import { AnthropicTransformer } from '@omnicross/core/transformer/transformers/AnthropicTransformer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildOpenCodeGoUrl } from '../opencodego/endpoints';
@@ -44,19 +47,22 @@ function makeProfile(seen: { config?: OpenCodeGoTokenConfig }): SubscriptionDisp
         config?.baseUrl,
       );
     },
-    providerTransformerNames: ['opencodego'],
+    providerTransformerNames: ['anthropic'],
     modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
     nextFallback: () => null,
   };
 }
 
-function makeHooks(captured: { url?: string }): DispatcherHooks {
+function makeHooks(captured: { url?: string; body?: unknown }): DispatcherHooks {
+  const transformerService = new TransformerService();
+  transformerService.registerTransformer('anthropic', new AnthropicTransformer());
   return {
-    endpointTransformer: {} as DispatcherHooks['endpointTransformer'],
-    executor: {} as DispatcherHooks['executor'],
-    transformerService: {} as DispatcherHooks['transformerService'],
-    fetchWithRetry: vi.fn(async (url: string) => {
+    endpointTransformer: new AnthropicTransformer(),
+    executor: new TransformerChainExecutor(),
+    transformerService,
+    fetchWithRetry: vi.fn(async (url: string, _headers: Record<string, string>, body: unknown) => {
       captured.url = url;
+      captured.body = body;
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -67,11 +73,12 @@ function makeHooks(captured: { url?: string }): DispatcherHooks {
 }
 
 function makeReq(): DispatchRequest {
+  const anthropicBody = { model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] };
   return {
     reqId: 1,
     res: {} as http.ServerResponse,
-    rawBody: JSON.stringify({ model: 'cli', messages: [] }),
-    anthropicBody: { model: 'cli', messages: [] },
+    rawBody: JSON.stringify(anthropicBody),
+    anthropicBody,
     isStream: false,
     sdkModel: 'cli',
     fallbackModel: 'minimax-m2.5',
@@ -81,7 +88,7 @@ function makeReq(): DispatchRequest {
 describe('SubscriptionDispatcher baseUrl (D1)', () => {
   it('passes the per-account ocConfig into resolveUpstreamUrl → honors baseUrl', async () => {
     const seen: { config?: OpenCodeGoTokenConfig } = {};
-    const captured: { url?: string } = {};
+    const captured: { url?: string; body?: unknown } = {};
     const config: OpenCodeGoTokenConfig = {
       authMethod: 'manual',
       status: 'configured',
@@ -98,6 +105,9 @@ describe('SubscriptionDispatcher baseUrl (D1)', () => {
     expect(seen.config).toBe(config);
     // The Anthropic-shape (MiniMax) bypass hit the OVERRIDE host.
     expect(captured.url).toBe('https://my-host.example.com/v1/messages');
+    expect(captured.body).toMatchObject({
+      model: 'minimax-m2.5', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }],
+    });
   });
 
   it('byte-identical constant when baseUrl is unset', async () => {

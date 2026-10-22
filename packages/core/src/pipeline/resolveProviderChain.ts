@@ -14,6 +14,7 @@
  * @module pipeline/resolveProviderChain
  */
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { Transformer } from '../transformer';
 
@@ -41,9 +42,9 @@ export interface ResolvedProviderChain {
 /**
  * Resolve the full transformer chain for a provider + model combination.
  *
- * Semantics (identical to all three former inline copies):
- * 1. Call `llmConfig.resolveTransformerChain(providerId, model)` to get the
- *    cached chain.
+ * Resolution order:
+ * 1. Retain an explicitly configured legacy model row; when it is absent,
+ *    use a configured redirect target's chain. Resolve the cached chain.
  * 2. Call `llmConfig.getMainTransformer(providerId)` to get the main
  *    transformer (e.g. GeminiTransformer for Google providers).
  * 3. Shallow-copy both arrays so the cached reference is not mutated.
@@ -55,9 +56,18 @@ export async function resolveProviderChain(
   llmConfig: ProviderConfigSource,
   providerId: string,
   model: string,
+  mainTransformerOverride?: Transformer,
 ): Promise<ResolvedProviderChain> {
+  const redirectedModel = resolveModelRedirect(model);
+  if (redirectedModel !== model) {
+    const provider = await llmConfig.getProvider(providerId);
+    const configs = provider?.modelConfigs;
+    if (!configs?.some((entry) => entry.id === model) && configs?.some((entry) => entry.id === redirectedModel)) {
+      model = redirectedModel;
+    }
+  }
   const cachedChain = await llmConfig.resolveTransformerChain(providerId, model);
-  const mainTransformer = await llmConfig.getMainTransformer(providerId);
+  const mainTransformer = mainTransformerOverride ?? await llmConfig.getMainTransformer(providerId);
 
   // Shallow copy to avoid mutating the cached chain object.
   // (resolveTransformerChain returns a cached reference — mutating it would
@@ -81,4 +91,19 @@ export async function resolveProviderChain(
     chain.providerTransformers.length > 0 || chain.modelTransformers.length > 0;
 
   return { chain, mainTransformer, hasTransformers };
+}
+
+/** Retain the selected legacy row's explicit overrides under its wire model ID. */
+export function resolveRedirectedModelConfigs<T extends { id: string }>(
+  modelConfigs: T[] | undefined,
+  configuredModel: string,
+): T[] | undefined {
+  const model = resolveModelRedirect(configuredModel);
+  if (model === configuredModel) return modelConfigs;
+  const configured = modelConfigs?.find((entry) => entry.id === configuredModel);
+  if (!configured) return modelConfigs;
+  return [
+    { ...configured, id: model },
+    ...modelConfigs!.filter((entry) => entry.id !== configuredModel && entry.id !== model),
+  ];
 }

@@ -12,36 +12,31 @@
 
 import type { UnifiedTool } from '../types';
 
-/**
- * Check if a tool is an Anthropic server-side tool (executed by the API server, not the client).
- * These tools have a specific `type` field (e.g. "web_search_20250305") instead of "tool".
- */
-export function isServerSideTool(tool: Record<string, unknown>): boolean {
-  const type = String(tool.type || '');
-  return type.startsWith('web_search_') ||
-    type.startsWith('code_execution_') ||
-    type.startsWith('text_editor_') ||
-    type.startsWith('memory_') ||
-    type.startsWith('web_fetch_') ||
-    type.startsWith('search_tool_');
+/** Provider-defined tools have native schemas, whether executed by server or client. */
+export function isNativeAnthropicTool(tool: Record<string, unknown>): boolean {
+  return typeof tool.type === 'string' && tool.type !== 'custom';
 }
 
 /**
  * Convert Anthropic tools to unified format.
- * Server-side tools (web_search, code_execution, etc.) are filtered out
- * and preserved separately via _serverSideTools in the unified request.
+ * Native tools are preserved separately via _serverSideTools for Anthropic replay.
  */
 export function convertAnthropicToolsToOpenAI(
   tools: Array<Record<string, unknown>>
 ): UnifiedTool[] {
   return tools
-    .filter(tool => !isServerSideTool(tool))
-    .map((tool) => ({
-      type: 'function' as const,
-      function: {
-        name: String(tool.name),
-        description: String(tool.description || ''),
-        parameters: tool.input_schema as unknown as UnifiedTool['function']['parameters'],
-      },
-    }));
+    .filter(tool => !isNativeAnthropicTool(tool))
+    .map((tool) => {
+      if (typeof tool.name !== 'string' || !tool.input_schema || typeof tool.input_schema !== 'object') {
+        throw new Error('Anthropic function tools require a name and input_schema');
+      }
+      return {
+        type: 'function' as const,
+        function: {
+          name: tool.name,
+          description: String(tool.description || ''),
+          parameters: tool.input_schema as UnifiedTool['function']['parameters'],
+        },
+      };
+    });
 }

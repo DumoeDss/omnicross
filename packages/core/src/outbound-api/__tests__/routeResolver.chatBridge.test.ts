@@ -4,8 +4,8 @@
  * Two additions this change makes to the `chat` endpoint's resolution:
  *  1. PREFIX dispatch (design D2): `dispatchMode: 'prefix'` routes by the
  *     requested model's name prefix to `prefixTargets`; an unmatched prefix →
- *     clear 404. The DEFAULT (`dispatchMode` absent / `'list'`) stays byte-
- *     identical to the pre-change list-mapped resolution (zero regression).
+ *     clear 404. The default list-mapped path preserves exact/case-insensitive
+ *     selection and accepts configured replacements for retired model names.
  *  2. SUBSCRIPTION gate (design D1): the `chat` endpoint now passes the
  *     `endpointSupportsSubscription` gate, so a subscription-classified provider
  *     resolves to a subscription route carrying the top-level
@@ -122,7 +122,7 @@ describe('resolveRoute — chat PREFIX dispatch', () => {
   });
 });
 
-describe('resolveRoute — chat LIST dispatch is byte-identical (zero regression)', () => {
+describe('resolveRoute — chat LIST dispatch', () => {
   const listConfig: EndpointRoutingConfig = {
     endpoint: 'chat',
     models: ['pa,gpt-4o', 'pb,glm-4.7'],
@@ -141,6 +141,35 @@ describe('resolveRoute — chat LIST dispatch is byte-identical (zero regression
     if (!result.ok) return;
     expect(result.route.providerId).toBe('pb');
     expect(result.route.model).toBe('glm-4.7');
+  });
+
+  it('accepts retired names through a configured Flash row but keeps an explicit old row authoritative', async () => {
+    for (const model of ['deepseek-chat', 'deepseek-reasoner']) {
+      const base = { ingressFormat: 'openai-chat' as const, llmConfig: BYO_LLM_CONFIG, requestedModel: model };
+      const redirected = await resolveRoute({
+        ...base,
+        config: { endpoint: 'chat', models: ['current,deepseek-flash'], useSubscription: false },
+      });
+      expect(redirected).toMatchObject({ ok: true, route: { providerId: 'current', model: 'deepseek-flash' } });
+
+      const configured = await resolveRoute({
+        ...base,
+        config: { endpoint: 'chat', models: ['current,deepseek-flash', `selected,${model}`], useSubscription: false },
+      });
+      expect(configured).toMatchObject({ ok: true, route: { providerId: 'selected', model } });
+    }
+  });
+
+  it('does not admit qualified custom names through a Flash-only list', async () => {
+    for (const model of ['publisher/deepseek-chat', 'deepseek-reasoner:custom']) {
+      const result = await resolveRoute({
+        config: { endpoint: 'chat', models: ['current,deepseek-flash'], useSubscription: false },
+        ingressFormat: 'openai-chat',
+        llmConfig: BYO_LLM_CONFIG,
+        requestedModel: model,
+      });
+      expect(result).toMatchObject({ ok: false, error: { status: 404 } });
+    }
   });
 
   it('explicit dispatchMode: "list" behaves the same as absent', async () => {

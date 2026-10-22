@@ -23,6 +23,7 @@ import type {
 import { transformResponseIn } from './utils/gemini.response-in';
 import { transformResponseOut } from './utils/gemini.stream';
 import { buildRequestBody, transformRequestOut as toUnifiedRequest } from './utils/gemini.util';
+import { buildGeminiApiUrl } from '../../completion/url-builder';
 
 /**
  * GeminiTransformer handles Google Gemini API format conversion
@@ -93,9 +94,7 @@ export class GeminiTransformer implements Transformer {
       context.reasoningSourceFormat === this.name,
     );
 
-    // Build the Gemini API URL
-    const action = request.stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-    const url = new URL(`./${request.model}:${action}`, provider.baseUrl);
+    const url = new URL(buildGeminiApiUrl(provider.baseUrl, request.model, request.stream === true));
 
     const headers: Record<string, string | undefined> = {};
 

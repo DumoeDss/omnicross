@@ -88,14 +88,14 @@ describe('detectNativeSearch', () => {
   });
 
   it('returns unsupported for unknown models without userExplicit', () => {
-    const result = detectNativeSearch('deepseek-chat', 'openai', makeProvider(), false);
+    const result = detectNativeSearch('deepseek-flash', 'openai', makeProvider(), false);
     expect(result).toEqual({ supported: false, nativeProvider: null });
   });
 
   it('falls back to API format when userExplicit is true', () => {
     // 'openai-response' maps to the 'openai' native provider; with userExplicit
     // the unknown model is trusted to support it.
-    const result = detectNativeSearch('deepseek-chat', 'openai-response', makeProvider(), true);
+    const result = detectNativeSearch('deepseek-flash', 'openai-response', makeProvider(), true);
     expect(result).toEqual({ supported: true, nativeProvider: 'openai' });
   });
 

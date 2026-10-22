@@ -3,7 +3,7 @@
  * (multi-provider-image-generation groups 3–4):
  *   - envelope snapshot: the CCA non-stream image shape (responseModalities/
  *     imageConfig/inlineData edit part/requestId/userAgent/requestType),
- *   - size→aspectRatio mapping matrix (exact ratios kept, others omitted),
+ *   - explicit aspect-ratio preservation and unsupported pixel-size rejection,
  *   - response parsing: valid inlineData (full pixel decode), non-PNG mismatch,
  *     text-only no-image failure with a bounded summary, malformed payloads,
  *   - provider: bootstrap-eligible fail-closed evidence, unrouted-format /
@@ -13,7 +13,6 @@
 import { InMemoryImageAsset } from '@omnicross/core/image-generation';
 import type { AuthStrategy } from '../../auth';
 import {
-  antigravityAspectRatioFor,
   buildAntigravityImageRequest,
   parseAntigravityImageResponse,
 } from '../antigravityImageWire';
@@ -68,17 +67,6 @@ describe('buildAntigravityImageRequest', () => {
   });
 });
 
-describe('antigravityAspectRatioFor', () => {
-  it('maps exact reduced fractions and omits everything else', () => {
-    expect(antigravityAspectRatioFor({ kind: 'pixels', width: 1024, height: 1024 })).toBe('1:1');
-    expect(antigravityAspectRatioFor({ kind: 'pixels', width: 1536, height: 1024 })).toBe('3:2');
-    expect(antigravityAspectRatioFor({ kind: 'pixels', width: 1024, height: 1536 })).toBe('2:3');
-    expect(antigravityAspectRatioFor({ kind: 'pixels', width: 1920, height: 1080 })).toBe('16:9');
-    expect(antigravityAspectRatioFor({ kind: 'pixels', width: 1000, height: 777 })).toBeUndefined();
-    expect(antigravityAspectRatioFor({ kind: 'auto' })).toBeUndefined();
-  });
-});
-
 describe('parseAntigravityImageResponse', () => {
   const envelope = (parts: unknown[]) => JSON.stringify({
     response: { candidates: [{ content: { parts } }] },
@@ -94,6 +82,25 @@ describe('parseAntigravityImageResponse', () => {
     expect([asset.width, asset.height]).toEqual([1, 1]);
     asset.dispose();
   });
+
+  it('does not expose a thought image as the final output', async () => {
+    await expect(parseAntigravityImageResponse(envelope([
+      { thought: true, inlineData: { mimeType: 'image/png', data: TINY_PNG_BASE64 } },
+    ]))).rejects.toMatchObject({ code: 'image_generation_failed' });
+    const asset = await parseAntigravityImageResponse(envelope([
+      { thought: true, inlineData: { mimeType: 'image/png', data: 'not-a-final-image' } },
+      { inlineData: { mimeType: 'image/png', data: TINY_PNG_BASE64 } },
+    ]));
+    expect([asset.width, asset.height]).toEqual([1, 1]);
+    asset.dispose();
+  });
+
+  it.each(['null', '[]', '{"response":null}', '{"response":[]}'])(
+    'maps malformed envelopes to a stable protocol error: %s', async (body) => {
+      await expect(parseAntigravityImageResponse(body))
+        .rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+    },
+  );
 
   it('rejects a non-PNG actual format as an honest protocol mismatch', async () => {
     await expect(parseAntigravityImageResponse(envelope([
@@ -152,7 +159,8 @@ function generateRequest(overrides: Partial<ImageProviderRequest> = {}): ImagePr
     images: [],
     n: 1,
     quality: 'auto',
-    size: { kind: 'pixels', width: 1024, height: 1024 },
+    size: { kind: 'auto' },
+    aspectRatio: '1:1',
     background: 'auto',
     outputFormat: 'png',
     moderation: 'auto',
@@ -174,7 +182,7 @@ describe('AntigravitySubscriptionImageProvider', () => {
     await lease.release();
   });
 
-  it('rejects non-auto quality, jpeg output, compression, mask, and multi-image at start', async () => {
+  it('rejects unsupported quality, format, dimensions, mask, and image count at start', async () => {
     const { strategy } = antigravityStrategy();
     const provider = createAntigravitySubscriptionImageProvider({ authStrategy: strategy });
     const lease = await provider.acquire(context());
@@ -187,6 +195,10 @@ describe('AntigravitySubscriptionImageProvider', () => {
       generateRequest({ outputCompression: 50 } as never),
       generateRequest({ action: 'edit', images: [png, png], mask: png }),
       generateRequest({ model: 'gpt-image-2' }),
+      generateRequest({ size: { kind: 'pixels', width: 1024, height: 1024 } }),
+      generateRequest({ aspectRatio: '7:5' }),
+      generateRequest({ resolution: '4K' }),
+      generateRequest({ history: [{ role: 'user', text: 'Keep the previous background.' }] }),
     ]) {
       // One attempt per lease: `start` is single-shot by contract.
       const attempt = await provider.acquire(context());
@@ -204,6 +216,10 @@ describe('AntigravitySubscriptionImageProvider', () => {
     const calls: Array<{ url: string; body: string }> = [];
     const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
       calls.push({ url: String(url), body: String(init?.body) });
+      const body = JSON.parse(String(init?.body));
+      if (body.request.generationConfig.imageConfig?.aspectRatio !== '1:1') {
+        return new Response('', { status: 400 });
+      }
       const respond = (status: number, payload: unknown) => new Response(JSON.stringify(payload), {
         status, headers: { 'Content-Type': 'application/json' },
       });
@@ -218,7 +234,7 @@ describe('AntigravitySubscriptionImageProvider', () => {
     try {
       const provider = createAntigravitySubscriptionImageProvider({ authStrategy: strategy });
       const lease = await provider.acquire(context());
-      const job = await lease.start(generateRequest());
+      const job = await lease.start(generateRequest({ aspectRatio: '1:1' }));
       const events = [];
       for await (const event of job.events) events.push(event);
       await lease.release();

@@ -112,6 +112,9 @@ export async function buildCandidateCodexImageRequest(
       size: request.size.kind === 'pixels'
         ? `${request.size.width}x${request.size.height}`
         : 'auto',
+      output_format: request.outputFormat,
+      ...(request.outputCompression !== undefined ? { output_compression: request.outputCompression } : {}),
+      ...(request.moderation !== 'auto' ? { moderation: request.moderation } : {}),
     });
   }
   const tool: Record<string, unknown> = {

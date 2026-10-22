@@ -30,6 +30,7 @@ import { TransformerChainExecutor } from '../../transformer';
 import { AnthropicTransformer } from '../../transformer/transformers/AnthropicTransformer';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
+import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { Transformer } from '../../transformer/types';
 import type { ProviderProxyDeps } from '../types';
 
@@ -50,6 +51,12 @@ let sharedResponses: Transformer | null = null;
 export function getResponsesEndpointTransformer(): Transformer {
   if (!sharedResponses) sharedResponses = new OpenAIResponseTransformer();
   return sharedResponses;
+}
+
+let sharedChat: Transformer | null = null;
+export function getChatEndpointTransformer(): Transformer {
+  if (!sharedChat) sharedChat = new OpenAITransformer();
+  return sharedChat;
 }
 
 // Shared Anthropic endpoint transformer instance (stateless). As an endpoint
@@ -552,123 +559,146 @@ export async function relayResponse(
   return bodyText;
 }
 
+/** Buffered SSE frames still obey the multi-line data-field framing rules. */
+function* bufferedSseEvents(text: string): Generator<Record<string, unknown>> {
+  let data: string[] = [];
+  const lines = text.split(/\r\n|\r|\n/);
+  if (lines.at(-1) !== '') lines.push('');
+  for (const line of lines) {
+    if (line.startsWith('data:')) {
+      data.push(line.slice(5).replace(/^ /, ''));
+    } else if (line === '' && data.length) {
+      const payload = data.join('\n');
+      data = [];
+      if (payload === '[DONE]') continue;
+      const event: unknown = JSON.parse(payload);
+      if (!event || typeof event !== 'object' || Array.isArray(event)) {
+        throw new Error('Invalid upstream SSE event');
+      }
+      yield event as Record<string, unknown>;
+    }
+  }
+}
+
+function rejectStreamError(event: Record<string, unknown>): void {
+  if (event.error !== undefined || event.type === 'error') {
+    throw new Error(`Upstream stream failed: ${JSON.stringify(event.error ?? event)}`);
+  }
+}
+
+function wireRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+/** Opaque provider items are ordered snapshots, not last-wins scalar deltas. */
+function mergeWireExtra(previousValue: unknown, nextValue: unknown): Record<string, unknown> | undefined {
+  const previous = wireRecord(previousValue);
+  const next = wireRecord(nextValue);
+  if (!next) return previous;
+  const merged = { ...previous, ...next };
+  for (const [namespace, field] of [['google', 'parts'], ['responses', 'reasoning']] as const) {
+    const before = wireRecord(previous?.[namespace]);
+    const after = wireRecord(next[namespace]);
+    if (!after) continue;
+    const priorItems = before?.[field];
+    const nextItems = after[field];
+    merged[namespace] = {
+      ...before, ...after,
+      ...(Array.isArray(nextItems) ? {
+        [field]: [...(Array.isArray(priorItems) ? priorItems : []), ...nextItems],
+      } : {}),
+    };
+  }
+  return merged;
+}
+
 /**
- * Aggregate a streaming Anthropic `text/event-stream` body into ONE buffered
- * Anthropic `message` JSON object — the inverse of the SDK's SSE wire format.
- *
- * Used when an upstream that ONLY streams (e.g. the codex Responses backend,
- * which 400s on `stream:false`) serves a NON-streaming client: codex is forced
- * to `stream:true`, the transformer emits Anthropic SSE, and this collapses it
- * back into the single JSON message a non-streaming client expects. Round-trips
- * `message_start` (id/model/usage), `content_block_start`+`_delta`+`_stop`
- * (text / tool_use `input_json_delta` / thinking), and `message_delta`
- * (stop_reason + usage). `rewriteModel` overrides `model` (the passthrough D4
- * model rewrite) to mirror `relayResponse`'s non-stream branch.
- *
- * Best-effort: a malformed event is skipped, never thrown.
+ * Collapse Anthropic SSE without losing opaque blocks or initial block data.
+ * Failed or truncated streams must not become successful buffered messages.
  */
 export async function aggregateAnthropicSseToJsonBody(
   response: Response,
   rewriteModel?: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  // Signal-aware read: a downstream hang-up during the collapse must cancel the
-  // upstream body rather than buffer a stream nobody will receive.
   const text = await readResponseTextWithSignal(response, signal);
   const message: Record<string, unknown> = {
-    type: 'message',
-    role: 'assistant',
-    content: [] as unknown[],
-    stop_reason: null,
-    stop_sequence: null,
-    usage: {} as Record<string, number>,
+    type: 'message', role: 'assistant', content: [], stop_reason: null,
+    stop_sequence: null, usage: {},
   };
-  const blocks = new Map<
-    number,
-    { type: string; text: string; id?: string; name?: string; inputJson: string; signature?: string }
-  >();
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line.startsWith('data:')) continue;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
-    let ev: Record<string, unknown>;
-    try {
-      ev = JSON.parse(payload) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    switch (ev['type']) {
+  const blocks = new Map<number, { block: Record<string, unknown>; inputJson: string }>();
+  let completed = false;
+  let pendingExtra: Record<string, unknown> | undefined;
+  for (const ev of bufferedSseEvents(text)) {
+    rejectStreamError(ev);
+    switch (ev.type) {
       case 'message_start': {
-        const m = (ev['message'] ?? {}) as Record<string, unknown>;
-        if (typeof m['id'] === 'string') message['id'] = m['id'];
-        if (typeof m['model'] === 'string') message['model'] = m['model'];
-        if (m['usage']) message['usage'] = { ...(m['usage'] as object) };
+        const initial = ev.message as Record<string, unknown> | undefined;
+        if (initial) {
+          Object.assign(message, initial);
+          if (Array.isArray(initial.content)) {
+            initial.content.forEach((block, index) => {
+              blocks.set(index, { block: { ...block }, inputJson: '' });
+            });
+          }
+        }
         break;
       }
       case 'content_block_start': {
-        const idx = Number(ev['index']);
-        const cb = (ev['content_block'] ?? {}) as Record<string, unknown>;
-        blocks.set(idx, {
-          type: typeof cb['type'] === 'string' ? (cb['type'] as string) : 'text',
-          text: typeof cb['text'] === 'string' ? (cb['text'] as string) : '',
-          id: typeof cb['id'] === 'string' ? (cb['id'] as string) : undefined,
-          name: typeof cb['name'] === 'string' ? (cb['name'] as string) : undefined,
-          inputJson: '',
-        });
+        const block = { ...wireRecord(ev.content_block) };
+        if (pendingExtra) {
+          block.extra_content = mergeWireExtra(pendingExtra, block.extra_content);
+          pendingExtra = undefined;
+        }
+        blocks.set(Number(ev.index), { block, inputJson: '' });
         break;
       }
       case 'content_block_delta': {
-        const b = blocks.get(Number(ev['index']));
-        if (!b) break;
-        const d = (ev['delta'] ?? {}) as Record<string, unknown>;
-        if (d['type'] === 'text_delta' && typeof d['text'] === 'string') b.text += d['text'] as string;
-        else if (d['type'] === 'input_json_delta' && typeof d['partial_json'] === 'string')
-          b.inputJson += d['partial_json'] as string;
-        else if (d['type'] === 'thinking_delta' && typeof d['thinking'] === 'string')
-          b.text += d['thinking'] as string;
-        else if (d['type'] === 'signature_delta' && typeof d['signature'] === 'string')
-          b.signature = (b.signature || '') + (d['signature'] as string);
+        const slot = blocks.get(Number(ev.index));
+        if (!slot) throw new Error('Upstream content delta has no block');
+        const delta = ev.delta as Record<string, unknown>;
+        const field = delta.type === 'text_delta' ? 'text'
+          : delta.type === 'thinking_delta' ? 'thinking'
+            : delta.type === 'signature_delta' ? 'signature' : undefined;
+        if (field && typeof delta[field] === 'string') {
+          slot.block[field] = String(slot.block[field] ?? '') + delta[field];
+        } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+          slot.inputJson += delta.partial_json;
+        } else if (delta.type === 'citations_delta' && delta.citation) {
+          const citations = Array.isArray(slot.block.citations) ? slot.block.citations : [];
+          citations.push(delta.citation);
+          slot.block.citations = citations;
+        }
         break;
       }
-      case 'message_delta': {
-        const d = (ev['delta'] ?? {}) as Record<string, unknown>;
-        if (d['stop_reason'] !== undefined) message['stop_reason'] = d['stop_reason'];
-        if (d['stop_sequence'] !== undefined) message['stop_sequence'] = d['stop_sequence'];
-        if (ev['usage'])
-          message['usage'] = { ...(message['usage'] as object), ...(ev['usage'] as object) };
+      case 'message_delta':
+        Object.assign(message, ev.delta);
+        if (ev.usage) message.usage = { ...(message.usage as object), ...(ev.usage as object) };
         break;
-      }
-      default:
+      case 'message_stop':
+        completed = true;
         break;
     }
+    if (wireRecord(ev.extra_content)) {
+      const slot = typeof ev.index === 'number' ? blocks.get(ev.index) : undefined;
+      if (slot) slot.block.extra_content = mergeWireExtra(slot.block.extra_content, ev.extra_content);
+      else pendingExtra = mergeWireExtra(pendingExtra, ev.extra_content);
+    }
   }
-
-  message['content'] = [...blocks.keys()]
-    .sort((a, b) => a - b)
-    .map((idx) => {
-      const blk = blocks.get(idx);
-      if (!blk) return undefined;
-      if (blk.type === 'tool_use') {
-        let input: unknown = {};
-        try {
-          input = blk.inputJson ? JSON.parse(blk.inputJson) : {};
-        } catch {
-          input = {};
-        }
-        return { type: 'tool_use', id: blk.id ?? '', name: blk.name ?? '', input };
-      }
-      if (blk.type === 'thinking') {
-        const out: Record<string, unknown> = { type: 'thinking', thinking: blk.text };
-        if (blk.signature) out.signature = blk.signature;
-        return out;
-      }
-      return { type: blk.type || 'text', text: blk.text };
-    })
-    .filter((b) => b !== undefined);
-
-  if (rewriteModel) message['model'] = rewriteModel;
+  if (!completed) throw new Error('Upstream Anthropic stream ended before message_stop');
+  const orderedBlocks = [...blocks.entries()].sort(([a], [b]) => a - b);
+  if (pendingExtra) {
+    const last = orderedBlocks.at(-1)?.[1].block;
+    if (last) last.extra_content = mergeWireExtra(last.extra_content, pendingExtra);
+    else message.extra_content = pendingExtra;
+  }
+  message.content = orderedBlocks.map(([, slot]) => {
+    if (slot.inputJson) slot.block.input = JSON.parse(slot.inputJson);
+    return slot.block;
+  });
+  if (rewriteModel) message.model = rewriteModel;
   return JSON.stringify(message);
 }
 
@@ -681,11 +711,8 @@ export async function aggregateAnthropicSseToJsonBody(
  * relayed verbatim, not rewritten into an error envelope). `rewriteModel`
  * overrides `model` to mirror `relayResponse`'s non-stream branch.
  *
- * Serves the codex subscription contract on BOTH ingress paths: the backend
- * rejects `stream:false` outright, so a non-streaming client is answered by
- * forcing `stream:true` upstream and collapsing the SSE back. Best-effort like
- * the Anthropic twin: a malformed event is skipped; no terminal event found →
- * null (the caller surfaces its own 502).
+ * Serves stream-only backends without losing failed/incomplete terminal state.
+ * No terminal event found → null (the caller surfaces its own 502).
  */
 export async function aggregateResponsesSseToJsonBody(
   response: Response,
@@ -694,23 +721,15 @@ export async function aggregateResponsesSseToJsonBody(
 ): Promise<string | null> {
   const text = await readResponseTextWithSignal(response, signal);
   let terminal: Record<string, unknown> | null = null;
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line.startsWith('data:')) continue;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
-    try {
-      const ev = JSON.parse(payload) as Record<string, unknown>;
-      if (
-        ev['type'] === 'response.completed' ||
-        ev['type'] === 'response.failed' ||
-        ev['type'] === 'response.incomplete'
-      ) {
-        const resp = ev['response'];
-        if (resp && typeof resp === 'object') terminal = resp as Record<string, unknown>;
-      }
-    } catch {
-      /* skip malformed event */
+  for (const ev of bufferedSseEvents(text)) {
+    rejectStreamError(ev);
+    if (
+      ev.type === 'response.completed' ||
+      ev.type === 'response.failed' ||
+      ev.type === 'response.incomplete'
+    ) {
+      const resp = ev.response;
+      if (resp && typeof resp === 'object') terminal = resp as Record<string, unknown>;
     }
   }
   if (!terminal) return null;
@@ -719,13 +738,8 @@ export async function aggregateResponsesSseToJsonBody(
 }
 
 /**
- * Collapse an OpenAI Chat Completions SSE chunk stream into the single
- * `chat.completion` JSON a NON-streaming client expects. Accumulates the FIRST
- * `id`/`created`/`model`, every `delta` (content text, `reasoning_content`,
- * `tool_calls` by index with concatenated argument fragments), the last non-null
- * `finish_reason`, and the last `usage` (present on the final chunk when the
- * caller asked for `stream_options.include_usage`, else omitted). Mirrors the
- * Anthropic twin's best-effort contract; no terminal/finish found → null.
+ * Collapse Chat SSE by choice and tool index. A missing finish reason is a
+ * truncated response, not an implicit successful stop.
  */
 export async function aggregateOpenAIChatChunksToJsonBody(
   response: Response,
@@ -733,92 +747,145 @@ export async function aggregateOpenAIChatChunksToJsonBody(
   signal?: AbortSignal,
 ): Promise<string | null> {
   const text = await readResponseTextWithSignal(response, signal);
-  let id: string | undefined;
-  let created: number | undefined;
-  let model: string | undefined;
-  let content = '';
-  let reasoning = '';
-  let finishReason: string | null = null;
-  let usage: Record<string, unknown> | undefined;
-  const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
-  let sawChoice = false;
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line.startsWith('data:')) continue;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
-    let ev: Record<string, unknown>;
-    try {
-      ev = JSON.parse(payload) as Record<string, unknown>;
-    } catch {
-      continue;
+  const completion: Record<string, unknown> = { object: 'chat.completion' };
+  const choices = new Map<number, {
+    message: Record<string, unknown>;
+    finishReason: string | null;
+    tools: Map<number, Record<string, unknown>>;
+    thinkingBlocks: Map<number, Record<string, unknown>>;
+  }>();
+  for (const ev of bufferedSseEvents(text)) {
+    rejectStreamError(ev);
+    for (const key of ['id', 'created', 'model', 'system_fingerprint', 'service_tier']) {
+      if (ev[key] !== undefined && completion[key] === undefined) completion[key] = ev[key];
     }
-    if (typeof ev['id'] === 'string' && id === undefined) id = ev['id'];
-    if (typeof ev['created'] === 'number' && created === undefined) created = ev['created'];
-    if (typeof ev['model'] === 'string' && model === undefined) model = ev['model'];
-    if (ev['usage'] && typeof ev['usage'] === 'object') {
-      usage = ev['usage'] as Record<string, unknown>;
-    }
-    const choices = ev['choices'];
-    if (!Array.isArray(choices) || choices.length === 0) continue;
-    const choice = choices[0] as Record<string, unknown> | null;
-    if (!choice || typeof choice !== 'object') continue;
-    sawChoice = true;
-    if (typeof choice['finish_reason'] === 'string') finishReason = choice['finish_reason'];
-    const delta = choice['delta'];
-    if (!delta || typeof delta !== 'object') continue;
-    const d = delta as Record<string, unknown>;
-    if (typeof d['content'] === 'string') content += d['content'];
-    if (typeof d['reasoning_content'] === 'string') reasoning += d['reasoning_content'];
-    // The Responses→chat stream converter emits reasoning as the Anthropic-style
-    // `thinking: {content}` object; normalize both shapes into the chat wire's
-    // `reasoning_content` string.
-    const thinking = d['thinking'];
-    if (thinking && typeof thinking === 'object') {
-      const tc = (thinking as Record<string, unknown>)['content'];
-      if (typeof tc === 'string') reasoning += tc;
-    } else if (typeof thinking === 'string') {
-      reasoning += thinking;
-    }
-    const tcs = d['tool_calls'];
-    if (Array.isArray(tcs)) {
-      for (const tcRaw of tcs) {
-        if (!tcRaw || typeof tcRaw !== 'object') continue;
-        const tc = tcRaw as Record<string, unknown>;
-        const idx = typeof tc['index'] === 'number' ? tc['index'] : 0;
-        const fn = (tc['function'] ?? {}) as Record<string, unknown>;
-        const slot = toolCalls.get(idx) ?? { id: '', name: '', arguments: '' };
-        if (typeof tc['id'] === 'string' && tc['id']) slot.id = tc['id'];
-        if (typeof fn['name'] === 'string' && fn['name']) slot.name = fn['name'];
-        if (typeof fn['arguments'] === 'string') slot.arguments += fn['arguments'];
-        toolCalls.set(idx, slot);
+    if (ev.usage) completion.usage = ev.usage;
+    if (!Array.isArray(ev.choices)) continue;
+    for (const choice of ev.choices as Array<Record<string, unknown>>) {
+      const index = typeof choice.index === 'number' ? choice.index : 0;
+      let slot = choices.get(index);
+      if (!slot) {
+        slot = {
+          message: { role: 'assistant', content: null }, finishReason: null,
+          tools: new Map(), thinkingBlocks: new Map(),
+        };
+        choices.set(index, slot);
+      }
+      if (typeof choice.finish_reason === 'string') slot.finishReason = choice.finish_reason;
+      const delta = choice.delta as Record<string, unknown> | undefined;
+      if (!delta) continue;
+      for (const field of ['content', 'refusal', 'reasoning_content']) {
+        if (typeof delta[field] === 'string') {
+          slot.message[field] = String(slot.message[field] ?? '') + delta[field];
+        }
+      }
+      if (delta.reasoning_content === undefined && delta.thinking) {
+        const thinking = typeof delta.thinking === 'string' ? delta.thinking
+          : (delta.thinking as Record<string, unknown>).content;
+        if (typeof thinking === 'string') {
+          slot.message.reasoning_content = String(slot.message.reasoning_content ?? '') + thinking;
+        }
+      }
+      const nextExtra = wireRecord(delta.extra_content);
+      if (nextExtra) slot.message.extra_content = mergeWireExtra(slot.message.extra_content, nextExtra);
+      const thinking = wireRecord(wireRecord(nextExtra?.omnicross)?.thinking) ?? wireRecord(delta.thinking);
+      if (thinking) {
+        if (Array.isArray(thinking.blocks)) {
+          slot.thinkingBlocks.clear();
+          thinking.blocks.forEach((value, blockIndex) => {
+            const block = wireRecord(value);
+            if (block) slot.thinkingBlocks.set(blockIndex, { ...block });
+          });
+        } else {
+          const blockIndex = typeof thinking.index === 'number' ? thinking.index : 0;
+          const block = slot.thinkingBlocks.get(blockIndex) ?? { type: 'thinking', thinking: '' };
+          if (thinking.type === 'redacted_thinking') {
+            slot.thinkingBlocks.set(blockIndex, { type: 'redacted_thinking', data: thinking.data });
+          } else {
+            if (typeof thinking.content === 'string') block.thinking = String(block.thinking ?? '') + thinking.content;
+            if (typeof thinking.signature === 'string') block.signature = String(block.signature ?? '') + thinking.signature;
+            slot.thinkingBlocks.set(blockIndex, block);
+          }
+        }
+      }
+      if (Array.isArray(delta.tool_calls)) {
+        for (const tool of delta.tool_calls as Array<Record<string, unknown>>) {
+          const index = typeof tool.index === 'number' ? tool.index : 0;
+          const previous = slot.tools.get(index) ?? { type: 'function', function: { name: '', arguments: '' } };
+          const fn = (tool.function ?? {}) as Record<string, unknown>;
+          const previousFn = previous.function as Record<string, unknown>;
+          const { index: _index, ...fields } = tool;
+          slot.tools.set(index, {
+            ...previous, ...fields,
+            ...(tool.extra_content ? {
+              extra_content: mergeWireExtra(previous.extra_content, tool.extra_content),
+            } : {}),
+            function: {
+              ...previousFn, ...fn,
+              name: typeof fn.name === 'string' ? String(previousFn.name ?? '') + fn.name : previousFn.name,
+              arguments: String(previousFn.arguments ?? '') + (typeof fn.arguments === 'string' ? fn.arguments : ''),
+            },
+          });
+        }
       }
     }
   }
-  if (!sawChoice && !usage) return null;
-
-  const message: Record<string, unknown> = { role: 'assistant', content };
-  if (reasoning) message['reasoning_content'] = reasoning;
-  if (toolCalls.size > 0) {
-    message['tool_calls'] = [...toolCalls.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([index, tc]) => ({
-        index,
-        id: tc.id,
-        type: 'function',
-        function: { name: tc.name, arguments: tc.arguments || '{}' },
-      }));
-  }
-  const completion: Record<string, unknown> = {
-    id: id ?? 'chatcmpl-aggregated',
-    object: 'chat.completion',
-    created: created ?? Math.floor(Date.now() / 1000),
-    model: rewriteModel ?? model ?? '',
-    choices: [{ index: 0, message, finish_reason: finishReason ?? 'stop' }],
-  };
-  if (usage) completion['usage'] = usage;
+  if (choices.size === 0 || [...choices.values()].some((choice) => !choice.finishReason)) return null;
+  completion.choices = [...choices.entries()].sort(([a], [b]) => a - b).map(([index, slot]) => {
+    if (slot.thinkingBlocks.size) {
+      const extra = wireRecord(slot.message.extra_content);
+      slot.message.extra_content = {
+        ...extra,
+        omnicross: {
+          ...wireRecord(extra?.omnicross),
+          thinking: {
+            content: typeof slot.message.reasoning_content === 'string' ? slot.message.reasoning_content : '',
+            blocks: [...slot.thinkingBlocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
+          },
+        },
+      };
+    }
+    if (slot.tools.size) {
+      slot.message.tool_calls = [...slot.tools.entries()].sort(([a], [b]) => a - b).map(([, tool]) => tool);
+    }
+    return { index, message: slot.message, finish_reason: slot.finishReason };
+  });
+  if (rewriteModel) completion.model = rewriteModel;
   return JSON.stringify(completion);
+}
+
+/** Aggregate a converted Gemini stream for a non-streaming generateContent caller. */
+export async function aggregateGeminiSseToJsonBody(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const text = await readResponseTextWithSignal(response, signal);
+  const result: Record<string, unknown> = {};
+  const candidates = new Map<number, Record<string, unknown>>();
+  for (const event of bufferedSseEvents(text)) {
+    rejectStreamError(event);
+    for (const key of ['responseId', 'modelVersion', 'usageMetadata', 'promptFeedback']) {
+      if (event[key] !== undefined) result[key] = event[key];
+    }
+    if (!Array.isArray(event.candidates)) continue;
+    for (const candidate of event.candidates as Array<Record<string, unknown>>) {
+      const index = typeof candidate.index === 'number' ? candidate.index : 0;
+      const previous = candidates.get(index);
+      const priorContent = previous?.content as { parts?: unknown[] } | undefined;
+      const content = candidate.content as { role?: string; parts?: unknown[] } | undefined;
+      candidates.set(index, {
+        ...previous, ...candidate,
+        ...(content ? { content: {
+          role: content.role ?? 'model',
+          parts: [...(priorContent?.parts ?? []), ...(content.parts ?? [])],
+        } } : {}),
+      });
+    }
+  }
+  if (!candidates.size) return result.promptFeedback ? JSON.stringify(result) : null;
+  if ([...candidates.values()].some((candidate) => !candidate.finishReason)) return null;
+  result.candidates = [...candidates.entries()].sort(([a], [b]) => a - b).map(([, candidate]) => candidate);
+  return JSON.stringify(result);
 }
 
 /**

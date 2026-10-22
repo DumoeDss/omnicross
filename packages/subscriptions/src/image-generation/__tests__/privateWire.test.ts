@@ -96,22 +96,47 @@ describe('private candidate wire parsers', () => {
     });
   });
 
-  it('tolerates malformed SSE lines and completes from the longest partial', async () => {
+  it('never promotes a decodable partial preview to a completed image', async () => {
     const body = [
-      'event: response.image_generation_call.partial_image',
-      'data: {not-json}',
-      `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG.slice(0, -4) })}`,
-      `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG })}`,
+      `data: ${JSON.stringify({ type: 'response.image_generation_call.partial_image', partial_image_index: 0, partial_image_b64: VALID_PNG })}`,
       'data: [DONE]',
       '',
     ].join('\n');
-    const parsed = await parseCandidateCodexImageResponse(body, 1, 'png');
-    expect(parsed.images[0]).toMatchObject({
-      mimeType: 'image/png',
-      width: 2,
-      height: 1,
-      independentlyDecodable: true,
-    });
+    await expect(parseCandidateCodexImageResponse(body, 1, 'png'))
+      .rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+  });
+
+  it('uses the final result rather than a larger preview from the same output', async () => {
+    const body = [
+      `data: ${JSON.stringify({ type: 'response.image_generation_call.partial_image', partial_image_index: 0, partial_image_b64: VALID_PNG })}`,
+      `data: ${JSON.stringify({ type: 'response.completed', response: {
+        status: 'completed', output: [{ type: 'image_generation_call', status: 'completed', result: VALID_VP8L }],
+      } })}`,
+      '',
+    ].join('\n');
+    const parsed = await parseCandidateCodexImageResponse(body, 1, 'webp');
+    expect(parsed.images[0]).toMatchObject({ mimeType: 'image/webp', width: 2, height: 1 });
+  });
+
+  it.each(['response.failed', 'response.incomplete', 'response.cancelled', 'error'])(
+    'does not return success after a %s terminal event', async (type) => {
+      const body = [
+        `data: ${JSON.stringify({ type: 'response.output_item.done', item: {
+          type: 'image_generation_call', status: 'completed', result: VALID_PNG,
+        } })}`,
+        `data: ${JSON.stringify({ type })}`,
+        '',
+      ].join('\n');
+      await expect(parseCandidateCodexImageResponse(body, 1, 'png'))
+        .rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+    },
+  );
+
+  it('rejects an incomplete JSON response even when its image tool completed', async () => {
+    const body = JSON.stringify({ status: 'incomplete',
+      output: [{ type: 'image_generation_call', status: 'completed', result: VALID_PNG }] });
+    await expect(parseCandidateCodexImageResponse(body, 1, 'png'))
+      .rejects.toMatchObject({ code: 'upstream_protocol_changed' });
   });
 
   it('accepts the current Codex SSE variant with the final result in response.completed', async () => {

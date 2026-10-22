@@ -113,11 +113,8 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
 // Nested CARRIERS stay strict at the TYPE level: an unknown input-item /
 // content-part / tool_choice type can carry conversation content, and
 // dropping one silently corrupts the history — that stays a loud, structured
-// 400. TOOL DECLARATIONS are the deliberate exception (see
-// validateToolDeclaration): a declaration is a capability REQUEST, not
-// content, and the transform layers already skip unrepresentable ones — a
-// codex update shipping a new hosted tool degrades to an audit line instead
-// of client downtime, EXCEPT when nothing executable remains (loud 400).
+// 400. Tool declarations are capability contracts too: hosted tools and custom
+// grammar constraints are refused when the reduced wire cannot execute them.
 // Nested FIELDS are metadata-tier: every codex ResponseItem variant
 // carries optional bookkeeping (`id`, `status`, `phase`, passthrough blocks,
 // encrypted duplicates) for the ORIGINAL provider's dedup/state — the stateless
@@ -271,9 +268,12 @@ function validateToolDeclaration(
     return;
   }
   if (type === 'custom') {
-    // `format` (grammar contracts) degrades to free-form custom input on wires
-    // without grammar support — a fidelity loss, not corruption; audited.
-    collectDroppableExtras(value, new Set(['type', 'name', 'description']), path, dropped);
+    if (value.format !== undefined) {
+      if (!isRecord(value.format) || value.format.type !== 'text') {
+        fail(`${path}.format`, 'requires native Responses custom-tool format support');
+      }
+    }
+    collectDroppableExtras(value, new Set(['type', 'name', 'description', 'format']), path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     return;
@@ -287,16 +287,10 @@ function validateToolDeclaration(
       validateToolDeclaration(tool, `${path}.tools[${index}]`, dropped, true));
     return;
   }
-  // Hosted / unknown tool DECLARATIONS (web_search, view_image, local_shell,
-  // …) degrade to audit-dropped instead of a hard 400: a declaration is a
-  // capability REQUEST, not conversation content — the transform layers
-  // (collectCodexTools) already skip what they cannot represent, so a codex
-  // update shipping a new hosted tool turns into a lost capability with an
-  // audit line, not client downtime. The one loud failure left is the
-  // ALL-tools-dropped case, checked by the caller at the array level.
+  // A hosted tool is not a client function. Partial degradation also changes
+  // the requested capability contract, even when other functions remain.
   if (typeof type === 'string' && type !== '') {
-    dropped.push(`${path}(${type})`);
-    return;
+    fail(`${path}.type`, 'requires native Responses tool support');
   }
   fail(`${path}.type`, 'must be a tool type string');
 }

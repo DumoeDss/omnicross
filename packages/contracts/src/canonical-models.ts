@@ -84,18 +84,19 @@ const OPENAI_MODELS: Record<string, KnownModelCapabilities> = {
 // different model from the API's perspective when the long-context tier is
 // engaged). Pricing on the 1M tier differs from the standard tier.
 const ANTHROPIC_MODELS: Record<string, KnownModelCapabilities> = {
-  'claude-fable-5-1': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-fable-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-opus-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-opus-4-8': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-sonnet-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-opus-4-7': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-opus-4-7[1m]': { category: 'reasoning', contextLength: 1000000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
-  'claude-opus-4-6': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 128000 } },
-  'claude-opus-4-6[1m]': { category: 'reasoning', contextLength: 1000000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 128000 } },
-  'claude-sonnet-4-6': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
-  'claude-sonnet-4-6[1m]': { category: 'chat', contextLength: 1000000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
-  'claude-haiku-4-5': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
+  'claude-opus-5-5': { category: 'reasoning', reasoning: true, thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-fable-5-1': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-fable-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-opus-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-opus-4-8': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-sonnet-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-opus-4-7': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-opus-4-7[1m]': { category: 'reasoning', contextLength: 1000000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  'claude-opus-4-6': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'max'], thinkingTokenLimit: { min: 1024, max: 128000 } },
+  'claude-opus-4-6[1m]': { category: 'reasoning', contextLength: 1000000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'max'], thinkingTokenLimit: { min: 1024, max: 128000 } },
+  'claude-sonnet-4-6': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
+  'claude-sonnet-4-6[1m]': { category: 'chat', contextLength: 1000000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
+  'claude-haiku-4-5': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingTokenLimit: { min: 1024, max: 64000 } },
   // Copilot-served variants (same model family on the Copilot API; context
   // windows per the Copilot catalog where it diverges from the family default).
   'claude-opus-4-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
@@ -107,18 +108,18 @@ const GEMINI_MODELS: Record<string, KnownModelCapabilities> = {
   // Official model cards, checked 2026-10-17. Argon is a text-output model.
   'gemini-4-argon': { category: 'reasoning', contextLength: 1048576, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'] },
   'gemini-nano-banana-2.1': { category: 'chat', contextLength: 131072, maxTokens: 32768, vision: true, functionCall: false, reasoning: true, thinkingLevels: ['minimal', 'medium', 'high'] },
-  'gemini-3.1-flash-lite-image': { category: 'chat', vision: true, functionCall: false },
-  'gemini-3-pro-image': { category: 'chat', vision: true, functionCall: false },
-  'gemini-3.5-flash-lite': { category: 'chat', vision: true, functionCall: true, reasoning: true },
-  'gemini-3.5-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
-  'gemini-3-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
+  'gemini-3.1-flash-lite-image': { category: 'chat', vision: true, functionCall: false, reasoning: true, thinkingLevels: ['minimal', 'high'] },
+  'gemini-3-pro-image': { category: 'chat', vision: true, functionCall: false, reasoning: true },
+  'gemini-3.5-flash-lite': { category: 'chat', vision: true, functionCall: true, reasoning: true, thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
+  'gemini-3.5-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
+  'gemini-3-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['minimal', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3.1-pro': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
   // Copilot-served variants (chat-completions wire on the Copilot API).
   'gemini-3.1-pro-preview': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'] },
-  'gemini-3.6-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
-  'gemini-3.7-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
-  'gemini-3-pro-preview': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true },
-  'gemini-3-flash-preview': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true },
+  'gemini-3.6-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
+  'gemini-3.7-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'] },
+  'gemini-3-pro-preview': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'high'] },
+  'gemini-3-flash-preview': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
   'gemini-2.5-pro': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true },
 };
 
@@ -160,23 +161,23 @@ const COPILOT_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {
-  'deepseek-flash': { category: 'chat', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'deepseek-v4-flash': { category: 'chat', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'deepseek-v4-pro': { category: 'reasoning', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'deepseek-flash': { category: 'chat', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'deepseek-v4-flash': { category: 'chat', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'deepseek-v4-pro': { category: 'reasoning', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'deepseek-v3': { category: 'chat', contextLength: 65536, maxTokens: 8192, functionCall: true },
   'deepseek-v3.2': { category: 'code', contextLength: 256000, maxTokens: 32768, functionCall: true, reasoning: true },
   'deepseek-r1': { category: 'reasoning', contextLength: 64000, maxTokens: 8192, reasoning: true, thinkingTokenLimit: { min: 0, max: 32768 } },
 };
 
 const ZHIPU_MODELS: Record<string, KnownModelCapabilities> = {
-  'glm-5.3': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
-  'glm-5.3-flash': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
-  'glm-5.2': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
-  'glm-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
-  'glm-5.1': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
+  'glm-5.3': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true, reasoning: true },
+  'glm-5.3-flash': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true, reasoning: true },
+  'glm-5.2': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true, reasoning: true },
+  'glm-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true, reasoning: true },
+  'glm-5.1': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true, reasoning: true },
   'glm-4.5-air': { category: 'chat', contextLength: 128000, maxTokens: 32768, functionCall: true },
   'glm-4.6v': { category: 'chat', contextLength: 128000, maxTokens: 32768, vision: true, functionCall: true },
-  'glm-4.7': { category: 'code', contextLength: 200000, maxTokens: 128000, functionCall: true },
+  'glm-4.7': { category: 'code', contextLength: 200000, maxTokens: 128000, functionCall: true, reasoning: true },
 };
 
 const KIMI_MODELS: Record<string, KnownModelCapabilities> = {
@@ -187,8 +188,13 @@ const KIMI_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const DASHSCOPE_QWEN_MODELS: Record<string, KnownModelCapabilities> = {
+  'qwen3.8-max': { reasoning: true },
+  'qwen3.8-flash': { reasoning: true },
+  'qwen3.8-27b': { reasoning: true },
+  'qwen3.7-max': { reasoning: true },
+  'qwen3.7-plus': { reasoning: true },
   'qwen3-max': { category: 'chat', contextLength: 262144, maxTokens: 65536, functionCall: true, webSearch: true },
-  'qwen3.5-plus': { category: 'chat', contextLength: 1000000, vision: true, functionCall: true, webSearch: true },
+  'qwen3.5-plus': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, webSearch: true, reasoning: true, thinkingTokenLimit: { min: 0, max: 81920 } },
   'qwen-turbo': { category: 'chat', contextLength: 1000000, vision: true, webSearch: true },
   'qwen3-coder-plus': { category: 'code', contextLength: 1000000, functionCall: true },
   'qwen-3-coder-480b': { category: 'code', contextLength: 131072, maxTokens: 8192, functionCall: true },
@@ -210,15 +216,15 @@ const TENCENT_HUNYUAN_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const MINIMAX_MODELS: Record<string, KnownModelCapabilities> = {
-  'minimax-m3': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
-  'minimax-m2.7': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.7-highspeed': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.5': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.5-highspeed': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.5-lightning': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.1': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.1-lightning': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2': { category: 'code', contextLength: 204800, functionCall: true },
+  'minimax-m3': { category: 'code', contextLength: 1000000, vision: true, functionCall: true, reasoning: true },
+  'minimax-m2.7': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.7-highspeed': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.5': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.5-highspeed': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.5-lightning': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.1': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.1-lightning': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
 };
 
 const XIAOMI_MIMO_CANONICAL: Record<string, KnownModelCapabilities> = {
@@ -277,18 +283,17 @@ const ANTIGRAVITY_MODELS: Record<string, KnownModelCapabilities> = {
   'gemini-2.5-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-2.5-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3-pro': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
-  // NanoBanana image-chat models (multi-provider-image-generation D7): the
-  // canonical gemini image ids routed to the antigravity provider. vision:true —
-  // they accept reference images (Images edits / session input); reasoning and
-  // function calling are not part of the image line. Numbers mirror the census
-  // entry; per-row overrides stay authoritative.
+  // Image input does not imply the absence of thinking: Gemini 3 image models
+  // reason by default; only Flash Image exposes minimal/high controls.
+  // https://ai.google.dev/gemini-api/docs/generate-content/image-generation#thinking-process
+  // Token limits retain the subscription census; row overrides stay authoritative.
   'gemini-2.5-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
   'gemini-2.5-flash-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
-  'gemini-3.1-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
-  'gemini-3.1-flash-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
-  'gemini-3-pro-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
-  'gemini-3.1-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
-  'gemini-3.8-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'gemini-3.1-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: true, thinkingLevels: ['minimal', 'high'] },
+  'gemini-3.1-flash-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: true, thinkingLevels: ['minimal', 'high'] },
+  'gemini-3-pro-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: true },
+  'gemini-3.1-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
+  'gemini-3.8-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'] },
   'gpt-oss-120b': { category: 'chat', contextLength: 131072, maxTokens: 32768, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
   'tab_flash_lite_preview': { category: 'chat', contextLength: 16384, maxTokens: 4096, vision: false, functionCall: false, reasoning: false },
   'tab_jump_flash_lite_preview': { category: 'chat', contextLength: 16384, maxTokens: 4096, vision: false, functionCall: false, reasoning: false },
@@ -376,7 +381,24 @@ export function normalizeModelId(rawId: string): string {
   const base = slashIdx >= 0 ? rawId.slice(slashIdx + 1) : rawId;
   const colonIdx = base.indexOf(':');
   const noSuffix = colonIdx >= 0 ? base.slice(0, colonIdx) : base;
-  return noSuffix.toLowerCase();
+  // Copilot uses dotted Claude versions; Anthropic uses hyphenated versions.
+  return noSuffix.toLowerCase().replace(/^(claude-(?:haiku|sonnet|opus|fable)-\d+)\.(\d+)(?=-|$|\[)/, '$1-$2');
+}
+
+const RETIRED_MODEL_REDIRECTS: Readonly<Record<string, string>> = {
+  'deepseek-chat': 'deepseek-flash',
+  'deepseek-reasoner': 'deepseek-flash',
+};
+
+/**
+ * Redirect exact retired API model ids at request dispatch.
+ * Unlike capability lookup, this preserves publisher prefixes and deployment
+ * suffixes and does not rewrite marketing aliases such as gpt-5.6.
+ */
+export function resolveModelRedirect(modelId: string): string {
+  return Object.hasOwn(RETIRED_MODEL_REDIRECTS, modelId)
+    ? RETIRED_MODEL_REDIRECTS[modelId]
+    : modelId;
 }
 
 /**
@@ -385,13 +407,11 @@ export function normalizeModelId(rawId: string): string {
  * assertion at module load enforces this so the alias map can't drift to
  * point at non-existent entries.
  *
- * Includes official API aliases plus vendor marketing names. DeepSeek's
- * `deepseek-chat` historically targets v3 and may rotate as new releases land.
+ * Retired DeepSeek API names resolve to the same replacement used at dispatch.
  */
 export const MODEL_ALIASES: Record<string, string> = {
   'gpt-5.6': 'gpt-5.6-sol',
-  'deepseek-chat': 'deepseek-v3',
-  'deepseek-reasoner': 'deepseek-r1',
+  ...RETIRED_MODEL_REDIRECTS,
 };
 
 /**
@@ -399,7 +419,7 @@ export const MODEL_ALIASES: Record<string, string> = {
  * is registered.
  */
 export function applyAlias(normalizedId: string): string {
-  return MODEL_ALIASES[normalizedId] ?? normalizedId;
+  return Object.hasOwn(MODEL_ALIASES, normalizedId) ? MODEL_ALIASES[normalizedId] : normalizedId;
 }
 
 function assertAliasesPointToKnownModels(): void {

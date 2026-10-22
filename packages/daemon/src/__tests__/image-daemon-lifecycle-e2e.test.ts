@@ -20,9 +20,11 @@ async function generate(
   harness: DaemonImageE2eHarness,
   token = harness.token,
   prompt = 'daemon lifecycle Tier-A request',
+  signal?: AbortSignal,
 ): Promise<Response> {
   return fetch(`${harness.baseURL}/images/generations`, {
     method: 'POST',
+    signal,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -34,6 +36,38 @@ async function generate(
       size: '1024x1024',
     }),
   });
+}
+
+async function waitForRequestStage(
+  request: Promise<Response>,
+  reached: Promise<void>,
+  signal: AbortSignal,
+  stage: string,
+): Promise<void> {
+  let waiting = true;
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    await Promise.race([
+      reached,
+      aborted,
+      request.then(async (response) => {
+        if (waiting) {
+          throw new Error(
+            `${stage}: request completed before reaching the stage ` +
+            `(HTTP ${response.status}): ${await response.text()}`,
+          );
+        }
+      }),
+    ]);
+  } finally {
+    waiting = false;
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
 async function serverConfig(harness: DaemonImageE2eHarness): Promise<OutboundApiServerConfig> {
@@ -107,50 +141,83 @@ describe('daemon Images boot, hot reload, restart, and reset E2E', () => {
     expect(serialized).not.toContain('daemon lifecycle Tier-A request');
   });
 
-  it('pins queued work to its generation and schedules one selected account fairly', async () => {
+  it('pins queued work to its generation and schedules one selected account fairly', async ({ signal }) => {
     let releaseFirst!: () => void;
     const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let notifyFirstEntered!: () => void;
+    const firstEntered = new Promise<void>((resolve) => { notifyFirstEntered = resolve; });
     let entered = 0;
     const harness = await createDaemonImageE2eHarness({
       accountId: 'synthetic-selected-account-for-scheduling',
       beforeComplete: async () => {
         entered += 1;
-        if (entered === 1) await firstGate;
+        if (entered === 1) {
+          notifyFirstEntered();
+          await firstGate;
+        }
       },
     });
     harnesses.push(harness);
 
-    const first = generate(harness, harness.token, 'first queued generation');
-    await expect.poll(() => harness.capture.active).toBe(1);
-    const second = generate(harness, harness.token, 'second queued generation');
-    await expect.poll(() => harness.daemon.imageRuntimeManager.resourceStatus()?.queue.waitingJobs)
-      .toBe(1);
-
-    const before = await serverConfig(harness);
-    const reloaded = await harness.adminFetch('PUT', '/admin/api/server', {
-      images: {
-        ...before.images!,
-        queue: {
-          ...before.images!.queue,
-          maxQueuedJobs: before.images!.queue.maxQueuedJobs + 1,
-        },
-      },
+    let notifySecondQueued!: () => void;
+    const secondQueued = new Promise<void>((resolve) => { notifySecondQueued = resolve; });
+    const scheduler = harness.capture.schedulers.at(-1)!;
+    const acquire = scheduler.acquire.bind(scheduler);
+    // acquire registers a waiter before returning its pending grant promise.
+    // Observe that boundary rather than racing the default poll deadline
+    // against local HTTP admission and filesystem work.
+    const acquireSpy = vi.spyOn(scheduler, 'acquire').mockImplementation((request) => {
+      const grant = acquire(request);
+      if (harness.daemon.imageRuntimeManager.resourceStatus()?.queue.waitingJobs === 1) {
+        notifySecondQueued();
+      }
+      return grant;
     });
-    expect(reloaded.status).toBe(200);
-    expect(harness.capture.generationIds).toEqual(['image-runtime-2', 'image-runtime-3']);
-    expect(harness.daemon.imageRuntimeManager.status().draining).toEqual([
-      expect.objectContaining({ generationId: 'image-runtime-2', httpLeases: 2 }),
-    ]);
+    const requests: Promise<Response>[] = [];
+    signal.addEventListener('abort', releaseFirst, { once: true });
+    try {
+      const first = generate(harness, harness.token, 'first queued generation', signal);
+      requests.push(first);
+      await waitForRequestStage(first, firstEntered, signal, 'first provider entry');
+      expect(harness.capture.active).toBe(1);
+      const second = generate(harness, harness.token, 'second queued generation', signal);
+      requests.push(second);
+      await waitForRequestStage(second, secondQueued, signal, 'second scheduler queue entry');
+      expect(harness.daemon.imageRuntimeManager.resourceStatus()?.queue.waitingJobs).toBe(1);
 
-    releaseFirst();
-    const responses = await Promise.all([first, second]);
-    expect(responses.map((response) => response.status)).toEqual([200, 200]);
-    await expect.poll(() => harness.daemon.imageRuntimeManager.status().draining).toEqual([]);
-    expect(harness.capture.maxActive).toBe(1);
-    expect((await generate(harness, harness.token, 'post-reload generation')).status).toBe(200);
-    expect(harness.capture.schedulers).toHaveLength(2);
-    expect(JSON.stringify(harness.daemon.imageObservability.snapshot()))
-      .not.toContain('synthetic-selected-account-for-scheduling');
+      const before = await serverConfig(harness);
+      const reloaded = await harness.adminFetch('PUT', '/admin/api/server', {
+        images: {
+          ...before.images!,
+          queue: {
+            ...before.images!.queue,
+            maxQueuedJobs: before.images!.queue.maxQueuedJobs + 1,
+          },
+        },
+      });
+      expect(reloaded.status).toBe(200);
+      expect(harness.capture.generationIds).toEqual(['image-runtime-2', 'image-runtime-3']);
+      expect(harness.daemon.imageRuntimeManager.status().draining).toEqual([
+        expect.objectContaining({ generationId: 'image-runtime-2', httpLeases: 2 }),
+      ]);
+
+      releaseFirst();
+      const responses = await Promise.all([first, second]);
+      expect(responses.map((response) => response.status)).toEqual([200, 200]);
+      await expect.poll(() => harness.daemon.imageRuntimeManager.status().draining).toEqual([]);
+      expect(harness.capture.maxActive).toBe(1);
+      expect((await generate(harness, harness.token, 'post-reload generation')).status).toBe(200);
+      expect(harness.capture.schedulers).toHaveLength(2);
+      expect(JSON.stringify(harness.daemon.imageObservability.snapshot()))
+        .not.toContain('synthetic-selected-account-for-scheduling');
+    } finally {
+      // Assertion failures and the runner's own cancellation must both open
+      // the provider gate before afterEach attempts to stop the daemon.
+      releaseFirst();
+      signal.removeEventListener('abort', releaseFirst);
+      acquireSpy.mockRestore();
+      await Promise.allSettled(requests);
+    }
   });
 
   it('preserves tenant references and known-empty Responses state across stop/reset/restart', async () => {

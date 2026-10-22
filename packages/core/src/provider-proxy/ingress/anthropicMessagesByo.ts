@@ -34,6 +34,7 @@
  * `/v1/messages`) — core imports NOTHING from `@omnicross/subscriptions`.
  */
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type http from 'node:http';
 
 import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
@@ -53,7 +54,7 @@ import {
 import { DEFAULT_ANTHROPIC_VERSION } from '../identity/claudeCodeHeaders';
 import { deriveSubscriptionSessionKey } from '../matchText';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
-import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
+import { resolveProviderChain, resolveRedirectedModelConfigs } from '../../pipeline/resolveProviderChain';
 import type {
   LLMProvider as TransformerLLMProvider,
 } from '../../transformer';
@@ -74,6 +75,8 @@ import {
   prepareAnthropicTranslateBody,
   UnsupportedContentBlockError,
 } from './anthropicTranslateBodyPrep';
+import { OpenAIOperationError } from '../../openai-operation';
+import { writeAnthropicError } from './anthropicErrorEnvelope';
 import {
   codexUsageLimitEventBody,
   isCodexServerOverloadEvent,
@@ -348,6 +351,10 @@ export async function handleAnthropicMessagesByo(
     // Nobody is left to answer, so neither log it as an error nor attempt a 502
     // write onto a dead socket.
     if (options.signal?.aborted) return;
+    if (err instanceof OpenAIOperationError) {
+      writeAnthropicError(res, err.status, err.message, {}, { code: err.code });
+      return;
+    }
     // Typed translate-path content errors (D3): explicit 400 with the stable
     // code in the message — A's Anthropic-protocol mark shapes the envelope
     // (`invalid_request_error`); nothing was silently dropped.
@@ -437,13 +444,15 @@ export async function buildByoPlan(
     });
 
   const { chain } = await resolveProviderChain(deps.llmConfig, providerId, resolvedModel);
+  const configuredModel = resolvedModel;
+  resolvedModel = resolveModelRedirect(resolvedModel);
 
   const transformerProvider: TransformerLLMProvider = {
     name: provider.name,
     baseUrl: provider.api_base_url,
     apiKey,
     models: provider.models || [],
-    modelConfigs: provider.modelConfigs,
+    modelConfigs: resolveRedirectedModelConfigs(provider.modelConfigs, configuredModel),
   };
 
   const byoUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });

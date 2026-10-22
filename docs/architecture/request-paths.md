@@ -1,6 +1,6 @@
 # 请求路径全景（下游客户端 ↔ 上游资源）
 
-> 状态：2026-09-30 快照。事实来源为代码（`packages/core/src/outbound-api`、
+> 状态：以当前源码为准；历史实测日期保留在对应段落。事实来源为代码（`packages/core/src/outbound-api`、
 > `packages/core/src/provider-proxy`、`packages/subscriptions`、
 > `packages/daemon/src/admin`）。与 `docs/design/upstream-routing-model.md`
 > （路由模型权威设计）配套阅读：本文描述**请求实际怎么流**，该文描述**为什么这样设计**。
@@ -174,14 +174,30 @@ flowchart LR
 
 | 入口 \ 目标 | anthropic | chat | responses | gemini |
 | --- | --- | --- | --- | --- |
-| **messages** | **verbatim**（同格式快路径，保留 server-tool 字段） | 翻译（统一中转） | 翻译 | 翻译 |
-| **chat** | 翻译 | verbatim | 翻译 | 翻译 |
-| **responses** | 翻译 | 翻译 | verbatim | 翻译 |
-| **gemini** | 翻译 | 翻译 | 翻译 | verbatim |
+| **messages** | 原生直通（保留 server-tool 字段） | 翻译（统一中转） | 翻译 | 翻译 |
+| **chat** | 翻译 | 原生 Chat 编码/清理 | 翻译 | 翻译 |
+| **responses** | 翻译 | 翻译 | 原生 Responses | 翻译 |
+| **gemini** | 翻译 | 翻译 | 翻译 | 原生 Gemini |
 
-- **同格式快路径**：目标形态 == 入口形态时，不经过统一中转，请求体逐字节转发、只换鉴权；响应原样回传。
-- **统一中转**：其余组合经 Unified 中间表示 + transformer 链（`anthropic` / `openai` / `openai-response` / `gemini` 编码器）。
-- 已知缺口：chat 入口 → 部分非 Claude 订阅组合未全部打通（随订阅桥扩展补齐）。
+- **原生路径**：保留本协议字段；鉴权、最终模型映射和已有上游专用规整仍会执行，不能概括为所有请求逐字节透传。Chat 请求经过原生编码器清除内部回放扩展；同格式响应不必经过中转。
+- **统一中转**：其余组合经 Unified 中间表示 + transformer 链。注册的编码器为 `anthropic`、`openai`、`openai-response`、`gemini`，以及 Google 订阅变体 `gemini-code-assist`、`antigravity`。
+- **URL**：按 pathname 拼接端点，保留网关前缀、已有版本和查询参数；Gemini 的模型/action/`alt`、Azure 的 deployment/`api-version` 以本次最终选择为准。Gemini 原生 body 不发送路由层注入的 `model`/`stream`。
+- **验证范围**：`ProviderProxy.conversionMatrix.test.ts` 覆盖四入口 × 四上游 × JSON/SSE 的 32 条两轮链路：思考、两个同名并行工具、结果回传、最终回答。这验证本地协议实现，不代表每个厂商都提供所有模型/wire 组合。
+- **订阅边界**：入口支持不等于所有订阅组合都可路由；未实现组合明确报错，不宣称透明兼容。
+
+### 思考、工具与流的完整性
+
+- DeepSeek Chat 原生 `reasoning_content` 在 JSON 和 SSE 中均转换为 Claude thinking，并在下一轮工具结果请求中恢复。v0.6.9 的 Responses reasoning 修复不能替代这条 Anthropic ↔ Chat 回放链。
+- Claude Code 2.1.280 和 2.1.308 的实际请求会在 `messages` 内发送文本 `system` turn。入口保留其角色、文本与 cache block，和顶层 `system` 一起参与转换；编码回 Anthropic 时按既有规则合并到顶层 system。已用真实 Claude Code、真实 ProviderProxy 和本地严格校验的 DeepSeek 上游验证 SSE 思考 → Read 工具 → `reasoning_content` 回传 → 最终回答；这不是 DeepSeek 线上调用证据。
+- 退役裸 ID `deepseek-chat`、`deepseek-reasoner` 不再出现在内置目录；两者发送上游时均重定向为 `deepseek-flash`，并采用 Flash 的能力与思考回放规则。旧配置的显式参数和转换链优先保留；没有旧配置行时使用 Flash 配置。重定向覆盖 BYO、订阅映射/账户 remap/回退、Completion 和四种入口的原生/转换路径，不改写带发布者前缀或部署后缀的自定义 ID。独立本地 HTTP 烟测覆盖两个旧 ID × 四入口 × 四目标协议 × JSON/SSE 共 64 条两轮链路（128 次请求）。
+- Anthropic thinking/signature/redacted 保持块边界；Responses encrypted reasoning 保持原 item；Google thoughtSignature 保持原 parts 与工具签名。不会伪造签名、把签名拼进可见思考、把 Google 签名当成 Anthropic 签名。
+- 跨 wire 的 opaque 回放使用明确的 `extra_content` 载体（`omnicross.thinking`、`responses.reasoning`、`google.parts`）。**客户端必须保留这些扩展**；剥除未知字段的 SDK/客户端无法仅靠思考文本恢复原始签名。同格式原生回放不依赖这种跨协议扩展。
+- 模型思考计划同时约束型号能力与目标 wire；显式关闭、动态预算、输出上限不能被通用默认值悄悄替换。公共 Responses 的 stream/输出上限与私有 Codex 方言分开，只有明确标记的 Codex 订阅采用其私有规则。
+- 精确 Gemini 4 Argon 的 sampling 参数按官方“ignored”语义处理：转换路径省略并记录既有 dropped-field audit，保留输出上限；原生 `generationConfig` 不被改写。不把此规则泛化到所有 `gemini-4-*` 或新增本地 400。
+- 并行工具按 ID/索引关联；空参数对象合法，损坏 JSON、缺少终止事件及上游 SSE error 不得伪装成正常完成。缓存和 reasoning token 用量在转换中保留，reasoning 是 output 的子集，不重复计费。
+- 多候选数量在 Chat `n` 与 Gemini `candidateCount` 之间双向保留；Anthropic Messages / Responses 只有单结果语义，明确拒绝多候选请求或意外多候选响应，不再静默取 `choices[0]`。
+- Google cachedContent、原生搜索/代码工具、VALIDATED、非文本输出模态等无法等价转换时，在发送前拒绝；reduced Responses 不把 hosted tools 或 grammar 自定义工具降格为普通字符串函数。原生同协议能力不因此关闭。
+- 独立 `ApiConverter` 与 Completion handlers/tool loop 另有回归覆盖，不能用代理矩阵替代；Completion 保存按协议隔离的原生历史，不把服务器工具或工具结果伪装成普通用户文本。
 
 ---
 

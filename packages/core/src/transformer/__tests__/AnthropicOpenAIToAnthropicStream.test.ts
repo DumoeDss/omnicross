@@ -20,6 +20,10 @@ import {
   setAnthropicPingHeartbeatMs,
   stopReasonContentFilterCount,
 } from '../transformers/AnthropicOpenAIToAnthropicStream';
+import { convertAnthropicStreamToOpenAI } from '../transformers/AnthropicAnthropicToOpenAIStream';
+import { transformAnthropicRequestToUnified } from '../transformers/AnthropicConversion';
+import { buildRequestBody as buildGeminiRequestBody } from '../transformers/utils/gemini.util';
+import { transformResponseOut as decodeGeminiResponse } from '../transformers/utils/gemini.stream';
 
 const encoder = new TextEncoder();
 
@@ -79,7 +83,7 @@ function openaiChunk(over: Record<string, unknown> = {}): string {
     id: 'c1',
     object: 'chat.completion.chunk',
     model: 'gpt-test',
-    choices: [{ index: 0, delta: { content: 'hi' }, finish_reason: null }],
+    choices: [{ index: 0, delta: { content: 'hi' }, finish_reason: 'stop' }],
     ...over,
   })}\n\n`;
 }
@@ -93,6 +97,7 @@ describe('message_start usage backfill (R6)', () => {
         usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 20 } },
       }),
     );
+    src.send(openaiChunk({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }));
     src.close();
     const text = await drain(convertOpenAIStreamToAnthropic(src.stream));
     const start = dataEvents(text).find((e) => e['type'] === 'message_start') as {
@@ -345,6 +350,7 @@ describe('aggregator tolerance of ping frames', () => {
         delta: { stop_reason: 'end_turn' },
         usage: { output_tokens: 2 },
       })}\n\n`,
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
     ].join('');
     const fakeResponse = { text: async () => sse } as unknown as Response;
     const body = JSON.parse(await aggregateAnthropicSseToJsonBody(fakeResponse)) as {
@@ -358,5 +364,250 @@ describe('aggregator tolerance of ping frames', () => {
     expect(body.usage['input_tokens']).toBe(3);
     expect(body.usage['output_tokens']).toBe(2);
     expect(body.stop_reason).toBe('end_turn');
+  });
+});
+
+describe('reasoning and tool stream semantics', () => {
+  it('emits unsigned native reasoning before text and complete parallel tool blocks, retaining trailing usage', async () => {
+    const src = makeSource();
+    const send = (delta: Record<string, unknown>, finish_reason: string | null = null) =>
+      src.send(openaiChunk({ choices: [{ index: 0, delta, finish_reason }] }));
+    send({ reasoning_content: '先想' });
+    send({ reasoning_content: '清楚', content: 'Checking.' });
+    send({ tool_calls: [
+      { index: 0, id: 'a', function: { name: 'lookup', arguments: '{"q":' } },
+      { index: 1, id: 'b', function: { name: 'lookup', arguments: '{"q":' } },
+    ] });
+    send({ tool_calls: [
+      { index: 1, function: { arguments: '"B"}' } },
+      { index: 0, function: { arguments: '"A"}' } },
+    ] }, 'tool_calls');
+    src.send(openaiChunk({ choices: [], usage: { prompt_tokens: 12, completion_tokens: 7, prompt_tokens_details: { cached_tokens: 4 } } }));
+    src.close();
+    const text = await drain(convertOpenAIStreamToAnthropic(src.stream));
+    const events = dataEvents(text);
+    const open = new Set<unknown>();
+    for (const event of events) {
+      if (event.type === 'content_block_start') {
+        expect(open.size).toBe(0);
+        open.add(event.index);
+      } else if (event.type === 'content_block_delta') {
+        expect(open.has(event.index)).toBe(true);
+      } else if (event.type === 'content_block_stop') {
+        expect(open.delete(event.index)).toBe(true);
+      }
+    }
+    expect(open.size).toBe(0);
+    const result = JSON.parse(await aggregateAnthropicSseToJsonBody(new Response(text)));
+    expect(result.content).toEqual([
+      { type: 'thinking', thinking: '先想清楚' },
+      { type: 'text', text: 'Checking.' },
+      { type: 'tool_use', id: 'a', name: 'lookup', input: { q: 'A' } },
+      { type: 'tool_use', id: 'b', name: 'lookup', input: { q: 'B' } },
+    ]);
+    expect(result.stop_reason).toBe('tool_use');
+    expect(result.usage).toMatchObject({ input_tokens: 8, output_tokens: 7, cache_read_input_tokens: 4 });
+  });
+
+  it('round-trips separate thinking blocks and split signatures, including a thinking-only ending', async () => {
+    const src = makeSource();
+    const send = (event: Record<string, unknown>) => src.send(`data: ${JSON.stringify(event)}\n\n`);
+    send({ type: 'message_start', message: { id: 'm', model: 'claude', usage: { input_tokens: 9, cache_read_input_tokens: 2 } } });
+    for (const [index, thinking, signature] of [[0, 'first', 'sig1'], [1, 'second', 'sig2']] as const) {
+      send({ type: 'content_block_start', index, content_block: { type: 'thinking', thinking: '' } });
+      send({ type: 'content_block_delta', index, delta: { type: 'thinking_delta', thinking } });
+      send({ type: 'content_block_delta', index, delta: { type: 'signature_delta', signature: signature.slice(0, 2) } });
+      send({ type: 'content_block_delta', index, delta: { type: 'signature_delta', signature: signature.slice(2) } });
+      send({ type: 'content_block_stop', index });
+    }
+    send({ type: 'message_delta', delta: { stop_reason: 'max_tokens' }, usage: { output_tokens: 5 } });
+    send({ type: 'message_stop' });
+    src.close();
+    const text = await drain(convertOpenAIStreamToAnthropic(convertAnthropicStreamToOpenAI(src.stream)));
+    const result = JSON.parse(await aggregateAnthropicSseToJsonBody(new Response(text)));
+    expect(result.content).toEqual([
+      { type: 'thinking', thinking: 'first', signature: 'sig1' },
+      { type: 'thinking', thinking: 'second', signature: 'sig2' },
+    ]);
+    expect(result.stop_reason).toBe('max_tokens');
+    expect(result.usage).toMatchObject({ input_tokens: 9, output_tokens: 5, cache_read_input_tokens: 2 });
+  });
+
+  it('decodes split UTF-8, CRLF, multiline data, and an unterminated final frame', async () => {
+    const wire = 'data: {"model":"m","choices":[\r\ndata: {"delta":{"reasoning_content":"思考"},"finish_reason":"stop"}]}\r\n\r\n';
+    const bytes = encoder.encode(wire);
+    const source = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(Uint8Array.of(byte));
+        controller.close();
+      },
+    });
+    const text = await drain(convertOpenAIStreamToAnthropic(source));
+    const result = JSON.parse(await aggregateAnthropicSseToJsonBody(new Response(text)));
+    expect(result.content).toEqual([{ type: 'thinking', thinking: '思考' }]);
+    const final = makeSource();
+    final.send('data: {"choices":[{"delta":{"content":"final"},"finish_reason":"stop"}]}');
+    final.close();
+    expect(await drain(convertOpenAIStreamToAnthropic(final.stream))).toContain('"text":"final"');
+  });
+
+  it('surfaces Anthropic errors without a fabricated finish or DONE success marker', async () => {
+    const src = makeSource();
+    src.send('data: {"type":"error","error":{"type":"overloaded_error","message":"capacity"}}\n\n');
+    src.close();
+    const text = await drain(convertAnthropicStreamToOpenAI(src.stream));
+    expect(dataEvents(text)).toEqual([{ error: { type: 'overloaded_error', message: 'capacity' } }]);
+    expect(text).not.toContain('[DONE]');
+    const chat = makeSource();
+    chat.send('data: {"error":{"message":"capacity"}}\n\n');
+    chat.close();
+    const converted = await drain(convertOpenAIStreamToAnthropic(chat.stream));
+    expect(converted).toContain('event: error');
+    expect(converted).not.toContain('event: message_stop');
+  });
+
+  it('cancels the Anthropic upstream when the Chat client disconnects', async () => {
+    const cancel = vi.fn();
+    const source = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"type":"message_start","message":{"model":"m"}}\n\n'));
+      },
+      cancel,
+    });
+    const reader = convertAnthropicStreamToOpenAI(source).getReader();
+    await reader.read();
+    await reader.cancel('client disconnected');
+    expect(cancel).toHaveBeenCalledWith('client disconnected');
+  });
+});
+
+describe('Anthropic native stream boundaries', () => {
+  it('preserves executed search sources and citations without client tool calls', async () => {
+    const src = makeSource();
+    for (const event of [
+      { type: 'message_start', message: { model: 'claude' } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 's', name: 'web_search' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"query":"weather"}' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'content_block_start', index: 1, content_block: {
+        type: 'web_search_tool_result', tool_use_id: 's',
+        content: [{ title: 'Weather', url: 'https://example.com', encrypted_content: 'opaque' }],
+      } },
+      { type: 'content_block_stop', index: 1 },
+      { type: 'content_block_start', index: 2, content_block: { type: 'text', text: 'Sunny.' } },
+      { type: 'content_block_delta', index: 2, delta: { type: 'citations_delta', citation: { title: 'Weather', url: 'https://example.com' } } },
+      { type: 'content_block_stop', index: 2 },
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+      { type: 'message_stop' },
+    ]) src.send(`data: ${JSON.stringify(event)}\n\n`);
+    src.close();
+    const text = await drain(convertAnthropicStreamToOpenAI(src.stream));
+    expect(text).toContain('[Weather](https://example.com)');
+    expect(text).toContain('Sunny.');
+    expect(text).not.toContain('tool_calls');
+    expect(text).not.toContain('opaque');
+  });
+
+  it('returns valid empty tool input when Anthropic completes a tool block without deltas', async () => {
+    const src = makeSource();
+    for (const event of [
+      { type: 'message_start', message: { model: 'claude' } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'a', name: 'ping', input: {} } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'message_delta', delta: { stop_reason: 'tool_use' } },
+      { type: 'message_stop' },
+    ]) src.send(`data: ${JSON.stringify(event)}\n\n`);
+    src.close();
+    const text = await drain(convertOpenAIStreamToAnthropic(convertAnthropicStreamToOpenAI(src.stream)));
+    const response = JSON.parse(await aggregateAnthropicSseToJsonBody(new Response(text)));
+    expect(response.content).toEqual([{ type: 'tool_use', id: 'a', name: 'ping', input: {} }]);
+  });
+});
+
+describe('truncated streams', () => {
+  it('does not manufacture successful completion for an unfinished Chat response', async () => {
+    const src = makeSource();
+    src.send(openaiChunk({ choices: [{ delta: { reasoning_content: 'unfinished' }, finish_reason: null }] }));
+    src.close();
+    await expect(drain(convertOpenAIStreamToAnthropic(src.stream))).rejects.toThrow('without finish_reason');
+  });
+
+  it('does not manufacture DONE for an Anthropic response missing message_stop', async () => {
+    const src = makeSource();
+    src.send('data: {"type":"message_start","message":{"model":"claude"}}\n\n');
+    src.send('data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n');
+    src.close();
+    await expect(drain(convertAnthropicStreamToOpenAI(src.stream))).rejects.toThrow('without message_stop');
+  });
+});
+
+describe('streamed foreign signature gateway extensions', () => {
+  it('replays late Google metadata without buffering the stream or creating Anthropic signatures', async () => {
+    const parts = [
+      { text: 'Compare cities.', thought: true },
+      { functionCall: { id: 'a', name: 'weather', args: { city: 'A' } }, thoughtSignature: 'google-tool-a' },
+      { functionCall: { id: 'b', name: 'weather', args: { city: 'B' } }, thoughtSignature: 'google-tool-b' },
+      { text: '', thought: true, thoughtSignature: 'late-google-thought' },
+    ];
+    const src = makeSource();
+    const unified = await decodeGeminiResponse(new Response(src.stream, {
+      headers: { 'content-type': 'text/event-stream' },
+    }), 'google');
+    const reader = convertOpenAIStreamToAnthropic(unified.body!).getReader();
+    src.send(`data: ${JSON.stringify({ candidates: [{ content: { parts: [parts[0]] } }] })}\n\n`);
+    let text = '';
+    const decoder = new TextDecoder();
+    while (!text.includes('thinking_delta')) {
+      const { value } = await reader.read();
+      text += decoder.decode(value);
+    }
+    for (const part of parts.slice(1)) {
+      src.send(`data: ${JSON.stringify({ candidates: [{ content: { parts: [part] } }] })}\n\n`);
+    }
+    src.send('data: {"candidates":[{"finishReason":"STOP"}]}\n\n');
+    src.close();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value);
+    }
+    expect(text).not.toContain('signature_delta');
+    const response = JSON.parse(await aggregateAnthropicSseToJsonBody(new Response(text)));
+    const next = transformAnthropicRequestToUnified({
+      model: 'gemini-3.1-pro-preview',
+      messages: [
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: [
+          { type: 'tool_result', tool_use_id: 'a', content: 'sunny' },
+          { type: 'tool_result', tool_use_id: 'b', content: 'rainy' },
+        ] },
+      ],
+    });
+    expect(buildGeminiRequestBody(next).contents[0]).toEqual({ role: 'model', parts });
+  });
+});
+
+describe('validated SSE wire boundaries', () => {
+  it('rejects non-string tool argument deltas instead of emitting coerced tool input', async () => {
+    const src = makeSource();
+    src.send(openaiChunk({ choices: [{
+      delta: { tool_calls: [{ index: 0, id: 'a', function: { name: 'weather', arguments: { city: 'A' } } }] },
+      finish_reason: 'tool_calls',
+    }] }));
+    src.close();
+    await expect(drain(convertOpenAIStreamToAnthropic(src.stream))).rejects.toThrow('tool_call.function.arguments');
+  });
+
+  it('accepts nullable Chat usage details and content on a finished response', async () => {
+    const src = makeSource();
+    src.send(openaiChunk({
+      choices: [{ delta: { content: null, reasoning_content: 'Done.' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 2, completion_tokens: 1, prompt_tokens_details: null },
+    }));
+    src.close();
+    const text = await drain(convertOpenAIStreamToAnthropic(src.stream));
+    const response = JSON.parse(await aggregateAnthropicSseToJsonBody(new Response(text)));
+    expect(response.content).toEqual([{ type: 'thinking', thinking: 'Done.' }]);
+    expect(response.usage).toMatchObject({ input_tokens: 2, output_tokens: 1 });
   });
 });

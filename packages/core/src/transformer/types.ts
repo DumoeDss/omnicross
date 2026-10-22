@@ -22,6 +22,11 @@ export type { ThinkLevel } from '@omnicross/contracts/completion-types';
 export interface ThinkingContent {
   content: string;
   signature?: string;
+  /** Original Anthropic blocks; opaque signatures stay attached to their block. */
+  blocks?: Array<
+    | { type: 'thinking'; thinking: string; signature?: string }
+    | { type: 'redacted_thinking'; data: string }
+  >;
 }
 
 /**
@@ -58,6 +63,7 @@ export interface ImageContent {
   type: 'image_url';
   image_url: {
     url: string;
+    detail?: 'auto' | 'low' | 'high';
   };
   media_type?: string;
 }
@@ -91,6 +97,8 @@ export interface UnifiedMessage {
   content: string | null | MessageContent[];
   tool_calls?: ToolCall[];
   tool_call_id?: string;
+  /** A failed tool result, encoded using the target protocol's error semantics. */
+  is_error?: boolean;
   cache_control?: {
     type?: string;
   };
@@ -145,6 +153,8 @@ export interface UnifiedChatRequest {
   messages: UnifiedMessage[];
   model: string;
   max_tokens?: number;
+  /** Number of alternative candidates (Chat n / Gemini candidateCount). */
+  n?: number;
   temperature?: number;
   stream?: boolean;
   tools?: UnifiedTool[];
@@ -367,6 +377,8 @@ export interface LLMProvider {
    * Failed). Only ever set for the gemini subscription profile; inert otherwise.
    */
   geminiProject?: string;
+  /** Explicit private Responses dialect selected by the subscription profile. */
+  responsesDialect?: 'codex';
 }
 
 /**

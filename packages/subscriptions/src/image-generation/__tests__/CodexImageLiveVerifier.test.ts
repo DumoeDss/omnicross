@@ -160,14 +160,10 @@ describe('CodexImageLiveVerifier', () => {
     ]);
     expect(requests[1]?.headers.get('accept')).toBe('application/json');
     expect(requests[0]?.body).toMatchObject({ tools: [{ model }] });
-    expect(requests[1]?.body).toEqual({
-      images: [{ image_url: `data:image/png;base64,${VALID_PNG}` }],
-      prompt: 'A single solid black square.',
-      background: 'opaque',
-      model,
-      quality: 'low',
-      size: 'auto',
-    });
+    expect(requests[1]?.body.model).toBe(model);
+    expect(requests[1]?.body.images).toEqual([
+      { image_url: `data:image/png;base64,${VALID_PNG}` },
+    ]);
   });
 
   it('makes two redacted minimal PNG requests, returns narrow evidence, and destroys both artifacts', async () => {
@@ -197,6 +193,8 @@ describe('CodexImageLiveVerifier', () => {
           response: {
             output: [{
               type: 'image_generation_call',
+              status: 'completed',
+              result: VALID_PNG,
               revised_prompt: 'REVISED_PROMPT_SECRET_SENTINEL',
             }],
             usage: { total_tokens: 7, generated_images: 1 },

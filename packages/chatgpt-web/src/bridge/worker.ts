@@ -24,7 +24,7 @@ import {
   type ChatGptWebAccountCapabilities,
   type ChatGptWebModelRoute,
 } from './models';
-import { chatGptReadOnlyContextWarning, compileChatGptWebPrompt } from './prompt';
+import { compileChatGptWebPrompt } from './prompt';
 import type { BridgeEvent, CodexParsedRequest } from './types';
 
 export const MAX_CHATGPT_BROWSER_TABS = 5;
@@ -119,11 +119,7 @@ export class ChatGptWebBridgeWorker {
     }
   }
 
-  /**
-   * Run one request's browser turn as an event stream. The read-only
-   * capability warning leads as a reasoning summary so it renders in Codex
-   * without polluting the assistant answer.
-   */
+  /** Run one request's browser turn without inventing model output. */
   async *runRequest(
     parsed: CodexParsedRequest,
     abortSignal?: AbortSignal,
@@ -137,7 +133,6 @@ export class ChatGptWebBridgeWorker {
     }
     const route = await this.resolveRoute(parsed.modelId);
     const prompt = compileChatGptWebPrompt(parsed, route);
-    yield { type: 'thinking_delta', thinking: chatGptReadOnlyContextWarning(route) };
     let release!: () => void;
     const completion = new Promise<void>((resolve) => {
       release = resolve;

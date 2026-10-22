@@ -25,6 +25,7 @@
  */
 
 import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { AuthApplyHints } from '../pipeline/SubscriptionAuthStrategy';
@@ -132,8 +133,8 @@ function isNonBlankRef(ref: unknown): ref is string {
 /**
  * Pick the model ref for the LIST-mapped `chat` endpoint: the client requests
  * one of the configured refs' modelIds directly (the same names `GET /v1/models`
- * advertises). Exact modelId match first, then case-insensitive. No requested
- * model, or a model not in the list → `undefined` (per-request 404).
+ * advertises). Exact modelId match first, then case-insensitive, then an
+ * explicitly configured replacement for a retired name. Otherwise return 404.
  */
 export function pickModelRefFromList(
   models: ModelRef[] | undefined,
@@ -141,14 +142,19 @@ export function pickModelRefFromList(
 ): ModelRef | undefined {
   if (!requestedModel || !models || models.length === 0) return undefined;
   const wanted = requestedModel.trim();
+  const wantedLower = wanted.toLowerCase();
+  const replacement = resolveModelRedirect(wantedLower);
   let ciHit: ModelRef | undefined;
+  let replacementHit: ModelRef | undefined;
   for (const ref of models) {
     const parsed = parseModelRef(ref);
     if (!parsed) continue;
     if (parsed.modelId === wanted) return ref;
-    if (!ciHit && parsed.modelId.toLowerCase() === wanted.toLowerCase()) ciHit = ref;
+    const candidate = parsed.modelId.toLowerCase();
+    if (!ciHit && candidate === wantedLower) ciHit = ref;
+    if (!replacementHit && replacement !== wantedLower && candidate === replacement) replacementHit = ref;
   }
-  return ciHit;
+  return ciHit ?? replacementHit;
 }
 
 /** Pick the role's configured model ref (`gemini`; vision removed). */

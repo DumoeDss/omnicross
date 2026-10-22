@@ -15,10 +15,9 @@
  * here would be the gateway guessing.
  *
  * Detection uses the PORTED rule, `type.startsWith('web_search')` (wire baseline
- * A7), not core's own `isServerSideTool` rule, `type.startsWith('web_search_')`
- * (A2). The difference is one underscore and it is deliberate: this lane's job
- * is to answer the requests Elftia's interception answered, so it matches what
- * that predicate matches — including a bare `web_search` type. Either spelling
+ * A7), independently of the transformer's broader native-tool classifier
+ * `isNativeAnthropicTool` (A2). This lane answers the search requests Elftia's
+ * interception answered, including a bare `web_search` type. Either spelling
  * keeps a new tool VERSION as data rather than a code branch, which is the
  * property that actually matters.
  *
@@ -105,9 +104,9 @@ export function resolveAnthropicSearchHintBackend(
 }
 
 /**
- * The ported detection prefix (wire baseline A7). Note the ABSENT trailing
- * underscore: core's own `isServerSideTool` uses `web_search_`, and this rule
- * is deliberately the wider one Elftia's interception used. See the module doc.
+ * The ported search prefix (wire baseline A7), including the bare `web_search`
+ * spelling. This search-specific predicate is intentionally separate from
+ * core's `isNativeAnthropicTool`, which also recognizes non-search native tools.
  */
 const WEB_SEARCH_TOOL_PREFIX = 'web_search';
 

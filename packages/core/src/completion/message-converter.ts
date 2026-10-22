@@ -5,10 +5,7 @@
  */
 
 import type {
-  AnthropicAudioContent,
-  AnthropicImageContent,
   AnthropicMessage,
-  AnthropicTextContent,
   OpenAIContentPart,
   OpenAIMessage,
   SimpleChatMessage
@@ -83,10 +80,19 @@ export function convertMessageToOpenAI(msg: SimpleChatMessage): OpenAIMessage {
   const hasImages = msg.images && msg.images.length > 0;
   const hasAudios = msg.audios && msg.audios.length > 0;
   const hasVideos = msg.videos && msg.videos.length > 0;
+  const metadata = {
+    ...(msg.toolCallId ? { tool_call_id: msg.toolCallId } : {}),
+    ...(msg.name ? { name: msg.name } : {}),
+    ...(msg.thinking?.content ? { reasoning_content: msg.thinking.content } : {}),
+    ...(msg.toolCalls?.length ? { tool_calls: msg.toolCalls.map(tc => ({
+      id: tc.id, type: 'function' as const,
+      function: { name: tc.name, arguments: JSON.stringify(tc.args) },
+    })) } : {}),
+  };
 
   if (!hasImages && !hasAudios && !hasVideos) {
     // Text-only message
-    return { role, content: msg.content };
+    return { role, content: msg.content, ...metadata };
   }
 
   // Multimodal message
@@ -150,7 +156,7 @@ export function convertMessageToOpenAI(msg: SimpleChatMessage): OpenAIMessage {
     }
   }
 
-  return { role, content };
+  return { role, content, ...metadata };
 }
 
 /**
@@ -160,17 +166,34 @@ export function convertMessageToOpenAI(msg: SimpleChatMessage): OpenAIMessage {
  * - With images: { role, content: [{ type: "text", text: "..." }, { type: "image", source: { type: "base64", media_type: "...", data: "..." } }] }
  */
 export function convertMessageToAnthropic(msg: SimpleChatMessage): AnthropicMessage {
+  if (msg.providerMetadata?.apiFormat === 'anthropic' && (msg.role === 'assistant' || msg.role === 'tool')) {
+    return { role: msg.role === 'assistant' ? 'assistant' : 'user', content: msg.providerMetadata.content as unknown as AnthropicMessage['content'] };
+  }
+  if (msg.role === 'tool') {
+    if (!msg.toolCallId) throw new Error('Tool result requires toolCallId');
+    return { role: 'user', content: [{
+      type: 'tool_result', tool_use_id: msg.toolCallId, content: msg.content,
+      ...(msg.isError !== undefined ? { is_error: msg.isError } : {}),
+    }] };
+  }
+  if (msg.audios?.length || msg.videos?.length) {
+    throw new Error('Anthropic Messages does not support audio or video input');
+  }
   const role = (msg.role === 'system' ? 'user' : msg.role) as 'user' | 'assistant';
   const hasImages = msg.images && msg.images.length > 0;
   const hasAudios = msg.audios && msg.audios.length > 0;
 
-  if (!hasImages && !hasAudios) {
-    // Text-only message
+  if (!hasImages && !hasAudios && !msg.toolCalls?.length && !msg.thinking?.content && !msg.thinking?.blocks?.length) {
     return { role, content: msg.content };
   }
 
   // Multimodal message
-  const content: (AnthropicTextContent | AnthropicImageContent | AnthropicAudioContent)[] = [];
+  const content: Exclude<AnthropicMessage['content'], string> = [];
+  if (msg.thinking?.blocks?.length) {
+    content.push(...msg.thinking.blocks);
+  } else if (msg.thinking?.content) {
+    content.push({ type: 'thinking', thinking: msg.thinking.content, signature: msg.thinking.signature });
+  }
 
   // Add text content first (if any)
   if (msg.content) {
@@ -180,6 +203,10 @@ export function convertMessageToAnthropic(msg: SimpleChatMessage): AnthropicMess
   // Add images
   if (msg.images) {
     for (const img of msg.images) {
+      if (looksLikeRemoteUrl(img.url)) {
+        content.push({ type: 'image', source: { type: 'url', url: img.url } });
+        continue;
+      }
       let base64Data = img.url;
       let mediaType = img.mimeType || 'image/jpeg';
 
@@ -198,25 +225,8 @@ export function convertMessageToAnthropic(msg: SimpleChatMessage): AnthropicMess
     }
   }
 
-  // Add audios
-  if (msg.audios) {
-    for (const audio of msg.audios) {
-      let base64Data = audio.url;
-      let mediaType = audio.mimeType || 'audio/wav';
-
-      if (audio.url.startsWith('data:')) {
-        const match = audio.url.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          mediaType = match[1];
-          base64Data = match[2];
-        }
-      }
-
-      content.push({
-        type: 'audio',
-        source: { type: 'base64', media_type: mediaType, data: base64Data }
-      });
-    }
+  for (const call of msg.toolCalls ?? []) {
+    content.push({ type: 'tool_use', id: call.id, name: call.name, input: call.args });
   }
 
   return { role, content };
@@ -234,6 +244,11 @@ export function convertMessageToAnthropic(msg: SimpleChatMessage): AnthropicMess
  */
 export interface SimpleChatGeminiPart {
   text?: string;
+  fileData?: { mimeType: string; fileUri: string };
+  thought?: boolean;
+  thoughtSignature?: string;
+  functionCall?: { id?: string; name: string; args: Record<string, unknown> };
+  functionResponse?: { id?: string; name: string; response: Record<string, unknown> };
   inlineData?: {
     mimeType: string;
     data: string;
@@ -252,6 +267,15 @@ export interface SimpleChatGeminiMessage {
  * - { role: "user"|"model", parts: [{ text: "..." }, { inlineData: { mimeType: "...", data: "..." } }] }
  */
 export function convertMessageToGemini(msg: SimpleChatMessage): SimpleChatGeminiMessage {
+  if (msg.providerMetadata?.apiFormat === 'google' && (msg.role === 'assistant' || msg.role === 'tool')) {
+    return { role: msg.role === 'assistant' ? 'model' : 'user', parts: msg.providerMetadata.content as SimpleChatGeminiPart[] };
+  }
+  if (msg.role === 'tool') {
+    if (!msg.name) throw new Error('Gemini tool result requires the function name');
+    return { role: 'user', parts: [{ functionResponse: {
+      ...(msg.toolCallId ? { id: msg.toolCallId } : {}), name: msg.name, response: { result: msg.content },
+    } }] };
+  }
   const role = msg.role === 'assistant' ? 'model' : msg.role;
   const parts: SimpleChatGeminiPart[] = [];
 
@@ -263,6 +287,10 @@ export function convertMessageToGemini(msg: SimpleChatMessage): SimpleChatGemini
   // Add images
   if (msg.images && msg.images.length > 0) {
     for (const img of msg.images) {
+      if (looksLikeRemoteUrl(img.url)) {
+        parts.push({ fileData: { mimeType: img.mimeType || 'image/jpeg', fileUri: img.url } });
+        continue;
+      }
       let base64Data = img.url;
       let mimeType = img.mimeType || 'image/jpeg';
 
@@ -281,6 +309,10 @@ export function convertMessageToGemini(msg: SimpleChatMessage): SimpleChatGemini
   // Add audios
   if (msg.audios && msg.audios.length > 0) {
     for (const audio of msg.audios) {
+      if (looksLikeRemoteUrl(audio.url)) {
+        parts.push({ fileData: { mimeType: audio.mimeType, fileUri: audio.url } });
+        continue;
+      }
       let base64Data = audio.url;
       let mimeType = audio.mimeType || 'audio/wav';
 
@@ -295,6 +327,62 @@ export function convertMessageToGemini(msg: SimpleChatMessage): SimpleChatGemini
       parts.push({ inlineData: { mimeType, data: base64Data } });
     }
   }
+  for (const video of msg.videos ?? []) {
+    const decoded = decodeDataUrl(video.url);
+    parts.push(decoded ? { inlineData: decoded } : { fileData: { mimeType: video.mimeType, fileUri: video.url } });
+  }
+  for (const call of msg.toolCalls ?? []) {
+    parts.push({ functionCall: { id: call.id, name: call.name, args: call.args } });
+  }
 
   return { role, parts };
+}
+
+/** Encode Responses history including function results and native reasoning replay. */
+export function convertMessagesToResponses(messages: SimpleChatMessage[]): Array<Record<string, unknown>> {
+  const input: Array<Record<string, unknown>> = [];
+  for (const msg of messages) {
+    const native = msg.role === 'assistant' && msg.providerMetadata?.apiFormat === 'openai-response'
+      ? msg.providerMetadata.content : undefined;
+    if (native) input.push(...native);
+    if (msg.role === 'tool') {
+      if (!msg.toolCallId) throw new Error('Responses tool result requires toolCallId');
+      input.push({ type: 'function_call_output', call_id: msg.toolCallId, output: msg.content });
+      continue;
+    }
+    if (msg.audios?.length || msg.videos?.length) {
+      throw new Error('Responses input cannot encode these audio/video attachments');
+    }
+    const content: Array<Record<string, unknown>> = [];
+    if (msg.content) content.push({ type: msg.role === 'assistant' ? 'output_text' : 'input_text', text: msg.content });
+    for (const image of msg.images ?? []) content.push({ type: 'input_image', image_url: image.url });
+    if (content.length && !native?.some(item => item.type === 'message')) {
+      input.push({ role: msg.role === 'system' ? 'developer' : msg.role, content });
+    }
+    for (const call of native?.some(item => item.type === 'function_call') ? [] : msg.toolCalls ?? []) {
+      input.push({ type: 'function_call', call_id: call.id, name: call.name, arguments: JSON.stringify(call.args) });
+    }
+  }
+  return input;
+}
+
+/** Keep all parallel function responses in the same Gemini user turn. */
+export function convertMessagesToGemini(messages: SimpleChatMessage[]): {
+  contents: SimpleChatGeminiMessage[];
+  systemInstruction?: { parts: Array<{ text: string }> };
+} {
+  const contents: SimpleChatGeminiMessage[] = [];
+  const systemParts: Array<{ text: string }> = [];
+  let previousWasTool = false;
+  for (const message of messages) {
+    if (message.role === 'system') {
+      systemParts.push({ text: message.content });
+      continue;
+    }
+    const converted = convertMessageToGemini(message);
+    if (message.role === 'tool' && previousWasTool) contents[contents.length - 1].parts.push(...converted.parts);
+    else contents.push(converted);
+    previousWasTool = message.role === 'tool';
+  }
+  return { contents, ...(systemParts.length ? { systemInstruction: { parts: systemParts } } : {}) };
 }

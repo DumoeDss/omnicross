@@ -41,6 +41,8 @@ interface BufferEntry {
   queue: StreamEvent[];
   attached: boolean;
   closed: boolean;
+  terminal?: boolean;
+  cancelCleanup?: () => void;
 }
 
 const TERMINAL_TYPES: ReadonlySet<StreamEventType> = new Set(['done', 'error', 'abort']);
@@ -77,13 +79,14 @@ function safeSend(sender: StreamSender, channel: string, payload: StreamEvent): 
  * the sender (covers the rare case of the engine retrying with the same id).
  */
 export function register(streamId: string, sender: StreamSender): void {
+  entries.get(streamId)?.cancelCleanup?.();
   entries.set(streamId, { sender, queue: [], attached: false, closed: false });
 }
 
 /**
  * Emit an event for `streamId`. Forwards directly if the client has attached;
- * otherwise queues until `attach` is called. Bounded at QUEUE_CAP — overflow
- * evicts the oldest non-terminal event.
+ * otherwise queues until `attach` is called. Overflow coalesces adjacent text
+ * deltas or reports an explicit error instead of silently losing output.
  */
 export function emit(streamId: string, event: StreamEvent): void {
   const entry = entries.get(streamId);
@@ -92,22 +95,32 @@ export function emit(streamId: string, event: StreamEvent): void {
     return;
   }
   if (safeIsDestroyed(entry.sender)) {
+    entry.cancelCleanup?.();
     entries.delete(streamId);
     return;
   }
+  if (entry.terminal) return;
+  if (TERMINAL_TYPES.has(event.type)) entry.terminal = true;
   if (entry.attached) {
     safeSend(entry.sender, channelOf(streamId), event);
     return;
   }
 
+  if (entry.terminal) {
+    entry.queue.push(event);
+    return;
+  }
   if (entry.queue.length >= QUEUE_CAP) {
-    const evictAt = entry.queue.findIndex((e) => !TERMINAL_TYPES.has(e.type));
-    if (evictAt >= 0) {
-      entry.queue.splice(evictAt, 1);
-    } else {
-      // Queue is entirely terminal events — exotic; drop the oldest anyway.
-      entry.queue.shift();
+    const last = entry.queue[entry.queue.length - 1];
+    if ((event.type === 'delta' || event.type === 'reasoning') && last.type === event.type
+      && typeof event.content === 'string' && typeof last.content === 'string'
+      && Object.keys(event).length === 2 && Object.keys(last).length === 2) {
+      entry.queue[entry.queue.length - 1] = { ...last, content: last.content + event.content };
+      return;
     }
+    entry.queue.push({ type: 'error', error: 'Stream event buffer overflow before subscription' });
+    entry.terminal = true;
+    return;
   }
   entry.queue.push(event);
 }
@@ -131,13 +144,17 @@ export function attach(streamId: string): { ok: boolean; drained: number } {
   }
   entry.queue = [];
   entry.attached = true;
+  if (entry.closed) {
+    entry.cancelCleanup?.();
+    entries.delete(streamId);
+  }
   return { ok: true, drained };
 }
 
 /**
- * Mark a stream finished. If the client has already attached, release
- * synchronously. Otherwise defer one tick so a late `subscribe` arriving on the
- * heels of the `done`/`error` event still drains the queue before cleanup.
+ * Mark a stream finished. Attached streams are released synchronously.
+ * Otherwise retain completed events for a bounded subscription
+ * grace period, including subscriptions that arrive on a later event-loop tick.
  */
 export function release(streamId: string): void {
   const entry = entries.get(streamId);
@@ -149,13 +166,16 @@ export function release(streamId: string): void {
     entries.delete(streamId);
     return;
   }
-  setImmediate(() => {
-    entries.delete(streamId);
-  });
+  const timer = setTimeout(() => {
+    if (entries.get(streamId) === entry) entries.delete(streamId);
+  }, 30_000);
+  timer.unref();
+  entry.cancelCleanup = () => clearTimeout(timer);
 }
 
 /** Test-only: reset internal state. Not exported from the index. */
 export function _resetForTests(): void {
+  for (const entry of entries.values()) entry.cancelCleanup?.();
   entries.clear();
 }
 

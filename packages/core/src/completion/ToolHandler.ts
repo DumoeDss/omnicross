@@ -12,6 +12,7 @@ import type { MCPTool } from '@omnicross/contracts/mcp-types';
 
 import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
+import { streamSSEResponse } from '../sse-parser';
 import type { AnthropicTool, GeminiTools, McpToolProvider, OpenAITool } from '../tool-types';
 
 import {
@@ -21,19 +22,13 @@ import {
   type StreamCallbacks
 } from './';
 import type { BuiltinToolExecutor } from './BuiltinToolExecutor';
-import { NATIVE_SEARCH_TOOL_NAMES } from './native-search-types';
 import { applyAugmentation } from './NativeSearchInjector';
 import {
   buildIterationBlocks,
   buildToolRequest,
   executeToolCalls,
-  extractDeltaContent,
-  extractDeltaReasoning,
-  extractToolCalls,
-  finalizeOpenAIToolCalls,
   logToolFormat,
-  parseStreamChunk,
-  type PendingOpenAIToolCalls} from './ToolExecutor';
+} from './ToolExecutor';
 import { resolveProviderEndpoint } from './url-builder';
 
 /** Extended options for tool-based completion */
@@ -100,6 +95,10 @@ export async function streamWithTools(
     const conversationMessages: SimpleChatMessage[] = [...options.messages]; // Copy messages for iteration
     let finalContent = '';
     let finalReasoning = '';
+    let finalMetadata: SimpleChatMessage['providerMetadata'];
+    let finalImages: SimpleChatMessage['images'];
+    let finalAudios: SimpleChatMessage['audios'];
+    let finalVideos: SimpleChatMessage['videos'];
     let finalUsageTokens: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
     const blocks: MessageBlock[] = []; // Structured content blocks for multi-turn display
 
@@ -161,101 +160,39 @@ export async function streamWithTools(
         return;
       }
 
-      // Process the stream (no transformer needed)
-      const reader = response.body?.getReader();
-      if (!reader) {
-        callbacks.onError?.('No response body');
-        return;
+      const format = apiFormat === 'google' ? 'gemini'
+        : apiFormat === 'anthropic' ? 'anthropic'
+        : apiFormat === 'openai-response' ? 'openai-response' : 'openai';
+      const result = await streamSSEResponse(response, format, {
+        onDelta: callbacks.onDelta, onReasoning: callbacks.onReasoning,
+        onError: callbacks.onError, onBlock: callbacks.onBlock,
+        onAudio: callbacks.onAudio, onVideo: callbacks.onVideo,
+      });
+      if (result.error) return;
+      const { content, reasoning, toolCalls } = result;
+      for (const call of toolCalls) callbacks.onToolCall?.(call);
+      if (result.usage) {
+        finalUsageTokens = {
+          promptTokens: (finalUsageTokens?.promptTokens ?? 0) + result.usage.promptTokens,
+          completionTokens: (finalUsageTokens?.completionTokens ?? 0) + result.usage.completionTokens,
+          totalTokens: (finalUsageTokens?.totalTokens ?? 0) + result.usage.totalTokens,
+        };
       }
 
-      const decoder = new TextDecoder();
-      let content = '';
-      let reasoning = '';
-      const toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
-      const pendingOpenAIToolCalls: PendingOpenAIToolCalls = new Map();
-      let buffer = ''; // Buffer for incomplete lines
-
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          logger.debug('Received raw chunk', { chunkLength: chunk.length });
-
-          // Add to buffer and split by newlines
-          buffer += chunk;
-          const lines = buffer.split('\n');
-
-          // Keep the last incomplete line in buffer
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
-
-            logger.debug('Processing line', { linePreview: trimmedLine.substring(0, 200) });
-
-            if (trimmedLine.startsWith('data: ')) {
-              const data = trimmedLine.slice(6);
-              if (data === '[DONE]') {
-                logger.debug('Stream done');
-                continue;
-              }
-
-              try {
-                const json = JSON.parse(data);
-                logger.debug('Parsed JSON', { json });
-
-                // Check for error response
-                if (json.error) {
-                  logger.error('API Error', undefined, { error: json.error });
-                  callbacks.onError?.(`API Error: ${json.error.message || JSON.stringify(json.error)}`);
-                  return;
-                }
-
-                // Parse based on API format and dispatch callbacks
-                parseStreamChunk(json, apiFormat, callbacks, logger);
-
-                // Update local variables from mutable state
-                content = (content + extractDeltaContent(json, apiFormat));
-                reasoning = (reasoning + extractDeltaReasoning(json, apiFormat));
-                extractToolCalls(json, apiFormat, toolCalls, callbacks, logger, pendingOpenAIToolCalls);
-
-                // Capture usage tokens (OpenAI format) — do NOT call onDone here,
-                // it will be called once after the stream ends to avoid duplicate messages
-                if (apiFormat !== 'google' && apiFormat !== 'anthropic' && json.usage) {
-                  finalUsageTokens = {
-                    promptTokens: json.usage.prompt_tokens || 0,
-                    completionTokens: json.usage.completion_tokens || 0,
-                    totalTokens: json.usage.total_tokens || 0
-                  };
-                }
-              } catch (_e) {
-                // Ignore parse errors
-              }
-            }
-          }
-        }
-
-        // Finalize accumulated OpenAI streaming tool calls
-        if (apiFormat !== 'google' && apiFormat !== 'anthropic') {
-          finalizeOpenAIToolCalls(pendingOpenAIToolCalls, toolCalls, callbacks, logger);
-          pendingOpenAIToolCalls.clear();
-        }
 
         // Store content and reasoning for this iteration
         finalContent = content;
         finalReasoning = reasoning;
+        finalMetadata = result.providerMetadata;
+        finalImages = result.images.length ? result.images : undefined;
+        finalAudios = result.audios.length ? result.audios : undefined;
+        finalVideos = result.videos.length ? result.videos : undefined;
 
         // Build blocks for this iteration
         buildIterationBlocks(iteration, content, reasoning, blocks, callbacks);
 
-        // Check if there are tool calls to execute
-        // Filter out native search tool calls (executed server-side by the provider)
-        const executableToolCalls = toolCalls.filter(
-          tc => !NATIVE_SEARCH_TOOL_NAMES.includes(tc.name)
-        );
+        const executableToolCalls = toolCalls;
 
         logger.info('Tool execution check', {
           toolCallsLength: toolCalls.length,
@@ -272,7 +209,10 @@ export async function streamWithTools(
           conversationMessages.push({
             id: `assistant_${iteration}`,
             role: 'assistant',
-            content: content || 'Calling tools...',
+            content,
+            thinking: reasoning ? { content: reasoning } : undefined,
+            toolCalls: executableToolCalls,
+            providerMetadata: result.providerMetadata,
             timestamp: Date.now()
           });
 
@@ -287,25 +227,57 @@ export async function streamWithTools(
             builtinExecutor
           );
 
-          // Add tool results to conversation as user message
-          const toolResultsText = toolResults.map(({ toolCall, result }) => {
-            const resultText = typeof result === 'string'
-              ? result
-              : (result as { content?: Array<{ text?: string }> }).content?.[0]?.text || JSON.stringify(result);
-            return `Tool ${toolCall.name} result:\n${resultText}`;
-          }).join('\n\n');
-
-          conversationMessages.push({
-            id: `tool_results_${iteration}`,
-            role: 'user',
-            content: toolResultsText,
-            timestamp: Date.now()
-          });
+          for (const { toolCall, result: toolResult } of toolResults) {
+            const structuredResult = toolResult as { isError?: boolean; content?: Array<Record<string, unknown>> };
+            const isError = structuredResult?.isError === true;
+            const resultParts = structuredResult?.content;
+            const hasMedia = resultParts?.some(part => part.type !== 'text');
+            if (hasMedia && apiFormat !== 'anthropic') {
+              throw new Error(`Cannot encode multimodal tool results for ${apiFormat}`);
+            }
+            const resultText = resultParts?.every(part => part.type === 'text')
+              ? resultParts.map(part => String(part.text ?? '')).join('\n')
+              : typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
+            const nativeCall = result.providerMetadata?.apiFormat === 'google'
+              ? result.providerMetadata.content.filter(part => part.functionCall)[toolCalls.indexOf(toolCall)]?.functionCall as { id?: string } | undefined
+              : undefined;
+            conversationMessages.push({
+              id: `tool_result_${toolCall.id}`, role: 'tool', content: resultText,
+              name: toolCall.name, toolCallId: toolCall.id, timestamp: Date.now(),
+              isError,
+              ...(apiFormat === 'anthropic' && resultParts ? { providerMetadata: {
+                apiFormat: 'anthropic' as const,
+                content: [{ type: 'tool_result', tool_use_id: toolCall.id, is_error: isError,
+                  content: resultParts.map(part => {
+                    if (part.type === 'text') return { type: 'text', text: part.text };
+                    if (part.type === 'image') return {
+                      type: 'image', source: { type: 'base64', media_type: part.mimeType, data: part.data },
+                    };
+                    throw new Error(`Unsupported tool result content: ${String(part.type)}`);
+                  }),
+                }],
+              } } : {}),
+              ...(apiFormat === 'google' ? { providerMetadata: {
+                apiFormat: 'google' as const, content: [{ functionResponse: {
+                  ...(nativeCall?.id ? { id: nativeCall.id } : {}),
+                  name: toolCall.name, response: isError ? { error: toolResult } : { result: toolResult },
+                } }],
+              } } : {}),
+            });
+          }
+          if (iteration === MAX_ITERATIONS) {
+            callbacks.onError?.(`Tool iteration limit reached (${MAX_ITERATIONS})`);
+            return;
+          }
 
           logger.info('Continuing to next iteration with tool results');
           // Continue to next iteration
           continue;
         } else {
+          if (executableToolCalls.length) {
+            callbacks.onError?.('Tool calls received but no tool executor is available');
+            return;
+          }
           // No tool calls, we're done
           logger.info('No tool calls, finishing');
           break;
@@ -325,6 +297,8 @@ export async function streamWithTools(
       content: finalContent,
       timestamp: Date.now(),
       thinking: finalReasoning ? { content: finalReasoning } : undefined,
+      providerMetadata: finalMetadata,
+      images: finalImages, audios: finalAudios, videos: finalVideos,
       blocks: blocks.length > 0 ? blocks : undefined
     }, finalUsageTokens);
 

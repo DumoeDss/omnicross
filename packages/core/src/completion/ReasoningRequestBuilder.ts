@@ -1,8 +1,11 @@
+import { normalizeModelId, resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
+import { resolveRedirectedModelConfigs } from '../pipeline/resolveProviderChain';
 
 import {
   resolveReasoningPlan,
+  resolveTargetModelCapabilities,
   type ReasoningPlan,
   type ReasoningTarget,
 } from '../reasoning/reasoning-plan';
@@ -13,6 +16,20 @@ interface CompletionReasoningOptions {
   model: string;
   thinkLevel?: ThinkLevel;
   maxTokens?: number;
+}
+
+/** Keep the selected legacy configuration while using the replacement on the wire. */
+export function resolveCompletionModel<T extends { model: string }>(
+  provider: LLMProvider,
+  options: T,
+): { provider: LLMProvider; options: T } | undefined {
+  const model = resolveModelRedirect(options.model);
+  if (model === options.model) return undefined;
+  const modelConfigs = resolveRedirectedModelConfigs(provider.modelConfigs, options.model);
+  return {
+    provider: modelConfigs === provider.modelConfigs ? provider : { ...provider, modelConfigs },
+    options: { ...options, model },
+  };
 }
 
 function intentFromOptions(options: CompletionReasoningOptions) {
@@ -42,12 +59,20 @@ export function resolveOpenAIEffort(
   target: 'openai-chat' | 'openai-responses',
 ): ThinkLevel | undefined {
   const plan = resolveCompletionReasoningPlan(provider, options, target);
-  return plan?.kind === 'level' && plan.enabled ? plan.effort : undefined;
+  if (plan?.kind === 'level' && plan.enabled) return plan.effort;
+  if (options.thinkLevel === 'none') {
+    const levels = resolveTargetModelCapabilities(options.model, provider).thinkingLevels;
+    // A disable-only catalog marks models whose API omits effort altogether.
+    if (!levels || (levels.includes('none') && levels.some((level) => level !== 'none'))) {
+      return 'none';
+    }
+  }
+  return undefined;
 }
 
 export interface AnthropicReasoningWire {
   effectiveMaxTokens: number;
-  thinking?: Record<string, unknown>;
+  thinking?: { type: 'adaptive' | 'enabled' | 'disabled'; budget_tokens?: number };
   outputConfig?: { effort: ThinkLevel };
   legacyBudgetEnabled: boolean;
 }
@@ -58,26 +83,27 @@ export function buildAnthropicReasoningWire(
   options: CompletionReasoningOptions,
 ): AnthropicReasoningWire {
   const configuredMaxTokens = options.maxTokens ?? LEGACY_ANTHROPIC_MAX_TOKENS;
-  const legacyBound = Math.min(configuredMaxTokens, LEGACY_ANTHROPIC_MAX_TOKENS);
   const plan = resolveCompletionReasoningPlan(
     provider,
     options,
     'anthropic',
-    legacyBound,
+    configuredMaxTokens,
   );
 
   if (plan?.kind === 'level' && plan.enabled) {
     return {
       effectiveMaxTokens: configuredMaxTokens,
       thinking: { type: 'adaptive' },
-      outputConfig: { effort: plan.effort },
+      ...(/^minimax-m(?:2(?:[.-]|$)|3$)/.test(normalizeModelId(options.model))
+        ? {}
+        : { outputConfig: { effort: plan.effort } }),
       legacyBudgetEnabled: false,
     };
   }
 
   if (plan?.kind === 'budget' && plan.enabled) {
     return {
-      effectiveMaxTokens: legacyBound,
+      effectiveMaxTokens: configuredMaxTokens,
       thinking: { type: 'enabled', budget_tokens: plan.budgetTokens },
       legacyBudgetEnabled: true,
     };
@@ -85,6 +111,7 @@ export function buildAnthropicReasoningWire(
 
   return {
     effectiveMaxTokens: configuredMaxTokens,
+    ...(options.thinkLevel === 'none' ? { thinking: { type: 'disabled' } } : {}),
     legacyBudgetEnabled: false,
   };
 }

@@ -25,6 +25,7 @@
  * @module pipeline/SubscriptionAuthSource
  */
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type {
   OpenCodeGoModelEntry,
   OpenCodeGoScenario,
@@ -36,6 +37,30 @@ import { isAccountAllowanceExhaustedError } from './AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from './BoundAccountSelectionError';
 import type { AuthApplyHints, AuthSource } from './AuthSource';
 import type { AuthStrategy } from './SubscriptionAuthStrategy';
+
+/** Select once using the logical model; resolve the wire target inside the
+ * selection callback, before URL-sensitive strategies finish their headers. */
+export async function applyModelSelection(
+  auth: AuthSource,
+  hints: AuthApplyHints,
+  resolveUrl?: (model: string) => string | undefined,
+): Promise<{ headers: Record<string, string>; accountId?: string; model: string; configuredModel: string }> {
+  const headers: Record<string, string> = {};
+  let accountId: string | undefined;
+  let configuredModel = hints.model;
+  let model = resolveModelRedirect(configuredModel);
+  if (model !== hints.model) hints.upstreamUrl = resolveUrl?.(model) ?? hints.upstreamUrl;
+  const reportSelection = hints.reportSelection;
+  hints.reportSelection = (selectedId, isActive, remappedModel) => {
+    accountId = selectedId;
+    configuredModel = remappedModel ?? hints.model;
+    model = resolveModelRedirect(configuredModel);
+    if (model !== hints.model) hints.upstreamUrl = resolveUrl?.(model) ?? hints.upstreamUrl;
+    reportSelection?.(selectedId, isActive, remappedModel);
+  };
+  await auth.applyHeaders(headers, hints);
+  return { headers, accountId, model, configuredModel };
+}
 
 /**
  * Lightweight summary derived from the inbound request body — consumed by a
@@ -136,7 +161,7 @@ export interface SubscriptionAuthProfile {
     sdkModel: string,
     summary: SubscriptionRequestSummary,
     config: OpenCodeGoTokenConfig | undefined,
-  ) => { resolvedModel: string; scenario: OpenCodeGoScenario };
+  ) => { resolvedModel: string; scenario: OpenCodeGoScenario; temperature?: number; maxTokens?: number };
   /**
    * Optional fallback resolver — only set for OpenCodeGo. Type-identical to
    * `SubscriptionDispatchProfile.nextFallback` so the registry profile stays
@@ -202,7 +227,9 @@ export class SubscriptionAuthSource implements AuthSource {
     stripAuthHeaders(headers);
     try {
       await this.profile.authStrategy.applyHeaders(headers, {
-        upstreamUrl: hints.upstreamUrl,
+        // Selection callbacks can resolve a model-specific target before the
+        // strategy chooses wire-specific auth headers. Keep that hint live.
+        get upstreamUrl() { return hints.upstreamUrl; },
         resolvedModel: hints.model,
         sessionKey: hints.sessionKey,
         callerOpenCodeSession: hints.callerOpenCodeSession,
@@ -225,6 +252,6 @@ export class SubscriptionAuthSource implements AuthSource {
 
   /** Resolve the upstream URL from the profile, when it provides one. */
   resolveUpstreamUrl(model: string): string | undefined {
-    return this.profile.resolveUpstreamUrl?.(model);
+    return this.profile.resolveUpstreamUrl?.(resolveModelRedirect(model));
   }
 }

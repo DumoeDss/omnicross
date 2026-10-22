@@ -11,13 +11,14 @@ import type { SimpleChatMessage } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import type { MCPTool } from '@omnicross/contracts/mcp-types';
 
-import { resolveAnthropicMaxTokens } from '../anthropicMaxTokens';
 import type { Logger } from '../ports/logger';
 import type { AnthropicTool, GeminiTools, McpToolProvider, OpenAITool } from '../tool-types';
 
 import { buildProviderApiUrl } from './';
 import type { BuiltinToolExecutor } from './BuiltinToolExecutor';
 import type { StreamWithToolsCallbacks, StreamWithToolsOptions } from './ToolHandler';
+import { convertMessageToAnthropic, convertMessagesToGemini, convertMessageToOpenAI, convertMessagesToResponses } from './message-converter';
+import { buildAnthropicReasoningWire, buildGeminiThinkingConfig, resolveCompletionModel, resolveOpenAIEffort } from './ReasoningRequestBuilder';
 
 /**
  * Log tool format information for debugging
@@ -80,67 +81,68 @@ export function buildToolRequest(
   options: StreamWithToolsOptions,
   provider: LLMProvider
 ): { requestBody: Record<string, unknown>; url: string } {
+  if (options.model !== actualModel) options = { ...options, model: actualModel };
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
+  actualModel = options.model;
   let requestBody: Record<string, unknown>;
   let url: string;
 
   if (apiFormat === 'google') {
     // Gemini format
-    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
-    for (const msg of conversationMessages) {
-      if (msg.role !== 'system') {
-        contents.push({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }]
-        });
-      }
-    }
-
+    const thinkingConfig = buildGeminiThinkingConfig(provider, options);
     requestBody = {
-      contents,
+      ...convertMessagesToGemini(conversationMessages),
       tools: options.tools,
-      ...(options.maxTokens !== undefined
-        ? { generationConfig: { maxOutputTokens: options.maxTokens } }
-        : {}),
+      generationConfig: {
+        ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
+        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+        ...(thinkingConfig ? { thinkingConfig } : {}),
+      },
     };
 
-    // TEMPORARY: Use non-streaming endpoint for debugging
     url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
   } else if (apiFormat === 'anthropic') {
+    const reasoningWire = buildAnthropicReasoningWire(provider, options);
     // Anthropic format
     requestBody = {
       model: actualModel,
-      messages: conversationMessages.filter(m => m.role !== 'system').map(m => ({
-        role: m.role,
-        content: m.content
-      })),
-      // Native Anthropic Messages requires this field. Resolve an absent
-      // caller cap to the model's real ceiling rather than a small constant —
-      // see `resolveAnthropicMaxTokens`.
-      max_tokens: resolveAnthropicMaxTokens(actualModel, options.maxTokens),
-      temperature: options.temperature ?? 0.7,
+      messages: conversationMessages.filter(m => m.role !== 'system').map(convertMessageToAnthropic),
+      max_tokens: reasoningWire.effectiveMaxTokens,
+      ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
+      ...(reasoningWire.thinking ? { thinking: reasoningWire.thinking } : {}),
+      ...(reasoningWire.outputConfig ? { output_config: reasoningWire.outputConfig } : {}),
       stream: true,
       tools: options.tools
     };
 
-    const systemMsg = conversationMessages.find(m => m.role === 'system');
-    if (systemMsg) {
-      requestBody.system = systemMsg.content;
-    }
+    const system = conversationMessages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+    if (system) requestBody.system = system;
 
+    url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
+  } else if (apiFormat === 'openai-response') {
+    const effort = resolveOpenAIEffort(provider, { ...options, model: actualModel }, 'openai-responses');
+    requestBody = {
+      model: actualModel, input: convertMessagesToResponses(conversationMessages), stream: true,
+      tools: (options.tools as OpenAITool[]).map(tool => ({ type: 'function', ...tool.function })),
+      ...(options.maxTokens !== undefined ? { max_output_tokens: options.maxTokens } : {}),
+      ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      ...(effort ? { reasoning: { effort, summary: 'auto' } } : {}),
+    };
     url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
   } else {
     // OpenAI format
     requestBody = {
       model: actualModel,
-      messages: conversationMessages.map(m => ({
-        role: m.role,
-        content: m.content
-      })),
+      messages: conversationMessages.map(convertMessageToOpenAI),
       ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
-      temperature: options.temperature ?? 0.7,
+      ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
       stream: true,
-      tools: options.tools
+      tools: options.tools,
+      stream_options: { include_usage: true },
     };
+    const effort = resolveOpenAIEffort(provider, { ...options, model: actualModel }, 'openai-chat');
+    if (effort) requestBody.reasoning_effort = effort;
 
     url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
   }
@@ -148,208 +150,6 @@ export function buildToolRequest(
   return { requestBody, url };
 }
 
-/**
- * Extract text content delta from a stream chunk based on API format
- */
-// Loose chunk shape for stream JSON. Each backend uses a different layout —
-// we duck-type the fields we need and tolerate undefined.
-interface StreamChunk {
-  candidates?: Array<{ content?: { parts?: Array<{ thought?: boolean; text?: string }> } }>;
-  delta?: { text?: string };
-  choices?: Array<{ delta?: { content?: string; thinking?: { content?: string }; reasoning_content?: string } }>;
-}
-
-export function extractDeltaContent(rawJson: unknown, apiFormat: string): string {
-  const json = rawJson as StreamChunk;
-  if (apiFormat === 'google') {
-    const parts = json.candidates?.[0]?.content?.parts || [];
-    let text = '';
-    for (const part of parts) {
-      if (part.thought === true) continue; // skip thinking
-      if (part.text) text += part.text;
-    }
-    return text;
-  } else if (apiFormat === 'anthropic') {
-    return json.delta?.text || '';
-  } else {
-    return json.choices?.[0]?.delta?.content || '';
-  }
-}
-
-/**
- * Extract reasoning content delta from a stream chunk based on API format
- */
-export function extractDeltaReasoning(rawJson: unknown, apiFormat: string): string {
-  const json = rawJson as StreamChunk;
-  if (apiFormat === 'google') {
-    const parts = json.candidates?.[0]?.content?.parts || [];
-    let reasoning = '';
-    for (const part of parts) {
-      if (part.thought === true && part.text) reasoning += part.text;
-    }
-    return reasoning;
-  } else if (apiFormat === 'anthropic') {
-    return '';
-  } else {
-    const delta = json.choices?.[0]?.delta;
-    return (delta?.thinking?.content || '') + (delta?.reasoning_content || '');
-  }
-}
-
-/**
- * Pending OpenAI tool call accumulator.
- * OpenAI streams tool calls incrementally: id, name, and arguments
- * arrive in separate delta chunks and must be accumulated.
- */
-export type PendingOpenAIToolCalls = Map<number, { id: string; name: string; arguments: string }>;
-
-/**
- * Extract and process tool calls from a stream chunk.
- *
- * For Gemini: tool calls arrive complete in a single chunk → push immediately.
- * For OpenAI: tool calls arrive incrementally → accumulate in pendingOpenAIToolCalls,
- *             then call finalizeOpenAIToolCalls() after the stream ends.
- */
-// Wider chunk shape that also covers tool-call deltas across all backends.
-interface ToolCallChunk {
-  candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { name: string; args?: Record<string, unknown> } }> } }>;
-  choices?: Array<{ delta?: { tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> } }>;
-}
-
-export function extractToolCalls(
-  rawJson: unknown,
-  apiFormat: string,
-  toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }>,
-  callbacks: StreamWithToolsCallbacks,
-  logger: Logger,
-  pendingOpenAIToolCalls?: PendingOpenAIToolCalls
-): void {
-  const json = rawJson as ToolCallChunk;
-  if (apiFormat === 'google') {
-    const parts = json.candidates?.[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.functionCall) {
-        logger.info('Function call detected', { functionCall: part.functionCall });
-        const toolCall = {
-          id: `call_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-          name: part.functionCall.name,
-          args: part.functionCall.args || {}
-        };
-        toolCalls.push(toolCall);
-        callbacks.onToolCall?.(toolCall);
-        logger.info('Tool called', { toolName: toolCall.name });
-      }
-    }
-  } else if (apiFormat !== 'anthropic') {
-    // OpenAI format: accumulate tool call deltas
-    const delta = json.choices?.[0]?.delta;
-    if (delta?.tool_calls && pendingOpenAIToolCalls) {
-      for (const tc of delta.tool_calls) {
-        const index = tc.index ?? 0;
-        let pending = pendingOpenAIToolCalls.get(index);
-        if (!pending) {
-          pending = { id: '', name: '', arguments: '' };
-          pendingOpenAIToolCalls.set(index, pending);
-        }
-        if (tc.id) pending.id = tc.id;
-        if (tc.function?.name) pending.name += tc.function.name;
-        if (tc.function?.arguments) pending.arguments += tc.function.arguments;
-      }
-    }
-  }
-  // TODO: Handle Anthropic tool calls
-}
-
-/**
- * Finalize accumulated OpenAI streaming tool calls into the toolCalls array.
- * Must be called after the stream has ended.
- */
-export function finalizeOpenAIToolCalls(
-  pendingOpenAIToolCalls: PendingOpenAIToolCalls,
-  toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }>,
-  callbacks: StreamWithToolsCallbacks,
-  logger: Logger
-): void {
-  for (const [, pending] of pendingOpenAIToolCalls) {
-    if (pending.name) {
-      try {
-        const toolCall = {
-          id: pending.id || `tool_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-          name: pending.name,
-          args: JSON.parse(pending.arguments || '{}')
-        };
-        toolCalls.push(toolCall);
-        callbacks.onToolCall?.(toolCall);
-        logger.info('Tool called (OpenAI)', { toolName: toolCall.name, args: toolCall.args });
-      } catch (e) {
-        logger.error('Failed to parse OpenAI tool call arguments', e instanceof Error ? e : undefined, {
-          name: pending.name,
-          arguments: pending.arguments
-        });
-      }
-    }
-  }
-}
-
-/**
- * Parse a stream chunk and dispatch callbacks based on API format
- */
-export function parseStreamChunk(
-  rawJson: unknown,
-  apiFormat: string,
-  callbacks: StreamWithToolsCallbacks,
-  logger: Logger
-): void {
-  // Cast once — chunk fields are duck-typed below per backend.
-  const json = rawJson as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean; thoughtSignature?: string; functionCall?: { name: string; args?: Record<string, unknown> } }> } }>;
-    delta?: { type?: string; text?: string };
-    choices?: Array<{ delta?: { content?: string; thinking?: { content?: string }; reasoning_content?: string; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string }; index?: number }> } }>;
-  };
-  if (apiFormat === 'google') {
-    const candidate = json.candidates?.[0];
-    if (!candidate) {
-      logger.warn('No candidate found in Gemini response');
-      return;
-    }
-
-    const parts = candidate.content?.parts || [];
-    for (const part of parts) {
-      // Handle thinking/reasoning (Gemini extended thinking) FIRST
-      if (part.thought === true && part.text) {
-        callbacks.onReasoning?.(part.text);
-        continue;
-      } else if (part.thoughtSignature && !part.thought) {
-        logger.debug('Gemini returned thoughtSignature without thought content');
-      }
-
-      // Handle regular text content (non-thinking)
-      if (part.text) {
-        callbacks.onDelta?.(part.text);
-      }
-    }
-  } else if (apiFormat === 'anthropic') {
-    const delta = json.delta;
-    if (delta?.text) {
-      callbacks.onDelta?.(delta.text);
-    }
-  } else {
-    // OpenAI format
-    const delta = json.choices?.[0]?.delta;
-
-    if (delta?.content) {
-      callbacks.onDelta?.(delta.content);
-    }
-
-    if (delta?.thinking?.content) {
-      callbacks.onReasoning?.(delta.thinking.content);
-    }
-
-    if (delta?.reasoning_content) {
-      callbacks.onReasoning?.(delta.reasoning_content);
-    }
-  }
-}
 
 /**
  * Build content blocks for an iteration (thinking + text blocks)
@@ -419,8 +219,7 @@ export async function executeToolCalls(
       // Find the tool info from mcpTools
       const mcpTool = mcpTools.find(t => t.id === toolCall.name);
       if (!mcpTool) {
-        logger.error('Tool not found', undefined, { toolName: toolCall.name });
-        continue;
+        throw new Error(`Tool not found: ${toolCall.name}`);
       }
 
       logger.debug('Tool info', {
@@ -448,7 +247,8 @@ export async function executeToolCalls(
       callbacks.onToolResult?.(toolCall.id, result);
 
       // Add tool_result block
-      const resultText = result.content?.[0]?.text || JSON.stringify(result);
+      const resultText = result.content?.every(part => part.type === 'text')
+        ? result.content.map(part => part.text).join('\n') : JSON.stringify(result);
       const toolResultBlock = {
         id: `${toolCall.id}_result`,
         type: 'tool_result' as const,

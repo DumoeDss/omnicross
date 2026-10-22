@@ -43,6 +43,17 @@ export function resolveApiFormat(provider: LLMProvider): ApiFormat {
   return 'openai';
 }
 
+function buildVersionedApiUrl(baseUrl: string, endpoint: string): string {
+  const url = new URL(baseUrl);
+  let path = url.pathname.replace(/\/+$/, '');
+  if (!path.endsWith(`/${endpoint}`)) {
+    if (!/\/v\d+(?:beta\d*)?$/.test(path)) path += '/v1';
+    path += `/${endpoint}`;
+  }
+  url.pathname = path;
+  return url.toString();
+}
+
 /**
  * Build OpenAI Chat Completions API URL
  * Handles various input formats:
@@ -52,26 +63,7 @@ export function resolveApiFormat(provider: LLMProvider): ApiFormat {
  * - https://api.z.ai/api/coding/paas/v4 → https://api.z.ai/api/coding/paas/v4/chat/completions
  */
 export function buildOpenAIApiUrl(baseUrl: string): string {
-  const url = baseUrl.replace(/\/+$/, '');
-
-  // Check if URL already ends with /chat/completions
-  if (url.endsWith('/chat/completions')) {
-    return url;
-  }
-
-  // Check if URL ends with /v{number} (e.g., /v1, /v4) - append /chat/completions only
-  // Provider has already specified their API version
-  if (/\/v\d+$/.test(url)) {
-    return url + '/chat/completions';
-  }
-
-  // Check if URL already contains /chat/completions somewhere
-  if (url.includes('/chat/completions')) {
-    return url;
-  }
-
-  // Append full path with default /v1
-  return url + '/v1/chat/completions';
+  return buildVersionedApiUrl(baseUrl, 'chat/completions');
 }
 
 /**
@@ -83,48 +75,25 @@ export function buildOpenAIApiUrl(baseUrl: string): string {
  * - https://api.z.ai/api/anthropic/v2 → https://api.z.ai/api/anthropic/v2/messages
  */
 export function buildAnthropicApiUrl(baseUrl: string): string {
-  const url = baseUrl.replace(/\/+$/, '');
-
-  // Check if URL already ends with /messages
-  if (url.endsWith('/messages')) {
-    return url;
-  }
-
-  // Check if URL already contains /messages somewhere
-  if (url.includes('/messages')) {
-    return url;
-  }
-
-  // Check if URL ends with /v{number} (e.g., /v1, /v2) - append /messages only
-  // Provider has already specified their API version
-  if (/\/v\d+$/.test(url)) {
-    return url + '/messages';
-  }
-
-  // Append full path with default /v1
-  return url + '/v1/messages';
+  return buildVersionedApiUrl(baseUrl, 'messages');
 }
 
 /**
- * Build a Gemini /v1beta/models/{model}:{action} URL with base-URL normalization.
- * Strips trailing slashes, skips appending /v1beta if the base already has a version path,
- * and returns the URL as-is if it already contains /models/.
+ * Build a Gemini model-action URL from a host, version root, models collection,
+ * or complete model endpoint. The resolved route owns the model and action.
  */
 export function buildGeminiModelActionUrl(baseUrl: string, model: string, action: string): string {
-  let url = baseUrl.replace(/\/+$/, '');
-
-  // Check if URL already contains /models/ (user provided full path)
-  if (url.includes('/models/')) {
-    return url;
-  }
-
-  // Check if URL already has a version path (e.g., /v1beta, /v1, /v2)
-  // If not, add /v1beta (default Gemini API version)
-  if (!/\/v\d+(?:beta)?(?:$|\/)/.test(url)) {
-    url += '/v1beta';
-  }
-
-  return `${url}/models/${model}:${action}`;
+  const url = new URL(baseUrl);
+  let path = url.pathname.replace(/\/+$/, '');
+  const modelRoot = path.indexOf('/models/');
+  if (modelRoot >= 0) path = path.slice(0, modelRoot);
+  else if (path.endsWith('/models')) path = path.slice(0, -'/models'.length);
+  if (!/\/v\d+(?:beta\d*)?(?:$|\/)/.test(path)) path += '/v1beta';
+  const [method, query] = action.split('?');
+  url.pathname = `${path}/models/${model.replace(/^models\//, '')}:${method}`;
+  url.searchParams.delete('alt');
+  for (const [key, value] of new URLSearchParams(query)) url.searchParams.set(key, value);
+  return url.toString();
 }
 
 /**
@@ -144,7 +113,11 @@ export function buildGeminiApiUrl(baseUrl: string, model: string, stream: boolea
  * Strips trailing /, /openai, /openai/v1 etc.
  */
 export function normalizeAzureEndpoint(endpoint: string): string {
-  return endpoint.replace(/\/+$/, '').replace(/\/openai(\/v\d+)?$/, '');
+  const url = new URL(endpoint);
+  url.pathname = url.pathname.replace(/\/+$/, '').replace(
+    /\/openai(?:\/(?:v\d+|deployments\/[^/]+\/chat\/completions))?$/, '',
+  );
+  return url.toString().replace(/\/(?=[?#]|$)/, '');
 }
 
 /**
@@ -155,8 +128,10 @@ export function normalizeAzureEndpoint(endpoint: string): string {
  * @param apiVersion - API version (e.g., 2024-08-01-preview)
  */
 export function buildAzureOpenAIApiUrl(baseUrl: string, model: string, apiVersion: string): string {
-  const endpoint = normalizeAzureEndpoint(baseUrl);
-  return `${endpoint}/openai/deployments/${model}/chat/completions?api-version=${apiVersion}`;
+  const url = new URL(normalizeAzureEndpoint(baseUrl));
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/openai/deployments/${encodeURIComponent(model)}/chat/completions`;
+  url.searchParams.set('api-version', apiVersion);
+  return url.toString();
 }
 
 /**
@@ -164,19 +139,7 @@ export function buildAzureOpenAIApiUrl(baseUrl: string, model: string, apiVersio
  * Format: {baseUrl}/v1/responses
  */
 export function buildOpenAIResponseApiUrl(baseUrl: string): string {
-  const url = baseUrl.replace(/\/+$/, '');
-
-  // Already ends with /responses
-  if (url.endsWith('/responses')) {
-    return url;
-  }
-
-  // Has /v1 already
-  if (/\/v\d+$/.test(url)) {
-    return url + '/responses';
-  }
-
-  return url + '/v1/responses';
+  return buildVersionedApiUrl(baseUrl, 'responses');
 }
 
 /**

@@ -32,7 +32,7 @@ describe('embedded image runtime', () => {
     runtimes.push(runtime);
     const lease = await runtime.hostedFactory.acquire();
     try {
-      const admission = lease.inspectRequest({ model: 'deepseek-chat', tools: [{ type: 'image_generation', model: 'gpt-image-2' }] });
+      const admission = lease.inspectRequest({ model: 'deepseek-flash', tools: [{ type: 'image_generation', model: 'gpt-image-2' }] });
       const scope = await lease.openRequest({ admission, tenantId: 'tenant', requestId: 'request', sessionKey: 'session',
         mainProviderId: 'deepseek', signal: new AbortController().signal });
       const events = [];

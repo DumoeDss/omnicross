@@ -7,20 +7,17 @@
 
 import type {
   AnthropicChatRequest,
-  ConversionConfig,
   OpenAIChatRequest
 } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import { streamSSEResponse } from '@omnicross/core/sse-parser';
 
-import { convertOpenAIToAnthropic } from '..';
 import type { Logger } from '../ports/logger';
 
 import {
   buildProviderApiUrl,
   type CompletionOptions,
   convertMessageToAnthropic,
-  convertMessageToGemini,
   convertMessageToOpenAI,
   getProviderHeaders,
   type StreamCallbacks
@@ -30,7 +27,9 @@ import {
   buildAnthropicReasoningWire,
   buildGeminiThinkingConfig,
   resolveOpenAIEffort,
+  resolveCompletionModel,
 } from './ReasoningRequestBuilder';
+import { convertMessagesToGemini, convertMessagesToResponses } from './message-converter';
 
 /**
  * Stream OpenAI-compatible completion
@@ -44,6 +43,8 @@ export async function streamOpenAICompletion(
   callbacks: StreamCallbacks,
   logger: Logger
 ): Promise<void> {
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
   const request: OpenAIChatRequest = {
     model: options.model,
     messages: options.messages.map(m => convertMessageToOpenAI(m)),
@@ -51,6 +52,7 @@ export async function streamOpenAICompletion(
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     temperature: options.temperature,
     stream: true,
+    stream_options: { include_usage: true },
   };
 
   // Add reasoning_effort for OpenAI reasoning models (Chat Completions API format)
@@ -99,6 +101,7 @@ export async function streamOpenAICompletion(
     onVideo: callbacks.onVideo,
     onError: callbacks.onError,
   });
+  if (result.error) return;
 
   // Call onDone with accumulated results
   callbacks.onDone?.(
@@ -107,7 +110,10 @@ export async function streamOpenAICompletion(
       role: 'assistant',
       content: result.content,
       timestamp: Date.now(),
-      thinking: result.reasoning ? { content: result.reasoning } : undefined,
+      thinking: result.reasoning || result.thinkingBlocks?.length
+        ? { content: result.reasoning, signature: result.thinkingSignature, blocks: result.thinkingBlocks } : undefined,
+      toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
+      images: result.images.length ? result.images : undefined,
       audios: result.audios.length > 0 ? result.audios : undefined,
       videos: result.videos.length > 0 ? result.videos : undefined,
     },
@@ -128,74 +134,21 @@ export async function streamAnthropicCompletion(
   callbacks: StreamCallbacks,
   logger: Logger
 ): Promise<void> {
-  // Check if any messages have images
-  const hasImages = options.messages.some(m => m.images && m.images.length > 0);
-
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
   const reasoningWire = buildAnthropicReasoningWire(provider, options);
-  const effectiveMaxTokens = reasoningWire.effectiveMaxTokens;
-
-  logger.debug('Anthropic thinking configuration', {
-    thinkLevel: options.thinkLevel,
-    thinkingConfig: reasoningWire.thinking,
-    effectiveMaxTokens
-  });
-
-  let anthropicRequest: AnthropicChatRequest;
-
-  if (hasImages) {
-    // Build Anthropic request directly with image support
-    const systemMessages = options.messages.filter(m => m.role === 'system');
-    const nonSystemMessages = options.messages.filter(m => m.role !== 'system');
-
-    anthropicRequest = {
-      model: options.model,
-      max_tokens: effectiveMaxTokens,
-      // Omit temperature when thinking is enabled (Anthropic will use default temperature=1)
-      ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
-      ...(systemMessages.length > 0 ? { system: systemMessages.map(m => m.content).join('\n\n') } : {}),
-      messages: nonSystemMessages.map(m => convertMessageToAnthropic(m)),
-      stream: true,
-      ...(reasoningWire.thinking
-        ? { thinking: reasoningWire.thinking as AnthropicChatRequest['thinking'] }
-        : {}),
-    };
-    if (reasoningWire.outputConfig) {
-      (anthropicRequest as unknown as Record<string, unknown>).output_config =
-        reasoningWire.outputConfig;
-    }
-  } else {
-    // Original flow for text-only messages
-    // Convert to Anthropic format
-    const config: ConversionConfig = {
-      defaultModel: options.model,
-    };
-
-    const openaiRequest: OpenAIChatRequest = {
-      model: options.model,
-      messages: options.messages.map(m => ({
-        role: m.role,
-        content: m.content,
-      })),
-      // Anthropic requires max_tokens; use adjusted value
-      max_tokens: effectiveMaxTokens,
-      // Omit temperature when thinking is enabled (Anthropic will use default temperature=1)
-      temperature: reasoningWire.legacyBudgetEnabled ? undefined : options.temperature,
-      stream: true,
-    };
-
-    anthropicRequest = convertOpenAIToAnthropic(openaiRequest, config);
-    // Add thinking config after conversion
-    if (reasoningWire.thinking) {
-      (anthropicRequest as unknown as Record<string, unknown>).thinking = reasoningWire.thinking;
-    }
-    if (reasoningWire.outputConfig) {
-      (anthropicRequest as unknown as Record<string, unknown>).output_config =
-        reasoningWire.outputConfig;
-    }
-    if (reasoningWire.legacyBudgetEnabled) {
-      // Legacy extended thinking requires the default temperature of 1.
-      delete anthropicRequest.temperature;
-    }
+  const system = options.messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+  const anthropicRequest: AnthropicChatRequest = {
+    model: options.model,
+    max_tokens: reasoningWire.effectiveMaxTokens,
+    ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
+    ...(system ? { system } : {}),
+    messages: options.messages.filter(m => m.role !== 'system').map(convertMessageToAnthropic),
+    stream: true,
+    ...(reasoningWire.thinking ? { thinking: reasoningWire.thinking as AnthropicChatRequest['thinking'] } : {}),
+  };
+  if (reasoningWire.outputConfig) {
+    (anthropicRequest as unknown as Record<string, unknown>).output_config = reasoningWire.outputConfig;
   }
 
   // Build the correct endpoint URL for Anthropic Messages API
@@ -214,7 +167,6 @@ export async function streamAnthropicCompletion(
     max_tokens: anthropicRequest.max_tokens,
     temperature: anthropicRequest.temperature,
     stream: anthropicRequest.stream,
-    hasImages,
     hasThinking: !!anthropicRequest.thinking,
     hasNativeSearchAugmentation: !!options.nativeSearchAugmentation,
   });
@@ -241,6 +193,7 @@ export async function streamAnthropicCompletion(
     onError: callbacks.onError,
     onBlock: callbacks.onBlock,
   });
+  if (result.error) return;
 
   logger.info('Anthropic stream complete', {
     contentLength: result.content.length,
@@ -256,6 +209,8 @@ export async function streamAnthropicCompletion(
       content: result.content,
       timestamp: Date.now(),
       thinking: result.reasoning ? { content: result.reasoning } : undefined,
+      providerMetadata: result.providerMetadata,
+      toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
       blocks: result.blocks.length > 0 ? result.blocks : undefined,
     },
     result.usage,
@@ -275,20 +230,9 @@ export async function streamGeminiCompletion(
   callbacks: StreamCallbacks,
   logger: Logger
 ): Promise<void> {
-  // Build Gemini request format
-  // Convert messages to Gemini contents format
-  const contents: Array<{ role: string; parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> }> = [];
-  let systemInstruction: { parts: Array<{ text: string }> } | undefined;
-
-  for (const msg of options.messages) {
-    if (msg.role === 'system') {
-      // Gemini uses systemInstruction for system messages
-      systemInstruction = { parts: [{ text: msg.content }] };
-    } else {
-      // Use convertMessageToGemini for proper image handling
-      contents.push(convertMessageToGemini(msg));
-    }
-  }
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
+  const { contents, systemInstruction } = convertMessagesToGemini(options.messages);
 
   const thinkingConfig = buildGeminiThinkingConfig(provider, options);
   const request: Record<string, unknown> = {
@@ -344,6 +288,7 @@ export async function streamGeminiCompletion(
     onReasoning: callbacks.onReasoning,
     onError: callbacks.onError,
   });
+  if (result.error) return;
 
   logger.info('Gemini stream complete', { contentLength: result.content.length });
 
@@ -355,6 +300,9 @@ export async function streamGeminiCompletion(
       content: result.content,
       timestamp: Date.now(),
       thinking: result.reasoning ? { content: result.reasoning } : undefined,
+      providerMetadata: result.providerMetadata,
+      toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
+      images: result.images.length ? result.images : undefined,
     },
     result.usage,
     result.metrics
@@ -373,16 +321,10 @@ export async function streamOpenAIResponseCompletion(
   callbacks: StreamCallbacks,
   logger: Logger
 ): Promise<void> {
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
   // Convert messages to Response API input format
-  const input: Array<Record<string, unknown>> = [];
-  for (const msg of options.messages) {
-    if (msg.role === 'system') {
-      // system → developer role in Response API
-      input.push({ role: 'developer', content: msg.content });
-    } else {
-      input.push({ role: msg.role, content: msg.content });
-    }
-  }
+  const input = convertMessagesToResponses(options.messages);
 
   const request: Record<string, unknown> = {
     model: options.model,
@@ -400,6 +342,7 @@ export async function streamOpenAIResponseCompletion(
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: true });
   const headers = getProviderHeaders(provider, apiKey);
+  if (options.nativeSearchAugmentation) applyAugmentation(request, options.nativeSearchAugmentation);
 
   logger.info('Streaming OpenAI Response API request', {
     url: apiUrl,
@@ -429,6 +372,7 @@ export async function streamOpenAIResponseCompletion(
     onReasoning: callbacks.onReasoning,
     onError: callbacks.onError,
   });
+  if (result.error) return;
 
   logger.info('OpenAI Response API stream complete', { contentLength: result.content.length });
 
@@ -439,6 +383,8 @@ export async function streamOpenAIResponseCompletion(
       content: result.content,
       timestamp: Date.now(),
       thinking: result.reasoning ? { content: result.reasoning } : undefined,
+      providerMetadata: result.providerMetadata,
+      toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
     },
     result.usage,
     result.metrics

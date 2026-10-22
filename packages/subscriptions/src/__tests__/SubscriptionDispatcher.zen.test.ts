@@ -28,6 +28,7 @@ import type { Transformer } from '@omnicross/core/transformer/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
+import { warmTokenEncoder } from '../opencodego/token-count';
 import { SubscriptionAccountService } from '../SubscriptionAccountService';
 import {
   type DispatcherHooks,
@@ -43,6 +44,7 @@ const TRANSFORMERS: Record<string, Transformer> = {
   'openai-response': new OpenAIResponseTransformer(),
   gemini: new GeminiTransformer(),
   openai: new OpenAITransformer(),
+  anthropic: getAnthropicEndpointTransformer(),
 };
 
 /** Canned wire responses the response chain decodes back toward the Anthropic
@@ -74,6 +76,11 @@ const GEMINI_PAYLOAD = {
 /** Pick a canned body for a recorded URL (branch like the boot-smoke mock). */
 function cannedFor(url: string): unknown {
   if (url.includes('/v1/responses')) return RESPONSES_PAYLOAD;
+  if (url.endsWith('/v1/messages')) return {
+    id: 'msg-mock', type: 'message', role: 'assistant', model: 'mock',
+    content: [{ type: 'text', text: 'pong' }], stop_reason: 'end_turn',
+    usage: { input_tokens: 1, output_tokens: 1 },
+  };
   if (url.includes('/v1/models/')) return GEMINI_PAYLOAD;
   return OPENAI_COMPLETION;
 }
@@ -249,20 +256,6 @@ describe('SubscriptionDispatcher zen shapes (daemon /v1/responses path)', () => 
 // records the outcome PER modelId. We wrap the REAL registry profile to spy on
 // `recordModelOutcome` while keeping resolveUpstreamUrl /
 // resolveProviderTransformerNames / modelMapper / nextFallback REAL.
-//
-// IMPORTANT — DISPATCHER vs CORE asymmetry (documented limitation, NOT my change):
-// the daemon `SubscriptionDispatcher.dispatchTransformerChain` loop resolves the
-// upstream URL + provider chain + transformerProvider ONCE before the loop and
-// only swaps `currentModel` per fallback — it does NOT re-resolve URL/shape/chain
-// per fallback model. So a fallback that would FLIP the half/shape (zen-responses
-// → go-chat) still POSTs the fallback model to the PRIMARY's URL+chain on this
-// path. The TRUE per-iteration cross-half re-resolution lives on the core
-// `/v1/messages` path (`buildSubscriptionIterationPlan` rebuilds per model — see
-// `ProviderProxy.anthropicSubscription.test.ts` 3.6/3.6b). This test therefore
-// uses a SAME-shape fallback (zen-responses → zen-responses) so the dispatcher's
-// single-resolution behavior is correct, and asserts the per-id breaker recording
-// (which DOES work per fallback). The half-flip on the dispatcher path is recorded
-// as a pre-existing limitation in design.md "Open Questions".
 
 /** A `ProviderApiError`-shaped error carrying `.status` (mirrors the real
  *  `fetchWithRetry`'s non-ok throw — the dispatcher reads `err.status`). */
@@ -275,10 +268,6 @@ class FakeProviderApiError extends Error {
 
 describe('SubscriptionDispatcher zen fallback + per-id breaker (daemon path)', () => {
   it('zen responses primary 5xx → zen-responses fallback succeeds; breaker records per-id', async () => {
-    // Primary = zen responses (gpt-5-codex); fallback = another zen-responses
-    // model (gpt-5.1-codex) — SAME shape, so the dispatcher's single URL/chain
-    // resolution is correct for both. The fallback flip across HALVES is covered
-    // on the core path (see header note).
     const config: OpenCodeGoTokenConfig = {
       authMethod: 'manual',
       status: 'configured',
@@ -334,5 +323,127 @@ describe('SubscriptionDispatcher zen fallback + per-id breaker (daemon path)', (
       { id: 'gpt-5-codex', ok: false },
       { id: 'gpt-5.1-codex', ok: true },
     ]);
+  });
+
+  it.each([
+    ['minimax-m2.5', 'go', 'gpt-5-codex', 'zen', '/zen/go/v1/messages', '/zen/v1/responses'],
+    ['gpt-5-codex', 'zen', 'minimax-m2.5', 'go', '/zen/v1/responses', '/zen/go/v1/messages'],
+    ['gpt-5-codex', 'zen', 'gemini-3-flash', 'zen', '/zen/v1/responses', '/zen/v1/models/gemini-3-flash:generateContent'],
+    ['gemini-3-flash', 'zen', 'kimi-k2.5', 'go', '/zen/v1/models/gemini-3-flash:generateContent', '/zen/go/v1/chat/completions'],
+  ] as const)('re-encodes %s → %s fallback without losing the request or response', async (
+    primary, primaryHalf, fallback, fallbackHalf, primaryPath, fallbackPath,
+  ) => {
+    const config: OpenCodeGoTokenConfig = {
+      ...zenConfig(primary),
+      modelMap: { default: { modelId: primary, provider: primaryHalf } },
+      fallbacks: { default: [{ modelId: fallback, provider: fallbackHalf }] },
+    };
+    const profile = makeRegistry(config).getProfile('opencodego')!;
+    const hooks = makeHooks({});
+    const hits: Array<{ url: string; body: Record<string, unknown>; apiKey?: string }> = [];
+    hooks.fetchWithRetry = async (url, headers, body) => {
+      hits.push({ url, body: structuredClone(body) as Record<string, unknown>, apiKey: headers['x-api-key'] });
+      if (hits.length === 1) throw new FakeProviderApiError(503);
+      const response = url.endsWith('/messages')
+        ? { id: 'msg-test', type: 'message', role: 'assistant', model: fallback,
+          content: [{ type: 'text', text: 'pong' }], stop_reason: 'end_turn',
+          usage: { input_tokens: 1, output_tokens: 1 } }
+        : cannedFor(url);
+      return Response.json(response);
+    };
+    let result: unknown;
+    hooks.writeProxyResponse = async (_res, response) => { result = await response.json(); };
+    await new SubscriptionDispatcher(profile, hooks, async () => config).dispatch(makeReq(primary));
+    expect(hits.map((hit) => new URL(hit.url).pathname)).toEqual([primaryPath, fallbackPath]);
+    for (const hit of hits) {
+      expect(JSON.stringify(hit.body)).toContain('ping');
+      expect(hit.apiKey).toBe(hit.url.endsWith('/messages') ? OC_KEY : undefined);
+    }
+    if (fallbackPath.endsWith('/responses')) {
+      expect(hits[1].body.input).toBeDefined();
+      expect(hits[1].body.messages).toBeUndefined();
+    } else if (fallbackPath.includes('/models/')) {
+      expect(hits[1].body.contents).toBeDefined();
+      expect(hits[1].body.messages).toBeUndefined();
+    } else {
+      expect(hits[1].body.messages).toBeDefined();
+      expect(hits[1].body.input).toBeUndefined();
+    }
+    expect(result).toMatchObject({ content: [{ type: 'text', text: 'pong' }] });
+  });
+
+  it.each(['claude-sonnet-4.5', 'gpt-4o', 'gpt-5.2'])('selects the account-remapped Copilot wire for %s', async (actualModel) => {
+    const registry = makeRegistry(zenConfig('unused'));
+    const base = registry.getProfile('copilot')!;
+    const profile = {
+      ...base,
+      authStrategy: {
+        ...base.authStrategy,
+        applyHeaders: vi.fn<typeof base.authStrategy.applyHeaders>(async (headers, hints) => {
+          hints?.reportSelection?.('account-remapped', true, actualModel);
+          headers.Authorization = 'Bearer test-account';
+        }),
+        onUnauthorized: vi.fn(async () => false),
+      } satisfies typeof base.authStrategy,
+    };
+    const captured: Captured = {};
+    const hooks = makeHooks(captured);
+    let output: unknown;
+    hooks.writeProxyResponse = async (_res, response) => { output = await response.json(); };
+    const request = makeReq('logical-account-alias');
+    await new SubscriptionDispatcher(profile, hooks, async () => undefined).dispatch(request);
+    const body = captured.body as Record<string, unknown>;
+    expect(body.model).toBe(actualModel);
+    expect(captured.url).toBe(`https://api.githubcopilot.com/v1/${
+      actualModel.startsWith('claude') ? 'messages' : actualModel === 'gpt-4o' ? 'chat/completions' : 'responses'
+    }`);
+    expect(JSON.stringify(body)).toContain('ping');
+    expect(output).toMatchObject({ content: [{ type: 'text', text: 'pong' }] });
+  });
+
+  it.each([false, true])('applies per-attempt model defaults without overriding explicit client values (%s)', async (explicit) => {
+    const config: OpenCodeGoTokenConfig = {
+      ...zenConfig('minimax-m2.5'),
+      modelMap: { default: { modelId: 'minimax-m2.5', temperature: 0.2, maxTokens: 90 } },
+      fallbacks: { default: [{ modelId: 'minimax-m2.7', temperature: 0.8, maxTokens: 70 }] },
+    };
+    const hooks = makeHooks({});
+    const requests: unknown[] = [];
+    hooks.fetchWithRetry = async (url, _headers, body) => {
+      requests.push(structuredClone(body));
+      if (requests.length === 1) throw new FakeProviderApiError(503);
+      return Response.json(cannedFor(url));
+    };
+    const req = makeReq('minimax-m2.5');
+    if (explicit) {
+      req.anthropicBody.temperature = 0;
+      req.anthropicBody.max_tokens = 12;
+    } else {
+      delete req.anthropicBody.max_tokens;
+    }
+    await new SubscriptionDispatcher(makeRegistry(config).getProfile('opencodego')!, hooks, async () => config).dispatch(req);
+    expect(requests).toMatchObject([
+      { model: 'minimax-m2.5', temperature: explicit ? 0 : 0.2, max_tokens: explicit ? 12 : 90 },
+      { model: 'minimax-m2.7', temperature: explicit ? 0 : 0.8, max_tokens: explicit ? 12 : 70 },
+    ]);
+  });
+
+  it('routes real non-ASCII context to the long-context model after the tokenizer warms', async () => {
+    await warmTokenEncoder();
+    const config: OpenCodeGoTokenConfig = {
+      ...zenConfig('kimi-k2.5'),
+      modelMap: {
+        default: { modelId: 'kimi-k2.5' },
+        long_context: { modelId: 'minimax-m2.5', contextThreshold: 80 },
+      },
+    };
+    const captured: Captured = {};
+    const request = makeReq('cli');
+    request.anthropicBody.messages = [{ role: 'user', content: '你好'.repeat(100) }];
+    await new SubscriptionDispatcher(
+      makeRegistry(config).getProfile('opencodego')!, makeHooks(captured), async () => config,
+    ).dispatch(request);
+    expect(captured.url).toBe('https://opencode.ai/zen/go/v1/messages');
+    expect(captured.body).toMatchObject({ model: 'minimax-m2.5', messages: request.anthropicBody.messages });
   });
 });

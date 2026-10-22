@@ -12,9 +12,9 @@
  *   3. Request side: the encoded upstream body carries
  *      `generationConfig.responseModalities: ['TEXT','IMAGE']` for an image
  *      model (buildRequestBody injection riding the real chain).
- *   4. Anthropic /v1/messages BYO gemini: images are DROPPED at the Anthropic
- *      face (text-only content blocks, no base64 anywhere in the body) and the
- *      drop is COUNTED (observable counter) — the honest boundary.
+ *   4. Anthropic /v1/messages BYO gemini: no displayable image blocks are
+ *      fabricated, and the visible-image drop is counted. Native Google parts,
+ *      including signed images, survive in extra_content for the next turn.
  *
  * @module provider-proxy/__tests__/ProviderProxy.chatInlineImages.test
  */
@@ -33,11 +33,16 @@ import {
 } from '../../transformer/transformers/utils/anthropicImageDrop';
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
+import { aggregateAnthropicSseToJsonBody } from '../ingress/providerProxyShared';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 
 // ── Mock Gemini upstream (image-bearing JSON + SSE) ──────────────────────────
 
 const IMAGE_PNG_B64 = 'aVNBR1dBUkU=';
+const GEMINI_IMAGE_PART = {
+  inlineData: { mimeType: 'image/png', data: IMAGE_PNG_B64 },
+  thoughtSignature: 'opaque-image-signature',
+};
 
 const GEMINI_IMAGE_JSON = {
   responseId: 'img-e2e',
@@ -47,7 +52,7 @@ const GEMINI_IMAGE_JSON = {
       content: {
         parts: [
           { text: 'Here is your cat' },
-          { inlineData: { mimeType: 'image/png', data: IMAGE_PNG_B64 } },
+          GEMINI_IMAGE_PART,
         ],
       },
       finishReason: 'STOP',
@@ -62,7 +67,7 @@ const GEMINI_IMAGE_SSE = [
     modelVersion: 'gemini-2.5-flash-image',
     candidates: [
       {
-        content: { parts: [{ text: 'Here' }, { inlineData: { mimeType: 'image/png', data: IMAGE_PNG_B64 } }] },
+        content: { parts: [{ text: 'Here' }, GEMINI_IMAGE_PART] },
       },
     ],
   })}`,
@@ -183,6 +188,29 @@ describe('ProviderProxy chat-inline-images (BYO gemini line)', () => {
     };
   }
 
+  async function expectNativeImageReplay(token: string, content: unknown, parts: unknown[]): Promise<void> {
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({
+        model: 'gemini-2.5-flash-image',
+        max_tokens: 64,
+        messages: [
+          { role: 'user', content: 'draw a cat' },
+          { role: 'assistant', content },
+          { role: 'user', content: 'make the cat orange' },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+    const sent = JSON.parse(upstream.lastBody ?? '{}') as {
+      contents: Array<{ role: string; parts: unknown[] }>;
+    };
+    // Compare the native payload, not a reconstructed image or synthesized signature.
+    expect(sent.contents[1]).toEqual({ role: 'model', parts });
+  }
+
   // 1 — OpenAI-chat non-stream: message.images passes through end-to-end.
   it('openai-chat non-stream → upstream inlineData → message.images + text', async () => {
     await startProxy();
@@ -249,8 +277,8 @@ describe('ProviderProxy chat-inline-images (BYO gemini line)', () => {
     expect(text).toContain(`data:image/png;base64,${IMAGE_PNG_B64}`);
   });
 
-  // 4 — Anthropic face: honest drop + bounded count (non-stream).
-  it('anthropic non-stream → images dropped, text kept, no base64, counted', async () => {
+  // 4 — Anthropic face: visible-image drop, with lossless opaque replay.
+  it('anthropic non-stream → text stays visible and signed images replay through extra_content', async () => {
     await startProxy();
     const token = proxy.addRoute(route('anthropic-messages'));
     const res = await fetch(`${baseUrl}/v1/messages`, {
@@ -264,22 +292,19 @@ describe('ProviderProxy chat-inline-images (BYO gemini line)', () => {
     });
 
     expect(res.status).toBe(200);
-    const raw = await res.text();
-    const json = JSON.parse(raw) as {
-      type?: string;
-      content?: Array<{ type: string; text?: string }>;
+    const json = await res.json() as {
+      type: string;
+      content: Array<{ type: string; text?: string }>;
     };
     expect(json.type).toBe('message');
-    // Text-only blocks — no image block was fabricated, no base64 anywhere.
-    expect(json.content).toEqual([{ type: 'text', text: 'Here is your cat' }]);
-    expect(raw).not.toContain('data:image');
-    expect(raw).not.toContain(IMAGE_PNG_B64);
-    // The drop was counted.
+    expect(json.content.every(block => block.type === 'text')).toBe(true);
+    expect(json.content.map(block => block.text).join('')).toBe('Here is your cat');
     expect(anthropicDroppedImageCount).toBe(1);
+    await expectNativeImageReplay(token, json.content, GEMINI_IMAGE_JSON.candidates[0].content.parts);
   });
 
   // 4b — Anthropic face, streaming.
-  it('anthropic stream → image deltas dropped, text deltas flow, counted', async () => {
+  it('anthropic stream → text stays visible and signed images replay through extra_content', async () => {
     await startProxy();
     const token = proxy.addRoute(route('anthropic-messages'));
     const res = await fetch(`${baseUrl}/v1/messages`, {
@@ -295,12 +320,21 @@ describe('ProviderProxy chat-inline-images (BYO gemini line)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
+    const replayResponse = res.clone();
     const text = await res.text();
     expect(text).toContain('event: content_block_delta');
     expect(text).toContain('Here');
     expect(text).toContain(' is your cat');
-    expect(text).not.toContain('data:image');
-    expect(text).not.toContain(IMAGE_PNG_B64);
+    const json = JSON.parse(await aggregateAnthropicSseToJsonBody(replayResponse)) as {
+      content: Array<{ type: string; text?: string }>;
+    };
+    expect(json.content.every(block => block.type === 'text')).toBe(true);
+    expect(json.content.map(block => block.text).join('')).toBe('Here is your cat');
     expect(anthropicDroppedImageCount).toBe(1);
+    await expectNativeImageReplay(token, json.content, [
+      { text: 'Here' },
+      GEMINI_IMAGE_PART,
+      { text: ' is your cat' },
+    ]);
   });
 });

@@ -124,20 +124,10 @@ describe('OpenAITransformer — foreign field stripping', () => {
     expect(out).not.toHaveProperty('thinking');
   });
 
-  it('drops the Anthropic decoder\'s _serverSideTools stash', async () => {
-    // The Anthropic→Unified decode stashes server-side tools (web_search_20250305,
-    // …) on the request for the Anthropic→Anthropic round-trip. On this wire
-    // they have no representation; leaking the stash as a top-level field gets
-    // the whole request rejected by Anthropic-relaying upstreams with
-    // "Extra inputs are not permitted, field: '_serverSideTools'".
-    const out = await encode(
-      req({
-        _serverSideTools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      } as unknown as Partial<UnifiedChatRequest>),
-    );
-    expect(out).not.toHaveProperty('_serverSideTools');
-    // Everything else still rides the passthrough untouched.
-    expect(out.model).toBe('deepseek-v4-pro');
+  it('refuses server-side tools rather than silently dropping requested capabilities', async () => {
+    await expect(encode(req({
+      _serverSideTools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    } as unknown as Partial<UnifiedChatRequest>))).rejects.toThrow('server-side tools');
   });
 });
 
@@ -149,13 +139,13 @@ describe('OpenAITransformer — reasoning effort', () => {
     expect(out).not.toHaveProperty('reasoning');
   });
 
-  it("omits reasoning_effort for effort 'none' (the wire spells it by absence)", async () => {
+  it('disables official DeepSeek thinking with its native toggle rather than the default', async () => {
     const out = await encode(req({ reasoning: { effort: 'none', enabled: false } }));
+    expect(out.thinking).toEqual({ type: 'disabled' });
     expect(out).not.toHaveProperty('reasoning_effort');
-    expect(out).not.toHaveProperty('reasoning');
   });
 
-  it('negotiates exact minimal/xhigh and nearest sparse levels', async () => {
+  it('preserves native effort levels and applies the official DeepSeek xhigh mapping', async () => {
     expect((await encode(req({
       model: 'gpt-5.2',
       reasoning: { effort: 'minimal', enabled: true },
@@ -167,7 +157,7 @@ describe('OpenAITransformer — reasoning effort', () => {
     expect((await encode(req({
       model: 'deepseek-v4-pro',
       reasoning: { effort: 'xhigh', enabled: true },
-    }))).reasoning_effort).toBe('max');
+    }))).reasoning_effort).toBe('high');
   });
 
   it('leaves native Chat reasoning_effort untouched without unified reasoning', async () => {
@@ -351,9 +341,9 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
     { messageIndex: 3, text: 'thinking B' },
   ];
 
-  it('replays reasoning_content for a thinking request on DeepSeek v4', async () => {
+  it.each(['deepseek-flash', 'deepseek-chat', 'deepseek-reasoner'])('replays reasoning_content for flash-compatible model %s', async (model) => {
     const out = await new OpenAITransformer().transformRequestIn(
-      req({ model: 'deepseek-flash', messages: history as never, reasoning: { effort: 'high', enabled: true } }),
+      req({ model, messages: history as never, reasoning: { effort: 'high', enabled: true } }),
       deepseekProvider,
       replayContext(replay),
     );
@@ -365,21 +355,19 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
     expect(messages[2]?.reasoning_content).toBeUndefined();
   });
 
-  it('stays silent when the request does not engage thinking', async () => {
+  it('replays history on known DeepSeek models even when thinking uses the upstream default', async () => {
     const out = await new OpenAITransformer().transformRequestIn(
       req({ model: 'deepseek-flash', messages: history as never }),
       deepseekProvider,
       replayContext(replay),
     );
-    expect(out.reasoning_effort).toBeUndefined();
-    for (const message of out.messages as Array<Record<string, unknown>>) {
-      expect(message.reasoning_content).toBeUndefined();
-    }
+    expect((out.messages as Array<Record<string, unknown>>)[1].reasoning_content).toBe('thinking A');
   });
 
-  it('stays silent for legacy deepseek-reasoner and for other providers', async () => {
+  it('stays silent for legacy deepseek-r1/v3 and for other providers', async () => {
     for (const [provider, model] of [
-      [deepseekProvider, 'deepseek-reasoner'],
+      [deepseekProvider, 'deepseek-r1'],
+      [deepseekProvider, 'deepseek-v3'],
       [zaiProvider, 'glm-5.3'],
     ] as const) {
       const out = await new OpenAITransformer().transformRequestIn(
@@ -395,7 +383,7 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
 
   it('replays unconditionally once the provider is learned from a live rejection', async () => {
     try {
-      markReasoningReplayRequired(reasoningReplayKey(zaiProvider));
+      markReasoningReplayRequired(reasoningReplayKey(zaiProvider, 'glm-5.3'));
       // No reasoning intent at all — the observed 400 proved the demand.
       const out = await new OpenAITransformer().transformRequestIn(
         req({ model: 'glm-5.3', messages: history as never }),

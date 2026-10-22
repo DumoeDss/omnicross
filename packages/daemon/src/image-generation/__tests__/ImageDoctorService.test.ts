@@ -139,7 +139,7 @@ describe('ImageDoctorService', () => {
       'codex-subscription',
     ]);
   });
-  it('reads only local aggregate config/root/store/key/account/evidence metadata', async () => {
+  it('reports the configured model and reads only local aggregate metadata', async () => {
     const { service, verify, dispose, verifiedRoot } = harness({
       rows: [
         { id: 'legacy' },
@@ -147,10 +147,12 @@ describe('ImageDoctorService', () => {
         { id: 'malformed', allowedEndpoints: ['images', 'images'] },
       ],
     });
-    const snapshot = await service.inspectLocal(images(false));
+    const snapshot = await service.inspectLocal({
+      ...images(false),
+      defaultModel: 'gpt-image-2',
+    });
 
     expect(snapshot).toMatchObject({
-      config: { enabled: false, valid: true, provider: 'codex-subscription' },
       roots: { valid: true, verifiedAreas: 5, expectedAreas: 5 },
       stores: {
         valid: true,

@@ -68,8 +68,15 @@ export function bridgeToResponsesSSE(
   let currentReasoning: { itemId: string; outputIndex: number; text: string } | null = null;
   let currentToolCall: { itemId: string; outputIndex: number; callId: string; name: string; args: string; freeform?: boolean } | null = null;
   let compactionText = '';
-  let hiddenThinkingText = '';
 
+  const iterator = events[Symbol.asyncIterator]();
+  const releaseIterator = (): void => {
+    try {
+      void Promise.resolve(iterator.return?.()).catch(() => undefined);
+    } catch {
+      // Iterator cleanup must not replace the terminal response.
+    }
+  };
   const emit = (name: string, data: Record<string, unknown>): void => {
     if (closed) return;
     try {
@@ -97,7 +104,7 @@ export function bridgeToResponsesSSE(
     usage: null,
   });
 
-  const closeCurrentMessage = (): void => {
+  const closeCurrentMessage = (status = 'completed'): void => {
     if (!currentMsg) return;
     emit('response.output_text.done', {
       item_id: currentMsg.itemId,
@@ -114,7 +121,7 @@ export function bridgeToResponsesSSE(
     const item = {
       type: 'message',
       id: currentMsg.itemId,
-      status: 'completed',
+      status,
       role: 'assistant',
       content: [{ type: 'output_text', text: currentMsg.text, annotations: [] }],
     };
@@ -124,7 +131,7 @@ export function bridgeToResponsesSSE(
     currentMsg = null;
   };
 
-  const closeCurrentToolCall = (): void => {
+  const closeCurrentToolCall = (status = 'completed'): void => {
     if (!currentToolCall) return;
     // Empty input (no-arg tools) must serialize as '{}', never '' — Codex
     // echoes the call back next turn and JSON.parse('') would 400 the session.
@@ -141,7 +148,7 @@ export function bridgeToResponsesSSE(
         call_id: currentToolCall.callId,
         name: currentToolCall.name,
         input: freeformInput(currentToolCall.args),
-        status: 'completed',
+        status,
       };
       emit('response.output_item.done', { output_index: currentToolCall.outputIndex, item });
       finishedItems.push(item);
@@ -157,7 +164,7 @@ export function bridgeToResponsesSSE(
         call_id: currentToolCall.callId,
         name: currentToolCall.name,
         arguments: argsStr,
-        status: 'completed',
+        status,
       };
       emit('response.output_item.done', { output_index: currentToolCall.outputIndex, item });
       finishedItems.push(item);
@@ -166,17 +173,6 @@ export function bridgeToResponsesSSE(
     currentToolCall = null;
   };
 
-  function freeformInput(args: string): string {
-    try {
-      const parsed: unknown = JSON.parse(args);
-      if (parsed && typeof parsed === 'object' && typeof (parsed as { input?: unknown }).input === 'string') {
-        return (parsed as { input: string }).input;
-      }
-    } catch {
-      // raw
-    }
-    return args;
-  }
 
   const closeCurrentReasoning = (): void => {
     if (!currentReasoning) return;
@@ -209,6 +205,7 @@ export function bridgeToResponsesSSE(
     switch (event.type) {
       case 'text_delta': {
         if (currentReasoning) closeCurrentReasoning();
+        if (currentToolCall) closeCurrentToolCall();
         if (options.compaction) {
           compactionText += event.text;
           break;
@@ -237,13 +234,13 @@ export function bridgeToResponsesSSE(
         break;
       }
       case 'thinking_delta': {
-        if (options.hideThinkingSummary) {
+        if (options.hideThinkingSummary || options.compaction) {
           // No signed envelope exists for browser reasoning; suppressed text
           // is simply not replayed (the assistant answer round-trips alone).
-          hiddenThinkingText += event.thinking;
           break;
         }
         if (currentMsg) closeCurrentMessage();
+        if (currentToolCall) closeCurrentToolCall();
         if (!currentReasoning) {
           const itemId = `rs_${uuid()}`;
           emit('response.output_item.added', {
@@ -317,9 +314,9 @@ export function bridgeToResponsesSSE(
         break;
       }
       case 'incomplete': {
-        if (currentMsg) closeCurrentMessage();
+        if (currentMsg) closeCurrentMessage('incomplete');
         if (currentReasoning) closeCurrentReasoning();
-        if (currentToolCall) closeCurrentToolCall();
+        if (currentToolCall) closeCurrentToolCall('incomplete');
         emit('response.incomplete', {
           response: {
             ...responseSnapshot('incomplete'),
@@ -334,9 +331,9 @@ export function bridgeToResponsesSSE(
         break;
       }
       case 'error': {
-        if (currentMsg) closeCurrentMessage();
+        if (currentMsg) closeCurrentMessage('incomplete');
         if (currentReasoning) closeCurrentReasoning();
-        if (currentToolCall) closeCurrentToolCall();
+        if (currentToolCall) closeCurrentToolCall('incomplete');
         const error = {
           code: event.code ?? 'bridge_error',
           message: event.message,
@@ -355,15 +352,15 @@ export function bridgeToResponsesSSE(
   };
 
   const pump = async (): Promise<void> => {
-    const iterator = events[Symbol.asyncIterator]();
     try {
       for (;;) {
         const next = await iterator.next();
+        if (closed || terminated) break;
         if (next.done) {
           if (!terminated) {
-            if (currentMsg) closeCurrentMessage();
+            if (currentMsg) closeCurrentMessage('incomplete');
             if (currentReasoning) closeCurrentReasoning();
-            if (currentToolCall) closeCurrentToolCall();
+            if (currentToolCall) closeCurrentToolCall('incomplete');
             emit('response.incomplete', {
               response: {
                 ...responseSnapshot('incomplete'),
@@ -376,19 +373,15 @@ export function bridgeToResponsesSSE(
         }
         if (handleEvent(next.value)) {
           terminated = true;
-          try {
-            void iterator.return?.();
-          } catch {
-            // best-effort
-          }
+          releaseIterator();
           break;
         }
       }
     } catch (error) {
       if (!terminated) {
-        if (currentMsg) closeCurrentMessage();
+        if (currentMsg) closeCurrentMessage('incomplete');
         if (currentReasoning) closeCurrentReasoning();
-        if (currentToolCall) closeCurrentToolCall();
+        if (currentToolCall) closeCurrentToolCall('incomplete');
         const message = error instanceof Error ? error.message : String(error);
         const errorPayload = { code: 'bridge_error', message, type: 'server_error' };
         emit('response.failed', {
@@ -415,8 +408,9 @@ export function bridgeToResponsesSSE(
         if (closed || terminated) return;
         const silence = now() - lastEventAt;
         if (silence >= stallTimeoutMs) {
-          if (currentMsg) closeCurrentMessage();
+          if (currentMsg) closeCurrentMessage('incomplete');
           if (currentReasoning) closeCurrentReasoning();
+          if (currentToolCall) closeCurrentToolCall('incomplete');
           emit('response.incomplete', {
             response: {
               ...responseSnapshot('incomplete'),
@@ -432,6 +426,7 @@ export function bridgeToResponsesSSE(
             // already closed
           }
           closed = true;
+          releaseIterator();
           return;
         }
         // Any received event re-arms Codex's idle timer; unknown types are ignored.
@@ -445,9 +440,23 @@ export function bridgeToResponsesSSE(
     },
     cancel() {
       closed = true;
+      terminated = true;
+      releaseIterator();
       if (beat) clearInterval(beat);
     },
   });
+}
+
+function freeformInput(args: string): string {
+  try {
+    const parsed: unknown = JSON.parse(args);
+    if (parsed && typeof parsed === 'object' && 'input' in parsed && typeof parsed.input === 'string') {
+      return parsed.input;
+    }
+  } catch {
+    // Raw custom-tool input is already the wire value.
+  }
+  return args;
 }
 
 /** Batch variant: fold events into one JSON response document (stream=false). */
@@ -463,14 +472,30 @@ export function buildResponseJSON(
   let text = '';
   let thinking = '';
   let compactionText = '';
+  let terminated = false;
+  let tool: { id: string; name: string; arguments: string; freeform?: boolean } | undefined;
+  const flushTool = (status = 'completed') => {
+    if (!tool) return;
+    output.push({
+      type: tool.freeform ? 'custom_tool_call' : 'function_call',
+      id: `fc_${uuid()}`,
+      call_id: tool.id,
+      name: tool.name,
+      ...(tool.freeform
+        ? { input: freeformInput(tool.arguments) }
+        : { arguments: tool.arguments || '{}' }),
+      status,
+    });
+    tool = undefined;
+  };
 
-  const flushText = () => {
+  const flushText = (status = 'completed') => {
     if (!text) return;
     output.push({
       type: 'message',
       id: `msg_${uuid()}`,
       role: 'assistant',
-      status: 'completed',
+      status,
       content: [{ type: 'output_text', text, annotations: [] }],
     });
     text = '';
@@ -489,29 +514,53 @@ export function buildResponseJSON(
   };
 
   for (const event of events) {
+    if (terminated) break;
     switch (event.type) {
       case 'text_delta':
+        flushThinking();
+        flushTool();
         if (options.compaction) compactionText += event.text;
         else text += event.text;
         break;
       case 'thinking_delta':
+        if (options.hideThinkingSummary || options.compaction) break;
+        flushText();
+        flushTool();
         thinking += event.thinking;
+        break;
+      case 'tool_call_start':
+        flushText();
+        flushThinking();
+        flushTool();
+        tool = { id: event.id, name: event.name, arguments: '', freeform: event.freeform };
+        break;
+      case 'tool_call_delta':
+        if (tool) tool.arguments += event.arguments;
+        break;
+      case 'tool_call_end':
+        flushTool();
         break;
       case 'done':
         usage = event.usage;
+        terminated = true;
         break;
       case 'error':
         errorEvent = event;
+        terminated = true;
         break;
       case 'incomplete':
         incompleteEvent = event;
+        terminated = true;
         break;
       case 'heartbeat':
         break;
     }
   }
-  flushText();
+  if (!terminated) incompleteEvent = { type: 'incomplete', reason: 'adapter_eof' };
+  const itemStatus = errorEvent || incompleteEvent ? 'incomplete' : 'completed';
+  flushText(itemStatus);
   flushThinking();
+  flushTool(itemStatus);
   if (options.compaction && !errorEvent && !incompleteEvent) {
     output.push({ type: 'compaction', id: `cmp_${uuid()}`, encrypted_content: encodeCompactionSummary(compactionText) });
   }

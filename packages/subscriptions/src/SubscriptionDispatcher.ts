@@ -12,7 +12,7 @@
 
 import type http from 'node:http';
 
-import type { OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
+import type { OpenCodeGoModelEntry, OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
 import { isAccountAllowanceExhaustedError } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '@omnicross/core/pipeline/BoundAccountSelectionError';
 import { getAntigravityProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
@@ -30,8 +30,10 @@ import type { TransformerService } from '@omnicross/core/transformer/Transformer
 import type {
   LLMProvider as TransformerLLMProvider,
   Transformer,
+  TransformRequestResult,
   UnifiedChatRequest,
 } from '@omnicross/core/transformer/types';
+import type { AuthApplyHints } from './auth/AuthStrategy';
 
 import {
   resolveOpenCodeGoHalf,
@@ -113,11 +115,13 @@ export class SubscriptionDispatcher {
 
     let scenario: OpenCodeGoScenario = 'default';
     let resolvedModel = req.fallbackModel;
+    let modelDefaults: Pick<OpenCodeGoModelEntry, 'temperature' | 'maxTokens'> = {};
     if (this.profile.modelMapper) {
       const summary = this.buildRequestSummary(req.anthropicBody);
       const mapped = this.profile.modelMapper(req.sdkModel, summary, ocConfig);
       resolvedModel = mapped.resolvedModel;
       scenario = mapped.scenario;
+      modelDefaults = mapped;
       req.anthropicBody.model = resolvedModel;
     }
 
@@ -130,111 +134,10 @@ export class SubscriptionDispatcher {
       throw new Error(`[SubscriptionDispatcher] profile=${this.profile.providerId} missing resolveUpstreamUrl`);
     }
 
-    // 3. OpenCodeGo Anthropic-shape bypass — the upstream accepts the SDK's
-    //    Anthropic body verbatim, so we skip the transformer chain entirely and
-    //    forward the raw body. Mirrors the pass-through path minus the
-    //    api.anthropic.com hard-code. The shape is resolved from the RESOLVED
-    //    entry's `(provider half, modelId)` (go-MiniMax OR zen-claude/qwen3.7-max),
-    //    NOT just the model string — so a zen-anthropic model also bypasses.
-    if (
-      this.profile.providerId === 'opencodego' &&
-      resolveOpenCodeGoShape({
-        provider: resolveOpenCodeGoHalf(resolvedModel, ocConfig),
-        modelId: resolvedModel,
-      }) === 'anthropic'
-    ) {
-      await this.dispatchAnthropicShapeBypass(req, upstreamUrl, resolvedModel, scenario, ocConfig, sessionKey);
-      return;
-    }
-
-    // 4. Standard transformer-chain dispatch.
-    await this.dispatchTransformerChain(req, upstreamUrl, resolvedModel, scenario, ocConfig, sessionKey);
+    await this.dispatchTransformerChain(req, upstreamUrl, resolvedModel, scenario, ocConfig, sessionKey, modelDefaults);
   }
 
-  /** Bypass path for OpenCodeGo MiniMax models — forwards Anthropic body verbatim. */
-  private async dispatchAnthropicShapeBypass(
-    req: DispatchRequest,
-    upstreamUrl: string,
-    resolvedModel: string,
-    scenario: OpenCodeGoScenario,
-    ocConfig: OpenCodeGoTokenConfig | undefined,
-    sessionKey: string | undefined,
-  ): Promise<void> {
-    // D2 PRIMARY-GATING (D5): consult the breaker for the mapped primary; an open
-    // primary jumps straight to the first admitting fallback (all-open ⇒ fail open).
-    const gate = this.gatePrimaryModel(resolvedModel, scenario, ocConfig);
-    const attempted: string[] = gate.attempted;
-    let currentModel = gate.firstModel;
-    // subscription-account-health (D5): capture the effective account id the
-    // strategy resolves so we can mark its health against each attempt's outcome.
-    let usedAccountId: string | undefined;
-    const reportSelection = (accountId: string): void => {
-      usedAccountId = accountId;
-    };
-
-    // KNOWN LIMITATION (see opencodego-zen-provider design.md Open Questions):
-    // this loop resolves the upstream URL (and chain, where applicable) ONCE
-    // and only swaps the model — SINGLE-SHAPE fallback only. A half/shape-
-    // flipping fallback entry would post to the primary's URL (fails loud with
-    // an upstream 4xx). The core /v1/messages path rebuilds per-iteration;
-    // hoisting that here is a deferred follow-up.
-    while (attempted.length < MAX_FALLBACK_ATTEMPTS_LOCAL) {
-      attempted.push(currentModel);
-      req.anthropicBody.model = currentModel;
-
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
-
-      console.info(
-        `[AgentProxy:subscription] REQ#${req.reqId} | opencodego anthropic-shape -> ${upstreamUrl} model=${currentModel} attempt=${attempted.length}`,
-      );
-
-      try {
-        const upstream = await this.hooks.fetchWithRetry(upstreamUrl, headers, req.anthropicBody, currentModel);
-        // D5 RECORD: a returned response from `fetchWithRetry` is always 2xx
-        // (non-ok throws) → success. Recorded BEFORE relay so the breaker updates
-        // even if the SDK disconnects mid-relay.
-        this.profile.recordModelOutcome?.(currentModel, true);
-        this.markHealth(usedAccountId, 200);
-        await this.hooks.writeProxyResponse(req.res, upstream, req.isStream, req.reqId);
-        return;
-      } catch (err) {
-        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey);
-        if (handled.retryOnce) {
-          try {
-            const upstream = await this.hooks.fetchWithRetry(upstreamUrl, handled.headers, req.anthropicBody, currentModel);
-            this.profile.recordModelOutcome?.(currentModel, true);
-            this.markHealth(usedAccountId, 200);
-            await this.hooks.writeProxyResponse(req.res, upstream, req.isStream, req.reqId);
-            return;
-          } catch (retryErr) {
-            // The post-refresh retry threw too — mark the FINAL failure before it
-            // propagates (subscription-account-health Minor #2).
-            this.markHealth(usedAccountId, errStatus(retryErr), retryErr);
-            throw retryErr;
-          }
-        }
-        // D5 RECORD: status trichotomy on the caught error (LEAD OQ1 = parity).
-        // A non-429 4xx is NEUTRAL (not recorded); throw / 5xx / 429 → failure.
-        if (caughtErrorBreakerOutcome(err) === 'failure') {
-          this.profile.recordModelOutcome?.(currentModel, false);
-        }
-        this.markHealth(usedAccountId, errStatus(err), err);
-        // Fallback to next OpenCodeGo model if available.
-        const next = this.profile.nextFallback?.(scenario, attempted, ocConfig);
-        if (!next || attempted.length >= MAX_FALLBACK_ATTEMPTS_LOCAL) {
-          throw err;
-        }
-        console.warn(
-          `[AgentProxy:subscription] REQ#${req.reqId} | opencodego fallback ${currentModel} -> ${next.modelId} after error:`,
-          serializeError(err),
-        );
-        currentModel = next.modelId;
-      }
-    }
-  }
-
-  /** Standard subscription transformer chain — Codex/Gemini/OpenCodeGo OpenAI-shape. */
+  /** Dispatch each attempt using the resolved model's native wire. */
   private async dispatchTransformerChain(
     req: DispatchRequest,
     upstreamUrl: string,
@@ -242,16 +145,8 @@ export class SubscriptionDispatcher {
     scenario: OpenCodeGoScenario,
     ocConfig: OpenCodeGoTokenConfig | undefined,
     sessionKey: string | undefined,
+    modelDefaults: Pick<OpenCodeGoModelEntry, 'temperature' | 'maxTokens'>,
   ): Promise<void> {
-    // zen seam: when the profile varies its chain by resolved shape (opencodego),
-    // consult `resolveProviderTransformerNames(resolvedModel, ocConfig)` — so a zen
-    // `responses` model runs `['openai-response']`, `gemini` runs `['gemini']`, and
-    // `chat` runs `['opencodego']`. Absent (claude/codex/gemini) ⇒ the static
-    // `providerTransformerNames`, byte-identical.
-    const providerNames =
-      this.profile.resolveProviderTransformerNames?.(resolvedModel, ocConfig) ??
-      this.profile.providerTransformerNames;
-    const providerTransformers = this.resolveTransformers(providerNames);
     const modelTransformers = this.resolveTransformers(this.profile.modelTransformerNames);
 
     const transformerProvider: TransformerLLMProvider = {
@@ -259,19 +154,8 @@ export class SubscriptionDispatcher {
       baseUrl: upstreamUrl,
       apiKey: '',  // Subscription mode uses AuthStrategy; transformer auth is stripped.
       models: [resolvedModel],
+      ...(this.profile.providerId === 'codex' ? { responsesDialect: 'codex' as const } : {}),
     };
-
-    // Gemini Code Assist (shape-C / Anthropic-ingress path): resolve + thread the
-    // Code Assist project id onto the transformer provider so the
-    // `gemini-code-assist` transformer can embed it in the envelope. SEAM CHOICE:
-    // stash on `transformerProvider.geminiProject` (option (a) — an optional field
-    // the transformer reads) because the transformer only receives `provider` +
-    // a minimal `TransformerContext`; this is the least-invasive way to pass
-    // per-account data without widening the executor/chain API. A handshake
-    // failure throws → surfaced as the dispatch error (defensive).
-    if (this.profile.providerId === 'gemini') {
-      transformerProvider.geminiProject = await this.resolveGeminiProject();
-    }
 
     // D2 PRIMARY-GATING (D5): an open primary jumps to the first admitting
     // fallback (all-open ⇒ fail open). No-op for non-opencodego profiles (no
@@ -281,16 +165,7 @@ export class SubscriptionDispatcher {
     let currentModel = gate.firstModel;
     // subscription-account-health (D5): capture the effective account id.
     let usedAccountId: string | undefined;
-    const reportSelection = (accountId: string): void => {
-      usedAccountId = accountId;
-    };
 
-    // KNOWN LIMITATION (see opencodego-zen-provider design.md Open Questions):
-    // this loop resolves the upstream URL (and chain, where applicable) ONCE
-    // and only swaps the model — SINGLE-SHAPE fallback only. A half/shape-
-    // flipping fallback entry would post to the primary's URL (fails loud with
-    // an upstream 4xx). The core /v1/messages path rebuilds per-iteration;
-    // hoisting that here is a deferred follow-up.
     // Antigravity sandbox failover (design D5): one-shot latch. When the switch
     // is ON and the PRIMARY endpoint fails retryably, the SAME model is retried
     // once against the sandbox host before the error surfaces.
@@ -298,31 +173,70 @@ export class SubscriptionDispatcher {
 
     while (attempted.length < MAX_FALLBACK_ATTEMPTS_LOCAL) {
       attempted.push(currentModel);
-      req.anthropicBody.model = currentModel;
+      // Authenticate using the logical model for account eligibility, then use
+      // that account's actual model for all wire selection and encoding.
+      let wireModel = currentModel;
+      upstreamUrl = this.profile.resolveUpstreamUrl?.(wireModel, ocConfig) ?? upstreamUrl;
+      const authHeaders: Record<string, string> = {};
+      const authHints: AuthApplyHints = {
+        upstreamUrl,
+        resolvedModel: currentModel,
+        sessionKey,
+        reportSelection: (accountId, _isActive, remappedModel) => {
+          usedAccountId = accountId;
+          wireModel = remappedModel ?? currentModel;
+          upstreamUrl = this.profile.resolveUpstreamUrl?.(wireModel, ocConfig) ?? upstreamUrl;
+          // Strategies inspect the target after selecting the credential.
+          authHints.upstreamUrl = upstreamUrl;
+        },
+      };
+      await this.applyHeadersWithRetry(authHeaders, authHints);
+      const defaults = currentModel === resolvedModel
+        ? modelDefaults
+        : ocConfig?.fallbacks?.[scenario]?.find((entry) => entry.modelId === currentModel);
+      const attemptBody = {
+        ...req.anthropicBody,
+        model: wireModel,
+        ...(req.anthropicBody.temperature === undefined && defaults?.temperature !== undefined
+          ? { temperature: defaults.temperature } : {}),
+        ...(req.anthropicBody.max_tokens === undefined && defaults?.maxTokens !== undefined
+          ? { max_tokens: defaults.maxTokens } : {}),
+      };
+      const providerNames =
+        this.profile.resolveProviderTransformerNames?.(wireModel, ocConfig) ??
+        this.profile.providerTransformerNames;
+      const providerTransformers = this.resolveTransformers(providerNames);
+      const bypass = this.profile.providerId === 'opencodego' &&
+        resolveOpenCodeGoShape({
+          provider: resolveOpenCodeGoHalf(wireModel, ocConfig),
+          modelId: wireModel,
+        }) === 'anthropic';
+      transformerProvider.baseUrl = upstreamUrl;
+      transformerProvider.models = [wireModel];
 
-      let antigravityHeaders: Record<string, string> | undefined;
+      const bearer = (authHeaders.Authorization ?? authHeaders.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
       if (this.profile.providerId === 'antigravity') {
-        antigravityHeaders = {};
-        await this.applyHeadersWithRetry(antigravityHeaders, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
-        const bearer = (antigravityHeaders.Authorization ?? '').replace(/^Bearer\s+/i, '').trim();
         transformerProvider.geminiProject = bearer
           ? await getAntigravityProjectResolver().resolveProject(bearer)
           : undefined;
+      } else if (this.profile.providerId === 'gemini') {
+        transformerProvider.geminiProject = await this.resolveGeminiProject(bearer);
       }
-      const { requestBody, config } = await this.hooks.executor.executeRequestChain(
-        req.anthropicBody,
-        transformerProvider,
-        { providerTransformers, modelTransformers },
-        { endpointTransformer: this.hooks.endpointTransformer },
-      );
+      const { requestBody, config, endpointRequest }: Pick<TransformRequestResult, 'requestBody' | 'config' | 'endpointRequest'> = bypass
+        ? { requestBody: attemptBody, config: {} }
+        : await this.hooks.executor.executeRequestChain(
+          attemptBody,
+          transformerProvider,
+          { providerTransformers, modelTransformers },
+          { endpointTransformer: this.hooks.endpointTransformer },
+        );
 
       const headers: Record<string, string> = {
         'content-type': 'application/json',
         ...(config.headers as Record<string, string> | undefined),
       };
       stripAuthHeaders(headers);
-      if (antigravityHeaders) Object.assign(headers, antigravityHeaders);
-      else await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
+      Object.assign(headers, authHeaders);
 
       // Prefer the transformer-supplied URL (the gemini / gemini-code-assist
       // transformers carry the correct stream-vs-nonstream PER-MODEL colon-method
@@ -355,12 +269,12 @@ export class SubscriptionDispatcher {
       );
 
       try {
-        const upstream = await this.hooks.fetchWithRetry(fetchUrl, headers, requestBody, currentModel);
+        const upstream = await this.hooks.fetchWithRetry(fetchUrl, headers, requestBody, wireModel);
         // D5 RECORD: returned response from `fetchWithRetry` is always 2xx → success.
         this.profile.recordModelOutcome?.(currentModel, true);
         this.markHealth(usedAccountId, 200);
-        const finalResponse = await this.hooks.executor.executeResponseChain(
-          requestBody as UnifiedChatRequest,
+        const finalResponse = bypass ? upstream : await this.hooks.executor.executeResponseChain(
+          endpointRequest ?? requestBody as UnifiedChatRequest,
           upstream,
           transformerProvider,
           { providerTransformers, modelTransformers },
@@ -369,14 +283,14 @@ export class SubscriptionDispatcher {
         await this.hooks.writeProxyResponse(req.res, finalResponse, req.isStream, req.reqId);
         return;
       } catch (err) {
-        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey);
+        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey, upstreamUrl);
         if (handled.retryOnce) {
           try {
-            const upstream = await this.hooks.fetchWithRetry(fetchUrl, handled.headers, requestBody, currentModel);
+            const upstream = await this.hooks.fetchWithRetry(fetchUrl, handled.headers, requestBody, wireModel);
             this.profile.recordModelOutcome?.(currentModel, true);
             this.markHealth(usedAccountId, 200);
-            const finalResponse = await this.hooks.executor.executeResponseChain(
-              requestBody as UnifiedChatRequest,
+            const finalResponse = bypass ? upstream : await this.hooks.executor.executeResponseChain(
+              endpointRequest ?? requestBody as UnifiedChatRequest,
               upstream,
               transformerProvider,
               { providerTransformers, modelTransformers },
@@ -477,6 +391,7 @@ export class SubscriptionDispatcher {
     req: DispatchRequest,
     resolvedModel: string,
     sessionKey: string | undefined,
+    upstreamUrl: string,
   ): Promise<{ retryOnce: boolean; headers: Record<string, string> }> {
     const status = (err as { status?: number })?.status ?? 0;
     if (status !== 401) {
@@ -494,18 +409,13 @@ export class SubscriptionDispatcher {
     // Re-apply headers with the freshly-refreshed credential.
     const fresh: Record<string, string> = { ...headers };
     stripAuthHeaders(fresh);
-    await this.applyHeadersWithRetry(fresh, { upstreamUrl: '', resolvedModel, sessionKey });
+    await this.applyHeadersWithRetry(fresh, { upstreamUrl, resolvedModel, sessionKey });
     return { retryOnce: true, headers: fresh };
   }
 
   private async applyHeadersWithRetry(
     headers: Record<string, string>,
-    hints: {
-      upstreamUrl: string;
-      resolvedModel: string;
-      sessionKey?: string;
-      reportSelection?: (accountId: string, isActive: boolean) => void;
-    },
+    hints: AuthApplyHints,
   ): Promise<void> {
     try {
       await this.profile.authStrategy.applyHeaders(headers, hints);
@@ -541,18 +451,14 @@ export class SubscriptionDispatcher {
   }
 
   /**
-   * Resolve the Code Assist project for the gemini subscription profile. Pulls
-   * the Bearer the bound `AuthStrategy` would inject (so the strategy stays the
-   * single source of the token), then runs the cached handshake. Returns
+   * Resolve the Code Assist project using the bearer selected for this attempt,
+   * so project discovery and the request cannot use different pooled accounts.
+   * Runs the cached handshake. Returns
    * `undefined` for a fresh free-tier account (valid — the envelope omits the
    * project). A handshake hard failure (403/429) propagates to the dispatch
    * error handler.
    */
-  private async resolveGeminiProject(): Promise<string | undefined> {
-    const probe: Record<string, string> = {};
-    await this.applyHeadersWithRetry(probe, { upstreamUrl: '', resolvedModel: '' });
-    const bearer = probe.Authorization ?? probe.authorization ?? '';
-    const accessToken = bearer.replace(/^Bearer\s+/i, '').trim();
+  private async resolveGeminiProject(accessToken: string): Promise<string | undefined> {
     if (!accessToken) return undefined;
     // Resolve via the injected `@omnicross/core` Gemini Code Assist port (host
     // wires the concrete resolver at bootstrap). In the running app the resolver
@@ -592,14 +498,14 @@ export class SubscriptionDispatcher {
     // and uses cl100k_base when the encoder has been warmed; falls back to
     // chars/4 otherwise. This is good enough for the routing decision —
     // we're picking between scenario buckets, not metering cost.
-    let totalChars = 0;
+    const text: string[] = [];
     const system = anthropicBody.system;
     if (typeof system === 'string') {
-      totalChars += system.length;
+      text.push(system);
     } else if (Array.isArray(system)) {
       for (const block of system) {
-        if (block && typeof block === 'object' && 'text' in block) {
-          totalChars += String((block as { text?: unknown }).text ?? '').length;
+        if (block && typeof block === 'object' && 'text' in block && typeof block.text === 'string') {
+          text.push(block.text);
         }
       }
     }
@@ -607,15 +513,15 @@ export class SubscriptionDispatcher {
       const m = msg as Record<string, unknown>;
       const c = m.content;
       if (typeof c === 'string') {
-        totalChars += c.length;
+        text.push(c);
       } else if (Array.isArray(c)) {
         for (const block of c) {
           if (block && typeof block === 'object') {
             const b = block as Record<string, unknown>;
             if (b.type === 'text' && typeof b.text === 'string') {
-              totalChars += b.text.length;
+              text.push(b.text);
             } else if (b.type === 'tool_result' && typeof b.content === 'string') {
-              totalChars += b.content.length;
+              text.push(b.content);
             }
           }
         }
@@ -624,7 +530,7 @@ export class SubscriptionDispatcher {
 
     return {
       messageCount: messages.length,
-      estimatedInputTokens: estimateTokensCachedSync('x'.repeat(totalChars)),
+      estimatedInputTokens: estimateTokensCachedSync(text.join('\n')),
       // Shared core flattener (single source of truth) so this dispatcher path
       // and the core `/v1/messages` path produce IDENTICAL `matchText` for the
       // same body — equivalence by construction. `@omnicross/subscriptions` →

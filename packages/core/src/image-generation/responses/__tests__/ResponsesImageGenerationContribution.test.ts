@@ -513,6 +513,24 @@ describe('Responses image contribution execution and integration contract', () =
     await scope.dispose();
   });
 
+  it('cannot silently generate when direct image input has no safe decoder', async () => {
+    const harness = createHarness();
+    const inspected = harness.contribution.inspectRequest({
+      tools: [{ type: 'image_generation' }],
+      input: [{ role: 'user', content: [
+        { type: 'input_text', text: 'edit this image' },
+        { type: 'input_image', image_url: 'https://images.example/reference.png' },
+      ] }],
+    });
+    const scope = await harness.contribution.createRequestScope({ admission: inspected, runtime: runtime() });
+    const result = await collect(scope.executeSelectedCall({ prompt: 'edit' }, allocator()));
+    expect(result).toMatchObject([{
+      kind: 'failed', error: { code: 'unsupported_capability', param: 'input' },
+    }]);
+    expect(harness.acquire).not.toHaveBeenCalled();
+    await scope.dispose();
+  });
+
   it('supports previous-response and direct-call edits, explicit-first dedupe, and generate override', async () => {
     const harness = createHarness();
     const firstAdmission = admission(harness.contribution);
