@@ -2,8 +2,8 @@ import {
   applyAlias,
   normalizeModelId,
   resolveModelCapabilities,
-  type ResolvedModelCapabilities,
 } from '@omnicross/contracts/canonical-models';
+import type { ResolvedModelCapabilities } from '@omnicross/contracts/canonical-models';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { ModelConfig } from '@omnicross/contracts/llm-config';
 import {
@@ -67,9 +67,10 @@ export interface ResolveRequestReasoningOptions {
 }
 
 export interface ReasoningProvider {
-  modelConfigs?: Array<Pick<ModelConfig, 'id'> & Partial<ModelConfig>>;
+  name?: string;
   baseUrl?: string;
   api_base_url?: string;
+  modelConfigs?: Array<Pick<ModelConfig, 'id'> & Partial<ModelConfig>>;
 }
 type TokenLimit = { min: number; max: number };
 type TokenLimitResolution = {
@@ -319,9 +320,40 @@ export function resolveReasoningPlan(
       throw new Error(`Thinking cannot be disabled for ${input.model}; choose a supported thinking level`);
     }
 
+    // Native Chat off support does not establish a Responses effort:none control.
+    if (input.target === 'openai-responses' && (
+      /kimi|moonshot|mimo|grok/i.test(input.provider?.name ?? '') ||
+      /kimi|moonshot|xiaomimimo|api\.x\.ai/i.test(
+        input.provider?.baseUrl ?? input.provider?.api_base_url ?? '',
+      )
+    )) {
+      return { kind: 'off' };
+    }
+    const targetsOpenAI = input.target === 'openai-chat' || input.target === 'openai-responses';
+    // Disable-only declarations mark omission rather than a wire effort:none.
+    if (targetsOpenAI && capabilities.thinkingLevels?.length
+      && capabilities.thinkingLevels.every((level) => level === 'none')) {
+      return { kind: 'off' };
+    }
+    if ((targetsOpenAI && capabilities.reasoning !== false
+      && (input.preserveNativeEffort || !capabilities.thinkingLevels?.length))
+      || (targetsOpenAI && capabilities.thinkingLevels?.includes('none'))
+      || (input.target === 'anthropic'
+        && (usesNativeLevels || capabilities.thinkingLevels?.includes('none')))) {
+      return { kind: 'level', effort: 'none', enabled: false };
+    }
+
     if (input.target === 'gemini' && !usesNativeLevels) {
       const limits = resolveTokenLimit(input.model, input.provider, input.target)?.limits;
       if (limits?.min === 0) {
+        return { kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 };
+      }
+    }
+    if (input.target === 'anthropic' && !usesNativeLevels) {
+      const limits = resolveTokenLimit(input.model, input.provider, input.target);
+      // A disabled budget consumes no tokens, independently of its enabled minimum.
+      // Protocol fallback alone is not evidence that an unknown model supports it.
+      if (limits && limits.source !== 'protocol') {
         return { kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 };
       }
     }

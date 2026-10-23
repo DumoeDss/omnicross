@@ -12,13 +12,20 @@ import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import type { MCPTool } from '@omnicross/contracts/mcp-types';
 
 import type { Logger } from '../ports/logger';
+import { applyOpenAIChatReasoning } from '../reasoning/openai-chat-wire';
 import type { AnthropicTool, GeminiTools, McpToolProvider, OpenAITool } from '../tool-types';
 
 import { buildProviderApiUrl } from './';
 import type { BuiltinToolExecutor } from './BuiltinToolExecutor';
 import type { StreamWithToolsCallbacks, StreamWithToolsOptions } from './ToolHandler';
 import { convertMessageToAnthropic, convertMessagesToGemini, convertMessageToOpenAI, convertMessagesToResponses } from './message-converter';
-import { buildAnthropicReasoningWire, buildGeminiThinkingConfig, resolveCompletionModel, resolveOpenAIEffort } from './ReasoningRequestBuilder';
+import {
+  buildAnthropicReasoningWire,
+  buildGeminiThinkingConfig,
+  resolveCompletionModel,
+  resolveCompletionReasoningPlan,
+  resolveOpenAIResponsesEffort,
+} from './ReasoningRequestBuilder';
 
 /**
  * Log tool format information for debugging
@@ -121,14 +128,14 @@ export function buildToolRequest(
 
     url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
   } else if (apiFormat === 'openai-response') {
-    const effort = resolveOpenAIEffort(provider, { ...options, model: actualModel }, 'openai-responses');
+    const effort = resolveOpenAIResponsesEffort(provider, options);
     requestBody = {
       model: actualModel, input: convertMessagesToResponses(conversationMessages), stream: true,
       tools: (options.tools as OpenAITool[]).map(tool => ({ type: 'function', ...tool.function })),
       ...(options.maxTokens !== undefined ? { max_output_tokens: options.maxTokens } : {}),
       ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
-      ...(effort ? { reasoning: { effort, summary: 'auto' } } : {}),
     };
+    if (effort) requestBody.reasoning = effort === 'none' ? { effort } : { effort, summary: 'auto' };
     url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
   } else {
     // OpenAI format
@@ -141,8 +148,12 @@ export function buildToolRequest(
       tools: options.tools,
       stream_options: { include_usage: true },
     };
-    const effort = resolveOpenAIEffort(provider, { ...options, model: actualModel }, 'openai-chat');
-    if (effort) requestBody.reasoning_effort = effort;
+    applyOpenAIChatReasoning(
+      requestBody,
+      resolveCompletionReasoningPlan(provider, options, 'openai-chat'),
+      provider,
+      actualModel,
+    );
 
     url = buildProviderApiUrl(provider, { model: actualModel, stream: true });
   }

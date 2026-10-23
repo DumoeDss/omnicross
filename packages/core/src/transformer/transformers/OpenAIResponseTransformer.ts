@@ -21,7 +21,6 @@ import {
   extractReasoningIntent,
   normalizeThinkLevel,
   resolveReasoningPlan,
-  resolveTargetModelCapabilities,
 } from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
 import {
@@ -202,6 +201,26 @@ export class OpenAIResponseTransformer implements Transformer {
       : undefined;
     if (native) {
       const body: Record<string, unknown> = { ...native, model: request.model };
+      const nativeReasoning = native.reasoning as Record<string, unknown> | undefined;
+      const nativeEffort = normalizeThinkLevel(nativeReasoning?.effort);
+      const reasoningChanged = request.reasoning
+        ? request.reasoning.effort !== nativeEffort
+          || request.reasoning.enabled !== (nativeEffort !== 'none')
+        : nativeEffort !== undefined;
+      if (reasoningChanged) {
+        const plan = resolveReasoningPlan({
+          intent: extractReasoningIntent(request),
+          model: request.model,
+          provider,
+          target: 'openai-responses',
+          requestMaxTokens: request.max_tokens,
+        });
+        if (plan?.kind === 'level') {
+          body.reasoning = { ...nativeReasoning, effort: plan.effort };
+        } else {
+          delete body.reasoning;
+        }
+      }
       if (codex) {
         body.stream = true;
         body.store = false;
@@ -329,17 +348,13 @@ export class OpenAIResponseTransformer implements Transformer {
       requestMaxTokens: request.max_tokens,
       preserveNativeEffort: context.reasoningSourceFormat === this.name,
     });
-    if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+    if (reasoningPlan?.kind === 'level') {
       body.reasoning = {
         effort: reasoningPlan.effort,
         summary: typeof context.responsesReasoningSummary === 'string'
           ? context.responsesReasoningSummary
-          : 'auto',
+          : reasoningPlan.enabled ? 'auto' : undefined,
       };
-    } else if (reasoningPlan?.kind === 'off' && (request.reasoning?.enabled === false || request.reasoning?.effort === 'none')) {
-      const capabilities = resolveTargetModelCapabilities(request.model, provider);
-      const omitEffort = capabilities.thinkingLevels?.length === 1 && capabilities.thinkingLevels[0] === 'none';
-      if (capabilities.reasoning !== false && !omitEffort) body.reasoning = { effort: 'none' };
     }
 
     // Map tools

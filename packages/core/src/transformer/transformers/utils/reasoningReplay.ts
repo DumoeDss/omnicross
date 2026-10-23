@@ -16,9 +16,9 @@
  * days of parallel-agent traffic while first turns kept succeeding).
  *
  * Three pieces share this module:
- *  - {@link isReasoningReplayProvider} — static classification (DeepSeek
- *    identity + a v4-era model), used by the chat encoder so KNOWN providers
- *    replay proactively and never pay the failed round trip.
+ *  - {@link isReasoningReplayProvider} — provider identity plus resolved
+ *    capabilities classify modern DeepSeek and reasoning-capable Kimi models,
+ *    so known providers replay proactively and never pay the failed round trip.
  *  - {@link isReasoningReplayRejection} + the learned-key registry — the
  *    Responses driver marks a provider after one observed rejection so
  *    unclassified upstreams self-heal on the NEXT request. (The reasoning text
@@ -33,10 +33,9 @@
  * @module transformer/transformers/utils/reasoningReplay
  */
 
-import {
-  resolveTargetModelCapabilities,
-  type ReasoningProvider,
-} from '../../reasoning-effort';
+import { usesDeepSeekThinkingToggle } from '../../../reasoning/openai-chat-wire';
+import { resolveTargetModelCapabilities } from '../../reasoning-effort';
+import type { ReasoningProvider } from '../../reasoning-effort';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -53,29 +52,26 @@ export interface ReasoningReplayProvider extends ReasoningProvider {
   baseUrl?: string;
 }
 
-function readsDeepSeek(provider: ReasoningReplayProvider | undefined): boolean {
-  if (!provider) return false;
-  return /deepseek/i.test(provider.name ?? '') || /deepseek/i.test(provider.baseUrl ?? '');
-}
-
 /**
- * Providers whose chat wire requires thinking-turn assistant messages back
- * WITH `reasoning_content`.
+ * Providers whose Chat wire requires assistant reasoning history back WITH
+ * `reasoning_content`, including tool-call continuations.
  *
- * Identity is provider-level (name/base URL reads DeepSeek), but the model
- * must ALSO be v4-era: legacy deepseek-r1 deployments use the opposite
- * regime — they FORBID `reasoning_content` in input. The catalog draws that
- * line for us: the v4 family declares discrete
- * `thinkingLevels` while R1/v3 do not, so the capability check keeps legacy
- * models out of the replay.
+ * Provider identity and resolved model capabilities are both required:
+ * DeepSeek's discrete-thinking family declares `thinkingLevels`, excluding
+ * legacy R1/v3 models that forbid reasoning_content in input; Kimi requires
+ * a reasoning-capable model. Unrelated aggregators are not classified by
+ * model name alone.
  */
 export function isReasoningReplayProvider(
   provider: ReasoningReplayProvider | undefined,
   model: string,
 ): boolean {
-  if (!readsDeepSeek(provider)) return false;
-  const levels = resolveTargetModelCapabilities(model, provider).thinkingLevels;
-  return Array.isArray(levels) && levels.length > 0;
+  if (usesDeepSeekThinkingToggle(provider, model)) return true;
+  if (!provider || !(
+    /kimi|moonshot/i.test(provider.name ?? '') ||
+    /kimi|moonshot/i.test(provider.baseUrl ?? '')
+  )) return false;
+  return resolveTargetModelCapabilities(model, provider).reasoning === true;
 }
 
 /**

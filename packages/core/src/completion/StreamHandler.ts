@@ -13,21 +13,22 @@ import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import { streamSSEResponse } from '@omnicross/core/sse-parser';
 
 import type { Logger } from '../ports/logger';
+import { applyOpenAIChatReasoning } from '../reasoning/openai-chat-wire';
 
 import {
   buildProviderApiUrl,
-  type CompletionOptions,
   convertMessageToAnthropic,
   convertMessageToOpenAI,
   getProviderHeaders,
-  type StreamCallbacks
 } from './';
+import type { CompletionOptions, StreamCallbacks } from './';
 import { applyAugmentation } from './NativeSearchInjector';
 import {
   buildAnthropicReasoningWire,
   buildGeminiThinkingConfig,
-  resolveOpenAIEffort,
   resolveCompletionModel,
+  resolveCompletionReasoningPlan,
+  resolveOpenAIResponsesEffort,
 } from './ReasoningRequestBuilder';
 import { convertMessagesToGemini, convertMessagesToResponses } from './message-converter';
 
@@ -55,11 +56,12 @@ export async function streamOpenAICompletion(
     stream_options: { include_usage: true },
   };
 
-  // Add reasoning_effort for OpenAI reasoning models (Chat Completions API format)
-  const effort = resolveOpenAIEffort(provider, options, 'openai-chat');
-  if (effort) {
-    (request as unknown as Record<string, unknown>).reasoning_effort = effort;
-  }
+  applyOpenAIChatReasoning(
+    request as unknown as Record<string, unknown>,
+    resolveCompletionReasoningPlan(provider, options, 'openai-chat'),
+    provider,
+    options.model,
+  );
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: true });
   const headers = getProviderHeaders(provider, apiKey);
@@ -335,9 +337,11 @@ export async function streamOpenAIResponseCompletion(
   };
 
   // Add reasoning effort for reasoning models (Response API format)
-  const responseEffort = resolveOpenAIEffort(provider, options, 'openai-responses');
+  const responseEffort = resolveOpenAIResponsesEffort(provider, options);
   if (responseEffort) {
-    request.reasoning = { effort: responseEffort, summary: 'auto' };
+    request.reasoning = responseEffort === 'none'
+      ? { effort: responseEffort }
+      : { effort: responseEffort, summary: 'auto' };
   }
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: true });

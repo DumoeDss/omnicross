@@ -124,11 +124,11 @@ const GEMINI_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const GROK_MODELS: Record<string, KnownModelCapabilities> = {
-  'grok-4.5': { category: 'chat', contextLength: 500000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'grok-4.3': { category: 'chat', contextLength: 1000000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'grok-4.5': { category: 'chat', contextLength: 500000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'grok-4.3': { category: 'chat', contextLength: 1000000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'grok-4.20': { category: 'chat', contextLength: 131072, maxTokens: 32768, vision: true, functionCall: true },
-  'grok-4.20-reasoning': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'grok-4.20-multi-agent': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'grok-4.20-reasoning': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'grok-4.20-multi-agent': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   // SuperGrok subscription ids (Responses wire). Upstream context/output caps
   // per the audit source; the effort-taking models accept low/medium/high only
   // (minimal→low, xhigh/max→high), and the omit-effort models carry
@@ -181,10 +181,12 @@ const ZHIPU_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const KIMI_MODELS: Record<string, KnownModelCapabilities> = {
-  'kimi-k3': { category: 'code', contextLength: 1048576, maxTokens: 1048576, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'kimi-k2.6': { category: 'code', contextLength: 256000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'kimi-k2.5': { category: 'chat', contextLength: 256000, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
-  'kimi-k2-thinking': { category: 'reasoning', contextLength: 256000, reasoning: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  // K3 always reasons; its Chat API supports effort selection, not the K2.x thinking toggle.
+  'kimi-k3': { category: 'code', contextLength: 1048576, maxTokens: 1048576, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'high', 'max'] },
+  // K2.5/2.6 expose an on/off thinking toggle, not discrete native efforts.
+  'kimi-k2.6': { category: 'code', contextLength: 256000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high'] },
+  'kimi-k2.5': { category: 'chat', contextLength: 256000, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high'] },
+  'kimi-k2-thinking': { category: 'reasoning', contextLength: 256000, reasoning: true, functionCall: true },
 };
 
 const DASHSCOPE_QWEN_MODELS: Record<string, KnownModelCapabilities> = {

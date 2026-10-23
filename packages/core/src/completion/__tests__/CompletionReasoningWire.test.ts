@@ -1,4 +1,5 @@
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
+import { getPresetById } from '@omnicross/contracts/provider-presets';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Logger } from '../../ports/logger';
@@ -190,13 +191,179 @@ describe('Completion OpenAI reasoning wire bodies', () => {
     expect(bodies.slice(1).map((body) => body.reasoning_effort)).toEqual(['high', 'high']);
   });
 
-  it('distinguishes missing intent from explicit reasoning disable', async () => {
-    const openai = provider('openai', 'gpt-5.6');
-    await callOpenAICompletion(openai, 'key', options('gpt-5.6', undefined), logger);
-    await callOpenAICompletion(openai, 'key', options('gpt-5.6', 'none'), logger);
+  it('distinguishes model-managed defaults from explicit off in Chat and Responses transports', async () => {
+    const chat = provider('openai', 'gpt-5.1');
+    const responses = provider('openai-response', 'gpt-5.1');
+    await callOpenAICompletion(chat, 'key', options('gpt-5.1', undefined), logger);
+    await callOpenAIResponseCompletion(responses, 'key', options('gpt-5.1', undefined), logger);
+    const disabled = options('gpt-5.1', 'none');
+    await callOpenAICompletion(chat, 'key', disabled, logger);
+    await streamOpenAICompletion(chat, 'key', disabled, 'chat-off', callbacks, logger);
+    await callOpenAIResponseCompletion(responses, 'key', disabled, logger);
+    await streamOpenAIResponseCompletion(responses, 'key', disabled, 'responses-off', callbacks, logger);
 
-    expect(bodies[0]).not.toHaveProperty('reasoning_effort');
-    expect(bodies[1].reasoning_effort).toBe('none');
+    const [chatDefault, responsesDefault, chatOff, chatStreamOff, responsesOff, responsesStreamOff] = bodies;
+    expect(chatDefault).not.toHaveProperty('reasoning_effort');
+    expect(responsesDefault).not.toHaveProperty('reasoning');
+    expect([chatOff.reasoning_effort, chatStreamOff.reasoning_effort]).toEqual(['none', 'none']);
+    expect(responsesOff.reasoning).toEqual({ effort: 'none' });
+    expect(responsesStreamOff.reasoning).toEqual({ effort: 'none' });
+  });
+
+  it.each(getPresetById('deepseek')!.models)(
+    'disables canonical DeepSeek %s Chat without an unsupported none effort',
+    async (model) => {
+      const deepseek: LLMProvider = {
+        ...getPresetById('deepseek')!,
+        api_key: 'secret',
+        enabled: true,
+      };
+      const disabled = options(model, 'none');
+      await callOpenAICompletion(deepseek, 'key', disabled, logger);
+      await streamOpenAICompletion(deepseek, 'key', disabled, 'deepseek-off', callbacks, logger);
+
+      expect(bodies).toHaveLength(2);
+      for (const body of bodies) {
+        expect(body.thinking).toEqual({ type: 'disabled' });
+        expect(body).not.toHaveProperty('reasoning_effort');
+      }
+      expect(bodies.map((body) => body.stream)).toEqual([false, true]);
+    },
+  );
+
+  it('keeps DeepSeek defaults, enabled efforts and Responses none unchanged', async () => {
+    const deepseek: LLMProvider = {
+      ...getPresetById('deepseek')!,
+      api_key: 'secret',
+      enabled: true,
+    };
+    const model = deepseek.models[0];
+    for (const effort of [undefined, 'low', 'high', 'max'] as const) {
+      const requestOptions = options(model, effort);
+      await callOpenAICompletion(deepseek, 'key', requestOptions, logger);
+      await streamOpenAICompletion(deepseek, 'key', requestOptions, 'deepseek-on', callbacks, logger);
+    }
+    const responses = { ...deepseek, apiFormat: 'openai-response' as const };
+    await callOpenAIResponseCompletion(responses, 'key', options(model, 'none'), logger);
+    await streamOpenAIResponseCompletion(
+      responses, 'key', options(model, 'none'), 'deepseek-responses-off', callbacks, logger,
+    );
+
+    expect(bodies.slice(0, 8).map((body) => body.reasoning_effort)).toEqual([
+      undefined, undefined, 'low', 'low', 'high', 'high', 'max', 'max',
+    ]);
+    expect(bodies.slice(0, 2).every((body) => !Object.hasOwn(body, 'thinking'))).toBe(true);
+    expect(bodies.slice(2, 8).map((body) => body.thinking)).toEqual(
+      Array.from({ length: 6 }, () => ({ type: 'enabled' })),
+    );
+    for (const body of bodies.slice(8)) {
+      expect(body.reasoning).toEqual({ effort: 'none' });
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body).not.toHaveProperty('thinking');
+    }
+  });
+
+  it.each(['grok-4.5', 'grok-4.3'])(
+    'rejects explicit off for native %s before Chat or Responses HTTP requests',
+    async (model) => {
+      const native: LLMProvider = {
+        ...getPresetById('grok')!,
+        api_key: 'secret',
+        enabled: true,
+      };
+      const disabled = options(model, 'none');
+      await expect(callOpenAICompletion(native, 'key', disabled, logger))
+        .rejects.toThrow('cannot be disabled');
+      await expect(streamOpenAICompletion(native, 'key', disabled, 'native-off', callbacks, logger))
+        .rejects.toThrow('cannot be disabled');
+      const responses = { ...native, apiFormat: 'openai-response' as const };
+      await expect(callOpenAIResponseCompletion(responses, 'key', disabled, logger))
+        .rejects.toThrow('cannot be disabled');
+      await expect(streamOpenAIResponseCompletion(responses, 'key', disabled, 'native-off', callbacks, logger))
+        .rejects.toThrow('cannot be disabled');
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects unsupported Copilot off before attempting HTTP', async () => {
+    const copilot: LLMProvider = {
+      ...provider('openai', 'gemini-3.5-flash'),
+      name: 'GitHub Copilot',
+      api_base_url: 'https://api.githubcopilot.com',
+    };
+    const disabled = options('gemini-3.5-flash', 'none');
+    await expect(callOpenAICompletion(copilot, 'key', disabled, logger))
+      .rejects.toThrow('cannot be disabled');
+    await expect(streamOpenAICompletion(copilot, 'key', disabled, 'copilot-off', callbacks, logger))
+      .rejects.toThrow('cannot be disabled');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['xiaomi-mimo', 'mimo-v2.5'],
+    ['xiaomi-mimo', 'mimo-v2.5-pro'],
+    ['xiaomi-mimo', 'mimo-v2-pro'],
+    ['xiaomi-mimo', 'mimo-v2.6-pro'],
+  ])('does not invent a none effort on native %s / %s Chat requests', async (presetId, model) => {
+    const native: LLMProvider = {
+      ...getPresetById(presetId)!,
+      api_key: 'secret',
+      enabled: true,
+    };
+    const disabled = options(model, 'none');
+    await callOpenAICompletion(native, 'key', disabled, logger);
+    await streamOpenAICompletion(native, 'key', disabled, 'native-off', callbacks, logger);
+
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body).not.toHaveProperty('thinking');
+    }
+  });
+
+  it('omits unverified Copilot Chat off controls when an override explicitly supports semantic none', async () => {
+    const copilot: LLMProvider = {
+      ...provider('openai', 'gemini-3.5-flash'),
+      name: 'GitHub Copilot',
+      api_base_url: 'https://api.githubcopilot.com',
+      modelConfigs: [{
+        id: 'gemini-3.5-flash',
+        name: 'Semantic off override',
+        enabled: true,
+        thinkingLevels: ['none', 'low', 'medium', 'high'],
+      }],
+    };
+    const disabled = options('gemini-3.5-flash', 'none');
+    await callOpenAICompletion(copilot, 'key', disabled, logger);
+    await streamOpenAICompletion(copilot, 'key', disabled, 'copilot-off', callbacks, logger);
+
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body).not.toHaveProperty('thinking');
+    }
+  });
+
+  it.each([
+    ['xiaomi-mimo', 'mimo-v2.5'],
+    ['kimi', 'kimi-k2.5'],
+  ])('does not turn native %s semantic off into an unverified Responses control', async (presetId, model) => {
+    const native: LLMProvider = {
+      ...getPresetById(presetId)!,
+      apiFormat: 'openai-response',
+      api_key: 'secret',
+      enabled: true,
+    };
+    const disabled = options(model, 'none');
+    await callOpenAIResponseCompletion(native, 'key', disabled, logger);
+    await streamOpenAIResponseCompletion(native, 'key', disabled, 'native-responses-off', callbacks, logger);
+
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty('reasoning');
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body).not.toHaveProperty('thinking');
+    }
   });
 
   it('omits enabled reasoning for a disable-only provider override', async () => {
@@ -224,6 +391,21 @@ describe('Completion OpenAI reasoning wire bodies', () => {
 });
 
 describe('Completion budget reasoning wire bodies', () => {
+  it('disables legacy Anthropic thinking without imposing its enabled token budget', async () => {
+    const anthropic = provider('anthropic', 'claude-3-7-sonnet-20250219');
+    const disabled = options('claude-3-7-sonnet-20250219', 'none', {
+      maxTokens: 20000,
+    });
+    await callAnthropicCompletion(anthropic, 'key', disabled, logger);
+    await streamAnthropicCompletion(anthropic, 'key', disabled, 'legacy-off', callbacks, logger);
+
+    expect(bodies.map((body) => body.thinking)).toEqual([
+      { type: 'disabled' }, { type: 'disabled' },
+    ]);
+    expect(bodies.map((body) => body.max_tokens)).toEqual([20000, 20000]);
+    expect(bodies.every((body) => !Object.hasOwn(body, 'output_config'))).toBe(true);
+  });
+
   it('omits enabled Anthropic/Gemini wire fields for disable-only overrides', async () => {
     const anthropic = provider('anthropic', 'disable-anthropic', [{
       id: 'disable-anthropic',

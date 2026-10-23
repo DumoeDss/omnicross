@@ -286,7 +286,9 @@ export function buildAnthropicRequestBody(
     target: 'anthropic',
     requestMaxTokens: request.max_tokens,
   });
-  if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+  if (reasoningPlan && reasoningPlan.kind !== 'off' && !reasoningPlan.enabled) {
+    body.thinking = { type: 'disabled' };
+  } else if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
     body.thinking = { type: 'adaptive' };
     if (!/^minimax-m(?:2(?:[.-]|$)|3$)/.test(normalizeModelId(request.model))) {
       body.output_config = { effort: reasoningPlan.effort };
@@ -295,8 +297,6 @@ export function buildAnthropicRequestBody(
     body.thinking = { type: 'enabled', budget_tokens: reasoningPlan.budgetTokens };
     // Legacy extended thinking requires temperature=1. Adaptive thinking does not.
     body.temperature = 1;
-  } else if (reasoningPlan) {
-    body.thinking = { type: 'disabled' };
   }
 
   return body;

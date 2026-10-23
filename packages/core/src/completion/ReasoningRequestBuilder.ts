@@ -3,12 +3,8 @@ import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import { resolveRedirectedModelConfigs } from '../pipeline/resolveProviderChain';
 
-import {
-  resolveReasoningPlan,
-  resolveTargetModelCapabilities,
-  type ReasoningPlan,
-  type ReasoningTarget,
-} from '../reasoning/reasoning-plan';
+import { resolveReasoningPlan } from '../reasoning/reasoning-plan';
+import type { ReasoningPlan, ReasoningTarget } from '../reasoning/reasoning-plan';
 
 const LEGACY_ANTHROPIC_MAX_TOKENS = 16384;
 
@@ -53,21 +49,12 @@ export function resolveCompletionReasoningPlan(
   });
 }
 
-export function resolveOpenAIEffort(
+export function resolveOpenAIResponsesEffort(
   provider: LLMProvider,
   options: CompletionReasoningOptions,
-  target: 'openai-chat' | 'openai-responses',
 ): ThinkLevel | undefined {
-  const plan = resolveCompletionReasoningPlan(provider, options, target);
-  if (plan?.kind === 'level' && plan.enabled) return plan.effort;
-  if (options.thinkLevel === 'none') {
-    const levels = resolveTargetModelCapabilities(options.model, provider).thinkingLevels;
-    // A disable-only catalog marks models whose API omits effort altogether.
-    if (!levels || (levels.includes('none') && levels.some((level) => level !== 'none'))) {
-      return 'none';
-    }
-  }
-  return undefined;
+  const plan = resolveCompletionReasoningPlan(provider, options, 'openai-responses');
+  return plan?.kind === 'level' ? plan.effort : undefined;
 }
 
 export interface AnthropicReasoningWire {
@@ -90,6 +77,14 @@ export function buildAnthropicReasoningWire(
     configuredMaxTokens,
   );
 
+  if (plan && plan.kind !== 'off' && !plan.enabled) {
+    return {
+      effectiveMaxTokens: configuredMaxTokens,
+      thinking: { type: 'disabled' },
+      legacyBudgetEnabled: false,
+    };
+  }
+
   if (plan?.kind === 'level' && plan.enabled) {
     return {
       effectiveMaxTokens: configuredMaxTokens,
@@ -111,7 +106,6 @@ export function buildAnthropicReasoningWire(
 
   return {
     effectiveMaxTokens: configuredMaxTokens,
-    ...(options.thinkLevel === 'none' ? { thinking: { type: 'disabled' } } : {}),
     legacyBudgetEnabled: false,
   };
 }

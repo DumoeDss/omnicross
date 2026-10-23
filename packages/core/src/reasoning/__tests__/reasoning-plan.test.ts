@@ -106,6 +106,35 @@ describe('resolveReasoningPlan discrete effort', () => {
     })).toThrow('cannot be disabled');
   });
 
+  it.each(['kimi-k3', 'grok-4.5', 'grok-4.3'])(
+    'rejects explicit off for %s before native preservation or wire omission',
+    (model) => {
+      for (const target of ['openai-chat', 'openai-responses'] as const) {
+        expect(() => resolveReasoningPlan({
+          intent: { effort: 'none', enabled: false },
+          model,
+          provider: { name: model.startsWith('kimi') ? 'Kimi' : 'Grok' },
+          target,
+          preserveNativeEffort: true,
+        })).toThrow('cannot be disabled');
+      }
+      expect(resolveReasoningPlan({ model, target: 'openai-chat' })).toBeUndefined();
+    },
+  );
+
+  it.each(['openai-chat', 'openai-responses'] as const)(
+    'keeps explicit disable-only catalogs as an omission marker on %s',
+    (target) => {
+      expect(resolveReasoningPlan({
+        intent: { effort: 'none', enabled: false },
+        model: 'disable-only',
+        provider: { modelConfigs: [{ id: 'disable-only', thinkingLevels: ['none'] }] },
+        target,
+        preserveNativeEffort: true,
+      })).toEqual({ kind: 'off' });
+    },
+  );
+
   it.each([
     'openai-chat',
     'openai-responses',
@@ -352,6 +381,42 @@ describe('resolveReasoningPlan token budgets', () => {
       provider: { modelConfigs: [{ id: 'legacy-gemini-flash', thinkingLevels: [] }] },
       target: 'gemini',
     })).toEqual({ kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 });
+  });
+
+  it('rejects Gemini off when native levels or known reasoning have no legal off control', () => {
+    expect(() => resolveReasoningPlan({
+      intent: { effort: 'none', enabled: false },
+      model: 'native-gemini',
+      provider: { modelConfigs: [{
+        id: 'native-gemini', thinkingLevels: ['none', 'high'], reasoning: true,
+      }] },
+      target: 'gemini',
+    })).toThrow('cannot be disabled');
+    expect(() => resolveReasoningPlan({
+      intent: { effort: 'none', enabled: false },
+      model: 'unknown-reasoning-gemini',
+      provider: { modelConfigs: [{
+        id: 'unknown-reasoning-gemini',
+        reasoning: true,
+        thinkingTokenLimit: { min: 128, max: 1024 },
+      }] },
+      target: 'gemini',
+    })).toThrow('cannot be disabled');
+  });
+
+  it('does not apply an enabled Anthropic minimum budget to explicit legacy off', () => {
+    expect(resolveReasoningPlan({
+      intent: { effort: 'none', enabled: false },
+      model: 'claude-haiku-4-5',
+      target: 'anthropic',
+      requestMaxTokens: 1,
+    })).toEqual({ kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 });
+    expect(resolveReasoningPlan({
+      intent: { effort: 'none', enabled: false },
+      model: 'claude-opus-4-6',
+      target: 'anthropic',
+      requestMaxTokens: 1,
+    })).toEqual({ kind: 'level', effort: 'none', enabled: false });
   });
 
   it.each([1, 1023, 1024])('rejects Anthropic max_tokens=%s rather than sending an invalid budget', (requestMaxTokens) => {

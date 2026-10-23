@@ -47,6 +47,7 @@
  * @module transformer/transformers/OpenAITransformer
  */
 
+import { applyOpenAIChatReasoning } from '../../reasoning/openai-chat-wire';
 import type {
   LLMProvider,
   MessageContent,
@@ -56,7 +57,7 @@ import type {
   UnifiedChatRequest,
   UnifiedMessage,
 } from '../types';
-import { extractReasoningIntent, resolveReasoningPlan, resolveTargetModelCapabilities } from '../reasoning-effort';
+import { extractReasoningIntent, resolveReasoningPlan } from '../reasoning-effort';
 import { recordDroppedField } from '../transformWarnings';
 import {
   downgradeJsonSchemaBody,
@@ -67,8 +68,8 @@ import {
   isReasoningReplayLearned,
   isReasoningReplayProvider,
   reasoningReplayKey,
-  type ReasoningReplayEntry,
 } from './utils/reasoningReplay';
+import type { ReasoningReplayEntry } from './utils/reasoningReplay';
 import { readAnthropicSSE } from './AnthropicSSE';
 
 /** Message-level keys that must never reach an OpenAI chat upstream. */
@@ -300,10 +301,8 @@ export class OpenAITransformer implements Transformer {
       });
     }
 
-    // Explicit off must survive the boundary; absence can enable a provider's
-    // default thinking mode. Native Chat fields otherwise remain untouched.
-    // A native Chat field with no decoded unified reasoning is already present
-    // in `out` and must remain byte/native-preserved on same-format paths.
+    // Encode negotiated reasoning using the target's actual Chat wire control.
+    // Native fields without a unified policy remain preserved on same-format paths.
     const reasoningPlan = request.reasoning
       ? resolveReasoningPlan({
           intent: extractReasoningIntent(request),
@@ -311,39 +310,9 @@ export class OpenAITransformer implements Transformer {
           provider,
           target: 'openai-chat',
           requestMaxTokens: request.max_tokens,
-        })
+        }) ?? { kind: 'off' as const }
       : undefined;
-    const host = request.reasoning && provider.baseUrl ? new URL(provider.baseUrl).hostname : '';
-    const deepseek = host === 'api.deepseek.com'
-      && /^deepseek-(?:flash|v4-(?:flash|pro))$/.test(request.model);
-    const glm = (host === 'api.z.ai' || host === 'open.bigmodel.cn')
-      && /^(glm-5(?:\.[12]|\.3(?:-flash)?)?|glm-4\.7)$/.test(request.model);
-    const qwen = (host === 'dashscope.aliyuncs.com' || host === 'dashscope-intl.aliyuncs.com'
-      || host === 'dashscope-us.aliyuncs.com' || host.endsWith('.maas.aliyuncs.com'))
-      && /^(qwen3\.8-(?:max|flash|27b)|qwen3\.7-(?:max(?:-2026-(?:05-20|06-08))?|plus(?:-2026-05-26)?|flash(?:-2026-07-15)?)|qwen3\.6-(?:plus(?:-2026-04-02)?|flash(?:-2026-04-16)?)|qwen3\.5-(?:plus(?:-2026-02-15)?|flash(?:-2026-02-23)?)|qwen-(?:plus|flash)(?:-latest|-\d{4}-\d{2}-\d{2})?)$/.test(request.model);
-    if (request.reasoning && deepseek) {
-      const enabled = request.reasoning.enabled !== false && request.reasoning.effort !== 'none';
-      out.thinking = { type: enabled ? 'enabled' : 'disabled' };
-      if (enabled && reasoningPlan?.kind === 'level') out.reasoning_effort = reasoningPlan.effort;
-      else delete out.reasoning_effort;
-    } else if (request.reasoning && (glm || qwen)) {
-      const enabled = request.reasoning.enabled !== false && request.reasoning.effort !== 'none';
-      delete out.reasoning_effort;
-      if (glm) {
-        out.thinking = { ...(source.thinking as Record<string, unknown> | undefined), type: enabled ? 'enabled' : 'disabled' };
-      } else {
-        out.enable_thinking = enabled;
-      }
-    } else if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
-      out.reasoning_effort = reasoningPlan.effort;
-    } else if (request.reasoning) {
-      delete out.reasoning_effort;
-      if (reasoningPlan?.kind === 'off' && (request.reasoning.enabled === false || request.reasoning.effort === 'none')) {
-        const capabilities = resolveTargetModelCapabilities(request.model, provider);
-        const omitEffort = capabilities.thinkingLevels?.length === 1 && capabilities.thinkingLevels[0] === 'none';
-        if (capabilities.reasoning !== false && !omitEffort) out.reasoning_effort = 'none';
-      }
-    }
+    applyOpenAIChatReasoning(out, reasoningPlan, provider, request.model, source.thinking);
 
     // Reasoning replay: DeepSeek v4 thinking mode rejects a request whose
     // thinking-turn assistant history lacks `reasoning_content` (400 "The
@@ -352,17 +321,18 @@ export class OpenAITransformer implements Transformer {
     // shared context keyed by assistant-message index. Replay them only for
     // upstreams that demand it — for everyone else the field is at best noise
     // and at worst a rejection (classic deepseek-r1 FORBIDS it in
-    // input). Statically classified providers replay when this request engages
-    // thinking (the demand is thinking-mode-scoped); a provider LEARNED from a
-    // live rejection replays unconditionally — the 400 proved the demand, and
-    // gating again would keep paying it on non-thinking turns.
+    // input). Omitted effort does not disable default-on upstream thinking.
+    // Both static and learned demands remain active unless the outgoing wire
+    // actually switches reasoning off.
     const reasoningReplay = context.responsesReasoningReplay as
       | ReasoningReplayEntry[]
       | undefined;
-    if (reasoningReplay?.length) {
+    const thinking = out.thinking as { type?: unknown } | undefined;
+    const reasoningDisabled = thinking?.type === 'disabled'
+      || out.reasoning_effort === 'none' || out.enable_thinking === false;
+    if (reasoningReplay?.length && !reasoningDisabled) {
       const replayLearned = isReasoningReplayLearned(reasoningReplayKey(provider, request.model));
-      const replayStatic = isReasoningReplayProvider(provider, request.model);
-      if (replayLearned || replayStatic) {
+      if (replayLearned || isReasoningReplayProvider(provider, request.model)) {
         applyReasoningReplay(out, reasoningReplay);
       }
     }
