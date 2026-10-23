@@ -69,6 +69,37 @@ incompatible learned reasoning replay; omission does not silently disable replay
 required by default-thinking providers. Native Responses input, opaque continuation
 items, and provenance are retained rather than reconstructed for this policy.
 
+## Grammar-constrained Responses tools
+
+Responses custom tools with `format: { type: "grammar", syntax: "lark" | "regex",
+definition: "..." }` can use OpenAI Chat, Anthropic, and Gemini routes. The relay
+retains the exact definition in the tool declaration, uses a required string
+`input` envelope on those wires, and restores the custom call's original
+name, namespace, and byte-exact input. Named custom choices and custom entries in
+`allowed_tools` retain their selection policy.
+
+Remote APIs without grammar sampling cannot guarantee a matching generation.
+Omnicross therefore compiles the grammar before contacting the upstream and
+validates the complete returned input with llguidance. Invalid declarations
+return HTTP 400; nonmatching upstream tool input returns HTTP 502, or a typed
+`response.failed` event after streaming has started. Custom input deltas are
+buffered until validation succeeds. There is no automatic retry, input rewrite,
+or unconstrained fallback. Already-executed history is not revalidated against a
+later turn's changed grammar; native Responses routes retain their native payload.
+
+The dialect follows [OpenAI's grammar tools](https://developers.openai.com/api/docs/guides/function-calling#context-free-grammars)
+and [llguidance](https://github.com/guidance-ai/llguidance/blob/main/docs/syntax.md):
+Rust regex and llguidance Lark, not Python Lark. Ignored interior whitespace does
+not implicitly allow trailing whitespace; declare trailing whitespace in the
+start rule when required. Model-token terminals are rejected on converted routes
+because another model's tokenizer IDs cannot be preserved as text.
+
+The exact-pinned `transformers-llguidance@0.2.1` dependency supplies inline WASM.
+No Python/Rust installation, native addon, model download, or runtime network
+fetch is required. Its private matcher ABI is isolated in `llguidanceWasm.ts`;
+dependency upgrades must recheck EOF acceptance, UTF-8 mapping, disposal, and
+packed ESM/CJS behavior.
+
 ## License
 
 [MIT](LICENSE) 

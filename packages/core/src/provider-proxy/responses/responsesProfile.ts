@@ -113,44 +113,30 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
 // Nested CARRIERS stay strict at the TYPE level: an unknown input-item /
 // content-part / tool_choice type can carry conversation content, and
 // dropping one silently corrupts the history — that stays a loud, structured
-// 400. Tool declarations are capability contracts too: hosted tools and custom
-// grammar constraints are refused when the reduced wire cannot execute them.
+// 400. Grammar-constrained custom tools preserve their declaration and enforce
+// the complete generated input locally; genuinely hosted tools stay native-only.
 // Nested FIELDS are metadata-tier: every codex ResponseItem variant
 // carries optional bookkeeping (`id`, `status`, `phase`, passthrough blocks,
 // encrypted duplicates) for the ORIGINAL provider's dedup/state — the stateless
 // relay reads only each type's content fields, so extra fields are admitted
 // and audit-dropped by name (collectDroppableExtras). `reasoning` sub-fields
 // get the same treatment (knob container).
-const TOP_LEVEL_FIELDS = new Set([
-  'model',
-  'input',
-  'instructions',
-  'prompt',
-  'stream',
-  'max_output_tokens',
-  'temperature',
-  'top_p',
-  'reasoning',
-  'tools',
-  'tool_choice',
-  'parallel_tool_calls',
-  'store',
-  'include',
-  'prompt_cache_key',
-  'truncation',
-  'text',
-]);
-
-const DENIED_TOP_LEVEL_FIELDS = new Set(['previous_response_id', 'background']);
-
-const REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
-const REASONING_SUMMARIES = new Set(['auto', 'concise', 'detailed']);
-const TOOL_CHOICE_MODES = new Set(['auto', 'none', 'required']);
-const TOOL_CHOICE_ALLOWED_MODES = new Set(['auto', 'required']);
-const TRUNCATION_VALUES = new Set(['auto', 'none']);
-const TEXT_FORMAT_TYPES = new Set(['text', 'json_object', 'json_schema']);
-const MESSAGE_ROLES = new Set(['developer', 'system', 'user', 'assistant']);
-const TEXT_PART_TYPES = new Set(['text', 'input_text', 'output_text', 'summary_text']);
+type StringLookup = Readonly<Record<string, true>>;
+const TOP_LEVEL_FIELDS: StringLookup = {
+  model: true, input: true, instructions: true, prompt: true, stream: true,
+  max_output_tokens: true, temperature: true, top_p: true, reasoning: true,
+  tools: true, tool_choice: true, parallel_tool_calls: true, store: true,
+  include: true, prompt_cache_key: true, truncation: true, text: true,
+};
+const DENIED_TOP_LEVEL_FIELDS: StringLookup = { previous_response_id: true, background: true };
+const REASONING_EFFORTS: StringLookup = { none: true, minimal: true, low: true, medium: true, high: true, xhigh: true };
+const REASONING_SUMMARIES: StringLookup = { auto: true, concise: true, detailed: true };
+const TOOL_CHOICE_MODES: StringLookup = { auto: true, none: true, required: true };
+const TOOL_CHOICE_ALLOWED_MODES: StringLookup = { auto: true, required: true };
+const TRUNCATION_VALUES: StringLookup = { auto: true, none: true };
+const TEXT_FORMAT_TYPES: StringLookup = { text: true, json_object: true, json_schema: true };
+const MESSAGE_ROLES: StringLookup = { developer: true, system: true, user: true, assistant: true };
+const TEXT_PART_TYPES: StringLookup = { text: true, input_text: true, output_text: true, summary_text: true };
 
 export function unsupportedResponsesCapability(
   path: string,
@@ -173,11 +159,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function assertOnlyFields(
   value: Record<string, unknown>,
-  allowed: ReadonlySet<string>,
+  allowed: StringLookup,
   path: string,
 ): void {
   for (const field of Object.keys(value)) {
-    if (!allowed.has(field)) fail(`${path}.${field}`);
+    if (!Object.hasOwn(allowed, field)) fail(`${path}.${field}`);
   }
 }
 
@@ -194,14 +180,14 @@ function validateTextPart(value: unknown, path: string, dropped: string[]): void
   // the INLINE form is admitted — a `file_id` references the ORIGINAL
   // provider's file store and cannot be served here.
   if (type === 'input_image') {
-    assertOnlyFields(value, new Set(['type', 'image_url', 'detail']), path);
+    assertOnlyFields(value, IMAGE_PART_FIELDS, path);
     if (typeof value.image_url !== 'string' || !value.image_url) {
       fail(`${path}.image_url`, 'must be an inline image URL (file_id references cannot be relayed)');
     }
     if (value.detail !== undefined) assertString(value.detail, `${path}.detail`);
     return;
   }
-  if (typeof type !== 'string' || !TEXT_PART_TYPES.has(type)) {
+  if (typeof type !== 'string' || !Object.hasOwn(TEXT_PART_TYPES, type)) {
     fail(`${path}.type`, 'is not a supported text content part');
   }
   // Output-part bookkeeping (annotations, logprobs) is metadata-tier — the
@@ -209,7 +195,7 @@ function validateTextPart(value: unknown, path: string, dropped: string[]): void
   // target wire and dropped by the transformer's text-part reader (it reads
   // only .text). codex records them on every assistant message in a rollout,
   // so refusing them 400s a resumed session instead of dropping metadata.
-  collectDroppableExtras(value, new Set(['type', 'text']), path, dropped);
+  collectDroppableExtras(value, TEXT_PART_FIELDS, path, dropped);
   assertString(value.text, `${path}.text`);
 }
 
@@ -221,11 +207,21 @@ function validateTextContent(value: unknown, path: string, dropped: string[]): v
   value.forEach((part, index) => validateTextPart(part, `${path}[${index}]`, dropped));
 }
 
-const MESSAGE_FIELDS = new Set(['type', 'role', 'content']);
-const CALL_FIELDS = new Set(['type', 'call_id', 'name', 'namespace', 'arguments']);
-const CUSTOM_CALL_FIELDS = new Set(['type', 'call_id', 'name', 'input']);
-const OUTPUT_FIELDS = new Set(['type', 'call_id', 'output']);
-const ADDITIONAL_TOOLS_FIELDS = new Set(['type', 'role', 'tools']);
+const MESSAGE_FIELDS: StringLookup = { type: true, role: true, content: true };
+const CALL_FIELDS: StringLookup = { type: true, call_id: true, name: true, namespace: true, arguments: true };
+const CUSTOM_CALL_FIELDS: StringLookup = { type: true, call_id: true, name: true, namespace: true, input: true };
+const OUTPUT_FIELDS: StringLookup = { type: true, call_id: true, output: true };
+const ADDITIONAL_TOOLS_FIELDS: StringLookup = { type: true, role: true, tools: true };
+const IMAGE_PART_FIELDS: StringLookup = { type: true, image_url: true, detail: true };
+const TEXT_PART_FIELDS: StringLookup = { type: true, text: true };
+const FUNCTION_TOOL_FIELDS: StringLookup = { type: true, name: true, description: true, parameters: true };
+const CUSTOM_TOOL_FIELDS: StringLookup = { type: true, name: true, description: true, format: true };
+const NAMESPACE_TOOL_FIELDS: StringLookup = { type: true, name: true, description: true, tools: true };
+const NAMED_TOOL_CHOICE_FIELDS: StringLookup = { type: true, name: true };
+const ALLOWED_TOOLS_CHOICE_FIELDS: StringLookup = { type: true, mode: true, tools: true };
+const TYPE_FIELD: StringLookup = { type: true };
+const TEXT_FIELDS: StringLookup = { verbosity: true, format: true };
+const TEXT_FORMAT_FIELDS: StringLookup = { type: true, name: true, strict: true, schema: true };
 
 /**
  * Item/field-tier flip (the 2026-09-23 codex-Lite fallout): every ResponseItem
@@ -240,12 +236,12 @@ const ADDITIONAL_TOOLS_FIELDS = new Set(['type', 'role', 'tools']);
  */
 function collectDroppableExtras(
   value: Record<string, unknown>,
-  contentFields: ReadonlySet<string>,
+  contentFields: StringLookup,
   path: string,
   dropped: string[],
 ): void {
   for (const field of Object.keys(value)) {
-    if (!contentFields.has(field)) dropped.push(`${path}.${field}`);
+    if (!Object.hasOwn(contentFields, field)) dropped.push(`${path}.${field}`);
   }
 }
 
@@ -259,7 +255,7 @@ function validateToolDeclaration(
   const type = value.type;
   if (type === 'function') {
     // `strict` and future declaration knobs ride along as droppable extras.
-    collectDroppableExtras(value, new Set(['type', 'name', 'description', 'parameters']), path, dropped);
+    collectDroppableExtras(value, FUNCTION_TOOL_FIELDS, path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     if (value.parameters !== undefined && !isRecord(value.parameters)) {
@@ -269,17 +265,25 @@ function validateToolDeclaration(
   }
   if (type === 'custom') {
     if (value.format !== undefined) {
-      if (!isRecord(value.format) || value.format.type !== 'text') {
-        fail(`${path}.format`, 'requires native Responses custom-tool format support');
+      if (!isRecord(value.format)) fail(`${path}.format`, 'must be a custom format object');
+      if (value.format.type === 'grammar') {
+        if (value.format.syntax !== 'lark' && value.format.syntax !== 'regex') {
+          fail(`${path}.format.syntax`, 'must be "lark" or "regex"');
+        }
+        if (typeof value.format.definition !== 'string') {
+          fail(`${path}.format.definition`, 'must be a grammar string');
+        }
+      } else if (value.format.type !== 'text') {
+        fail(`${path}.format.type`, 'must be "text" or "grammar"');
       }
     }
-    collectDroppableExtras(value, new Set(['type', 'name', 'description', 'format']), path, dropped);
+    collectDroppableExtras(value, CUSTOM_TOOL_FIELDS, path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     return;
   }
   if (type === 'namespace' && allowNamespace) {
-    collectDroppableExtras(value, new Set(['type', 'name', 'description', 'tools']), path, dropped);
+    collectDroppableExtras(value, NAMESPACE_TOOL_FIELDS, path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     if (!Array.isArray(value.tools)) fail(`${path}.tools`, 'must be an array');
@@ -297,20 +301,20 @@ function validateToolDeclaration(
 
 function validateToolChoice(value: unknown, path: string): void {
   if (typeof value === 'string') {
-    if (!TOOL_CHOICE_MODES.has(value)) {
-      fail(path, 'must be "auto", "none", "required", a function choice, or an allowed_tools choice');
+    if (!Object.hasOwn(TOOL_CHOICE_MODES, value)) {
+      fail(path, 'must be "auto", "none", "required", a named tool choice, or an allowed_tools choice');
     }
     return;
   }
   if (!isRecord(value)) fail(path, 'must be a tool choice');
-  if (value.type === 'function') {
-    assertOnlyFields(value, new Set(['type', 'name']), path);
+  if (value.type === 'function' || value.type === 'custom') {
+    assertOnlyFields(value, NAMED_TOOL_CHOICE_FIELDS, path);
     assertString(value.name, `${path}.name`);
     return;
   }
   if (value.type === 'allowed_tools') {
-    assertOnlyFields(value, new Set(['type', 'mode', 'tools']), path);
-    if (typeof value.mode !== 'string' || !TOOL_CHOICE_ALLOWED_MODES.has(value.mode)) {
+    assertOnlyFields(value, ALLOWED_TOOLS_CHOICE_FIELDS, path);
+    if (typeof value.mode !== 'string' || !Object.hasOwn(TOOL_CHOICE_ALLOWED_MODES, value.mode)) {
       fail(`${path}.mode`, 'must be "auto" or "required"');
     }
     if (!Array.isArray(value.tools) || value.tools.length === 0) {
@@ -318,10 +322,10 @@ function validateToolChoice(value: unknown, path: string): void {
     }
     value.tools.forEach((tool, index) => {
       const toolPath = `${path}.tools[${index}]`;
-      if (!isRecord(tool) || tool.type !== 'function') {
-        fail(`${toolPath}.type`, 'must be a function tool choice');
+      if (!isRecord(tool) || (tool.type !== 'function' && tool.type !== 'custom')) {
+        fail(`${toolPath}.type`, 'must be a function or custom tool choice');
       }
-      assertOnlyFields(tool, new Set(['type', 'name']), toolPath);
+      assertOnlyFields(tool, NAMED_TOOL_CHOICE_FIELDS, toolPath);
       assertString(tool.name, `${toolPath}.name`);
     });
     return;
@@ -335,7 +339,7 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
 
   if (type === undefined || type === 'message') {
     collectDroppableExtras(value, MESSAGE_FIELDS, path, dropped);
-    if (typeof value.role !== 'string' || !MESSAGE_ROLES.has(value.role)) {
+    if (typeof value.role !== 'string' || !Object.hasOwn(MESSAGE_ROLES, value.role)) {
       fail(`${path}.role`, 'is not a supported message role');
     }
     // An EMPTY content array is recorded by codex on a final_answer message
@@ -354,7 +358,7 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
   // regenerated, never relayed); `agent_message` is agent-channel bookkeeping.
   // Neither carries conversation content the upstream needs.
   if (type === 'reasoning' || type === 'agent_message') {
-    collectDroppableExtras(value, new Set(['type']), path, dropped);
+    collectDroppableExtras(value, TYPE_FIELD, path, dropped);
     return;
   }
   if (type === 'function_call') {
@@ -369,6 +373,7 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
     collectDroppableExtras(value, CUSTOM_CALL_FIELDS, path, dropped);
     assertString(value.call_id, `${path}.call_id`);
     assertString(value.name, `${path}.name`);
+    if (value.namespace !== undefined) assertString(value.namespace, `${path}.namespace`);
     assertString(value.input, `${path}.input`);
     return;
   }
@@ -419,8 +424,8 @@ export function validateReducedResponsesRequest(
   if (!isRecord(body)) fail('$', 'must be a JSON object');
   const unknownFields: string[] = [];
   for (const field of Object.keys(body)) {
-    if (DENIED_TOP_LEVEL_FIELDS.has(field)) fail(`$.${field}`);
-    if (!TOP_LEVEL_FIELDS.has(field)) unknownFields.push(field);
+    if (Object.hasOwn(DENIED_TOP_LEVEL_FIELDS, field)) fail(`$.${field}`);
+    if (!Object.hasOwn(TOP_LEVEL_FIELDS, field)) unknownFields.push(field);
   }
 
   if (body.model !== undefined) assertString(body.model, '$.model');
@@ -452,12 +457,12 @@ export function validateReducedResponsesRequest(
     for (const field of Object.keys(body.reasoning)) {
       if (field !== 'effort' && field !== 'summary') unknownFields.push(`reasoning.${field}`);
     }
-    if (typeof body.reasoning.effort !== 'string' || !REASONING_EFFORTS.has(body.reasoning.effort)) {
+    if (typeof body.reasoning.effort !== 'string' || !Object.hasOwn(REASONING_EFFORTS, body.reasoning.effort)) {
       fail('$.reasoning.effort', 'is not supported');
     }
     if (
       body.reasoning.summary !== undefined &&
-      (typeof body.reasoning.summary !== 'string' || !REASONING_SUMMARIES.has(body.reasoning.summary))
+      (typeof body.reasoning.summary !== 'string' || !Object.hasOwn(REASONING_SUMMARIES, body.reasoning.summary))
     ) {
       fail('$.reasoning.summary', 'is not supported');
     }
@@ -512,19 +517,19 @@ export function validateReducedResponsesRequest(
   }
   if (body.prompt_cache_key !== undefined) assertString(body.prompt_cache_key, '$.prompt_cache_key');
   if (body.truncation !== undefined) {
-    if (typeof body.truncation !== 'string' || !TRUNCATION_VALUES.has(body.truncation)) {
+    if (typeof body.truncation !== 'string' || !Object.hasOwn(TRUNCATION_VALUES, body.truncation)) {
       fail('$.truncation', 'must be "auto" or "none"');
     }
   }
   if (body.text !== undefined) {
     if (!isRecord(body.text)) fail('$.text', 'must be an object');
-    assertOnlyFields(body.text, new Set(['verbosity', 'format']), '$.text');
+    assertOnlyFields(body.text, TEXT_FIELDS, '$.text');
     if (body.text.verbosity !== undefined) assertString(body.text.verbosity, '$.text.verbosity');
     if (body.text.format !== undefined) {
       const format = body.text.format;
       if (!isRecord(format)) fail('$.text.format', 'must be an object');
-      assertOnlyFields(format, new Set(['type', 'name', 'strict', 'schema']), '$.text.format');
-      if (typeof format.type !== 'string' || !TEXT_FORMAT_TYPES.has(format.type)) {
+      assertOnlyFields(format, TEXT_FORMAT_FIELDS, '$.text.format');
+      if (typeof format.type !== 'string' || !Object.hasOwn(TEXT_FORMAT_TYPES, format.type)) {
         fail('$.text.format.type', 'must be "text", "json_object", or "json_schema"');
       }
       // A structured-output contract is SEMANTICS, not a knob: on wires with

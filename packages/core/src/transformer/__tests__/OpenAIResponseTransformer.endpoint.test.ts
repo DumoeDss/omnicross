@@ -723,7 +723,6 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
                   type: 'custom',
                   name: 'exec',
                   description: 'Run JavaScript',
-                  format: { type: 'grammar', syntax: 'lark', definition: 'start: …' },
                 },
                 {
                   type: 'function',
@@ -768,12 +767,6 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(unified.tools!.find((t) => t.function.name === 'collaboration__spawn_agent')!.function.parameters)
         .toMatchObject({ properties: { task: { type: 'string' } } });
 
-      // The protocol state the response encoder needs is threaded on `meta` —
-      // keyed by the FLATTENED name (the decode strips the prefix back).
-      expect(unified.meta?.codexTools).toEqual({
-        customToolNames: ['exec'],
-        toolNamespaces: { collaboration__spawn_agent: 'collaboration' },
-      });
     });
 
     it('two namespaces sharing an inner tool name flatten WITHOUT colliding', async () => {

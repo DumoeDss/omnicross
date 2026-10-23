@@ -18,11 +18,13 @@
  * @module @omnicross/core/provider-proxy/responses/__tests__/codexSessionAudit
  */
 
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { collectCodexTools, compileCodexGrammars } from '../../../transformer/transformers/utils/codexToolProtocol';
 
 import {
   resolveReducedResponsesCapabilities,
@@ -94,68 +96,84 @@ function signature(item: Record<string, unknown>): string {
 
 /** Long strings (base64 images, prompts) stubbed — same shape, tiny memory. */
 function stubLongStrings(value: unknown): unknown {
-  if (typeof value === 'string') return value.length > 100 ? value.slice(0, 40) : value;
+  if (typeof value === 'string') {
+    // Detach small examples: a V8 sliced string can retain a whole image payload.
+    return value.length > 100 ? JSON.parse(JSON.stringify(value.slice(0, 40))) as string : value;
+  }
   if (Array.isArray(value)) return value.map(stubLongStrings);
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = stubLongStrings(v);
+    const isGrammar = (value as Record<string, unknown>).type === 'grammar';
+    for (const [k, v] of Object.entries(value)) {
+      // Grammar source is executable contract data, not incidental prompt text.
+      out[k] = isGrammar && k === 'definition' ? v : stubLongStrings(v);
+    }
     return out;
   }
   return value;
 }
 
 describe.skipIf(process.env.AUDIT_CODEX_SESSIONS !== '1')('codex session audit', () => {
-  it('every real-world rollout item shape passes the reduced gate', { timeout: 120_000 }, () => {
+  it('every real-world rollout item shape passes the reduced gate', { timeout: 120_000 }, async () => {
     const caps = resolveReducedResponsesCapabilities({ authMode: 'byo', providerApiFormat: API_FORMAT });
     const files = listJsonlFiles(SESSIONS_ROOT, Date.now() - DAYS * 24 * 3600 * 1000);
     const shapes = new Map<string, { count: number; example: Record<string, unknown>; file: string }>();
     let totalItems = 0;
+    const readFailures: string[] = [];
 
     for (const file of files) {
-      let text: string;
+      let input: Awaited<ReturnType<typeof open>> | undefined;
       try {
-        text = readFileSync(file, 'utf8');
-      } catch {
-        continue;
-      }
-      for (const line of text.split('\n')) {
-        if (!line.includes('"response_item"')) continue;
-        let parsed: { payload?: unknown };
-        try {
-          parsed = JSON.parse(line);
-        } catch {
-          continue;
+        input = await open(file, 'r');
+        // Rollouts can exceed V8's single-string limit. Never load/split a whole
+        // file or silently skip it; keep at most one JSONL record in memory.
+        for await (const line of input.readLines({ autoClose: false })) {
+          if (!line.includes('"response_item"')) continue;
+          let parsed: { payload?: unknown };
+          try {
+            parsed = JSON.parse(line);
+          } catch {
+            continue; // A resident CLI may still be appending its final record.
+          }
+          const item = parsed.payload;
+          if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+          totalItems += 1;
+          const record = item as Record<string, unknown>;
+          const sig = signature(record);
+          const existing = shapes.get(sig);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            shapes.set(sig, {
+              count: 1,
+              example: stubLongStrings(record) as Record<string, unknown>,
+              file: file.split('sessions')[1] ?? file,
+            });
+          }
         }
-        const item = parsed.payload;
-        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-        totalItems += 1;
-        const record = item as Record<string, unknown>;
-        const sig = signature(record);
-        const existing = shapes.get(sig);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          shapes.set(sig, {
-            count: 1,
-            example: stubLongStrings(record) as Record<string, unknown>,
-            file: file.split('sessions')[1] ?? file,
-          });
-        }
+      } catch (error) {
+        readFailures.push(`${file}: ${String(error)}`);
+      } finally {
+        await input?.close();
       }
     }
 
     const report: string[] = [
       `root=${SESSIONS_ROOT} days=${DAYS} apiFormat=${API_FORMAT}`,
       `files=${files.length} items=${totalItems} distinctShapes=${shapes.size}`,
+      ...readFailures.map((failure) => `READ FAILED ${failure}`),
     ];
     if (files.length === 0) {
       report.push('no rollout files found — nothing to audit (this is not a failure)');
     }
-    let failures = 0;
+    let failures = readFailures.length;
     for (const [sig, record] of [...shapes.entries()].sort((a, b) => b[1].count - a[1].count)) {
       let verdict: string;
       try {
         const dropped = validateReducedResponsesRequest({ input: [record.example] }, caps);
+        if (record.example.type === 'additional_tools') {
+          await compileCodexGrammars(collectCodexTools(record.example).customToolFormats);
+        }
         verdict = `PASS (drops ${dropped.length})`;
       } catch (error) {
         failures += 1;
