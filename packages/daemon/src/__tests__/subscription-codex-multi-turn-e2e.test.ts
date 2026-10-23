@@ -3,8 +3,9 @@
  *
  * This deliberately keeps every production seam real from the named-key
  * protected `/v1/responses` listener through route resolution, the subscription
- * registry/account selector, and bearer injection. Only ChatGPT's HTTP endpoint
- * is replaced with a loopback server. No real credential or network is used.
+ * registry/account selector, and bearer injection. ChatGPT's HTTP endpoint is
+ * replaced with a loopback server and native home resolution is isolated.
+ * No real credential or network is used.
  */
 
 import {
@@ -18,6 +19,7 @@ import {
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type * as NodeOs from 'node:os';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,11 +31,23 @@ import {
 import { getSharedAccountRouteActivity } from '@omnicross/core/pipeline/AccountRouteActivity';
 import { deriveGatewaySessionKey } from '@omnicross/core/provider-proxy/matchText';
 import type { SubscriptionDispatchProfile } from '@omnicross/core/provider-proxy/types';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
 import { loadConfig } from '../config';
 import { externalStorePath } from '../ports/external-cli-credentials';
+
+const isolatedHome = vi.hoisted(() => ({ path: '' }));
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeOs>();
+  return {
+    ...actual,
+    homedir: () => {
+      if (!isolatedHome.path) throw new Error('isolated test home is not initialized');
+      return isolatedHome.path;
+    },
+  };
+});
 
 const TOKEN_A = 'fake-codex-token-account-a';
 const TOKEN_B = 'fake-codex-token-account-b';
@@ -170,7 +184,13 @@ function overrideCodexUpstreamUrl(daemon: Daemon, mockUrl: string): void {
   setSubscriptionRegistryForOutbound(wrapper);
 }
 
-function nativeFileSnapshot(path: string): { sha256: string; mtimeMs: number; size: number } {
+interface NativeFileSnapshot {
+  sha256: string;
+  mtimeMs: number;
+  size: number;
+}
+
+function nativeFileSnapshot(path: string): NativeFileSnapshot {
   const bytes = readFileSync(path);
   const stat = statSync(path);
   return {
@@ -188,8 +208,6 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
   let namedKey: string;
   let nativeAuthPath: string;
   let previousResponseIds: Map<string, string>;
-  let originalHome: string | undefined;
-  let originalUserProfile: string | undefined;
 
   beforeEach(async () => {
     resetDaemonSingletonsForTests();
@@ -197,13 +215,15 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
     previousResponseIds = new Map();
     tempRoot = mkdtempSync(join(tmpdir(), 'omnicross-codex-multi-turn-'));
 
-    // Redirect the default read-only native credential reader to an isolated
-    // home. This proves the daemon can discover the file without ever writing it.
+    // Windows homedir() reads the native environment, not the thread-local
+    // process.env used by Vitest workers. Redirect that boundary as well as the
+    // environment so the default native reader cannot reach the real profile.
     const fakeHome = join(tempRoot, 'home');
-    originalHome = process.env.HOME;
-    originalUserProfile = process.env.USERPROFILE;
-    process.env.HOME = fakeHome;
-    process.env.USERPROFILE = fakeHome;
+    isolatedHome.path = fakeHome;
+    vi.stubEnv('HOME', fakeHome);
+    vi.stubEnv('USERPROFILE', fakeHome);
+    vi.stubEnv('APPDATA', join(tempRoot, 'appdata', 'roaming'));
+    vi.stubEnv('LOCALAPPDATA', join(tempRoot, 'appdata', 'local'));
     nativeAuthPath = join(fakeHome, '.codex', 'auth.json');
     mkdirSync(join(fakeHome, '.codex'), { recursive: true });
     writeFileSync(nativeAuthPath, NATIVE_AUTH_SENTINEL, 'utf8');
@@ -252,20 +272,19 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
   });
 
   afterEach(async () => {
-    if (daemon) {
-      await daemon.outboundApiServer.stop();
-      await daemon.providerProxy.stop();
-      daemon.apiKeyPool.dispose();
+    try {
+      if (daemon) {
+        await daemon.outboundApiServer.stop();
+        await daemon.providerProxy.stop();
+        daemon.apiKeyPool.dispose();
+      }
+      if (upstream) await stopServer(upstream.server);
+    } finally {
+      resetDaemonSingletonsForTests();
+      vi.unstubAllEnvs();
+      isolatedHome.path = '';
+      rmSync(tempRoot, { recursive: true, force: true });
     }
-    if (upstream) await stopServer(upstream.server);
-    resetDaemonSingletonsForTests();
-
-    if (originalHome === undefined) delete process.env.HOME;
-    else process.env.HOME = originalHome;
-    if (originalUserProfile === undefined) delete process.env.USERPROFILE;
-    else process.env.USERPROFILE = originalUserProfile;
-
-    rmSync(tempRoot, { recursive: true, force: true });
   });
 
   async function postTurn(sessionId: string, turn: number): Promise<string> {
@@ -294,6 +313,9 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
     return upstream!.hits.at(-1)!.authorization!;
   }
 
+  // Twenty-six serial real requests each durably update file-backed state.
+  // Windows fsync measured 0.2–1.3s here; allow 3s per turn plus 12s for
+  // account operations, without changing unit/global deadlines or persistence.
   it('pins 20 turns, spreads a new session, ignores active-pointer changes, and leaves auth.json byte-identical', async () => {
     const nativeBefore = nativeFileSnapshot(nativeAuthPath);
     expect(await daemon!.credentialStore.listExternalCliAvailability()).toMatchObject({ codex: true });
@@ -378,5 +400,5 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
 
     expect(readFileSync(nativeAuthPath, 'utf8')).toBe(NATIVE_AUTH_SENTINEL);
     expect(nativeFileSnapshot(nativeAuthPath)).toEqual(nativeBefore);
-  });
+  }, 90_000);
 });

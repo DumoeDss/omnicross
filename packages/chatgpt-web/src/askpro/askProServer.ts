@@ -21,10 +21,6 @@ import { pathToFileURL } from 'node:url';
 
 import { AskProError, consultPro } from './askProCore';
 
-// The daemon locates the built entry through this module (the bundled build
-// inlines askProCore, so its import.meta.url-based resolution lands here).
-export { resolveAskProServerEntry } from './askProCore';
-
 const MCP_FALLBACK_PROTOCOL_VERSION = '2025-06-18';
 
 interface JsonRpcRequest {

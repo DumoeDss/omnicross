@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,6 +71,23 @@ function internalRanges(manifest, section) {
   return Object.entries(manifest[section] ?? {}).filter(([name]) => INTERNAL_PACKAGE_NAMES.has(name));
 }
 
+function privateWorkspaceNames(root, patterns) {
+  const names = new Set();
+  for (const pattern of patterns) {
+    const parent = pattern.endsWith('/*') ? pattern.slice(0, -2) : undefined;
+    const directories = parent
+      ? readdirSync(join(root, parent), { withFileTypes: true })
+        .filter(entry => entry.isDirectory()).map(entry => `${parent}/${entry.name}`)
+      : [pattern];
+    for (const directory of directories) {
+      if (!existsSync(join(root, directory, 'package.json'))) continue;
+      const manifest = readJson(root, `${directory}/package.json`).data;
+      if (manifest.private === true) names.add(manifest.name);
+    }
+  }
+  return names;
+}
+
 function collectReleaseVersionErrors(root, version) {
   const expectedVersion = normalizeStableVersion(version);
   const errors = [];
@@ -100,6 +117,8 @@ function collectReleaseVersionErrors(root, version) {
     }
   }
 
+  const privateNames = privateWorkspaceNames(root, manifests.get('package.json').workspaces ?? []);
+
   for (const { name, path } of PUBLISHABLE_WORKSPACES) {
     const relativePath = `${path}/package.json`;
     const manifest = manifests.get(relativePath);
@@ -109,6 +128,17 @@ function collectReleaseVersionErrors(root, version) {
     if (manifest.private === true) errors.push(`${relativePath} must remain publishable (private must not be true)`);
     if (manifest.publishConfig?.access !== 'public') {
       errors.push(`${relativePath} publishConfig.access must be public`);
+    }
+    const bundled = manifest.bundleDependencies ?? manifest.bundledDependencies ?? [];
+    for (const section of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
+      for (const dependency of Object.keys(manifest[section] ?? {})) {
+        if (!privateNames.has(dependency)) continue;
+        const installed = Object.hasOwn(manifest.dependencies ?? {}, dependency)
+          || Object.hasOwn(manifest.optionalDependencies ?? {}, dependency);
+        if (!installed || !(bundled === true || (Array.isArray(bundled) && bundled.includes(dependency)))) {
+          errors.push(`${relativePath} ${section} ${dependency} references a private workspace without a bundled runtime`);
+        }
+      }
     }
   }
 

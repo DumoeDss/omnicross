@@ -141,6 +141,8 @@ describe('daemon Images boot, hot reload, restart, and reset E2E', () => {
     expect(serialized).not.toContain('daemon lifecycle Tier-A request');
   });
 
+  // Three persisted requests plus a real config swap exceed a unit-test budget
+  // on fsync-heavy filesystems; keep all queue/generation assertions intact.
   it('pins queued work to its generation and schedules one selected account fairly', async ({ signal }) => {
     let releaseFirst!: () => void;
     const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
@@ -218,7 +220,7 @@ describe('daemon Images boot, hot reload, restart, and reset E2E', () => {
       acquireSpy.mockRestore();
       await Promise.allSettled(requests);
     }
-  });
+  }, 30_000);
 
   it('preserves tenant references and known-empty Responses state across stop/reset/restart', async () => {
     const first = await createDaemonImageE2eHarness({}, { removeTempHomeOnClose: false });

@@ -23,7 +23,7 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { resolveAskProServerEntry } from '@omnicross/chatgpt-web/askpro/askProServer';
+import { resolveAskProServerEntry } from '@omnicross/chatgpt-web/askpro/askProCore';
 
 export const CODEX_PROFILE_NAME = 'chatgptweb';
 export const CODEX_PROVIDER_NAME = 'omnicross-chatgptweb';

@@ -164,6 +164,11 @@ function failedRefreshResponse(): Response {
 
 const stubLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
 
+// These multi-step flows perform 4–7 real encrypted atomic replacements.
+// Windows fsync measured up to 1.3s per flush and the import flow took 16s;
+// keep durability real and bound only the diagnosed IO-heavy cases.
+const DURABLE_ACCOUNT_FLOW_TIMEOUT_MS = 30_000;
+
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), 'omnicross-p5-ext-sync-'));
   tokensPath = join(tmpDir, 'tokens.json');
@@ -284,7 +289,7 @@ describe('managed refresh isolation from native CLI login', () => {
     expect(storedB?.tokens.accessToken).toBe('MANAGED-AT-2');
     expect(storedA?.tokens.accessToken).not.toBe('NATIVE-AT-2');
     expect(storedB?.tokens.accessToken).not.toBe('NATIVE-AT-2');
-  });
+  }, DURABLE_ACCOUNT_FLOW_TIMEOUT_MS);
 
   it('marks only the managed account expired on refresh failure and never imports the native login', async () => {
     const home = join(tmpDir, 'home');
@@ -392,7 +397,7 @@ describe('native CLI files are read-only and explicit import is copy-only', () =
     expect(nativeSnapshots(watched)).toEqual(before);
     expect(existsSync(claudeMarker)).toBe(true);
     expect(existsSync(claudeBackup)).toBe(true);
-  });
+  }, DURABLE_ACCOUNT_FLOW_TIMEOUT_MS);
 });
 
 describe('duplicate warning and background scheduler isolation', () => {
@@ -441,7 +446,7 @@ describe('duplicate warning and background scheduler isolation', () => {
     expect(nativeFileSnapshot(claudePath)).toEqual(before);
     const config = await store.getFullConfig();
     expect(config.claudeAccounts?.every((account) => account.tokens.status === 'authorized')).toBe(true);
-  });
+  }, DURABLE_ACCOUNT_FLOW_TIMEOUT_MS);
 
   it('coalesces concurrent active refreshes without consulting native credentials', async () => {
     const reader = vi.fn<ExternalCliReader>(() => {

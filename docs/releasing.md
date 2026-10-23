@@ -24,6 +24,10 @@ line endings:
 - `package-lock.json` workspace entries;
 - the Tauri application version.
 
+Use Node.js 22 or newer for contributor/release tooling; the official OpenAI
+SDK development dependency requires it. This does not raise the published
+core runtime minimum of Node.js 20.9.
+
 `audit:codex-sessions` replays the maintainer's OWN recent codex session
 history (`~/.codex/sessions`, last 7 days by default) through the
 reduced-Responses admission gate. It is the check that catches a codex CLI
@@ -46,6 +50,29 @@ git push origin HEAD v0.1.15
 Do not create the tag before committing the prepared files. The release workflow
 runs `release:check` before it creates or reuses a draft and rejects every tag or
 manifest mismatch.
+
+## Validate the npm runtime closure
+
+After `npm ci`, run `npm run build`, `npm run typecheck`, `npm test`,
+`npm run test:release-contract`, and `npm run test:daemon-runtime-packaging`.
+Validate packed archives in a fresh consumer outside the repository, not through
+workspace links: install the daemon tarball with the other five public packages
+pinned to their local tarballs, then exercise ESM/CJS imports, strict public
+declarations, and `omnicross --help`.
+
+`@omnicross/chatgpt-web` intentionally remains private and is **not** a seventh
+public npm package or part of the public lockstep version. The daemon's
+`prepack` stages its built artifacts, licenses, standalone server/browser assets,
+and installed production dependency closure into the daemon tarball through
+`bundleDependencies`. Versions must match `package-lock.json`; packing does not
+resolve new versions or install dependencies. Do not bypass `prepack` when
+packing or publishing the daemon. A normal daemon consumer does not need a
+separate private-package tarball or registry access to that package.
+
+`release:check` rejects public runtime dependencies on private workspaces unless
+they are bundled. `test:release-contract` also checks the staging transaction's
+junction protection, rollback, and post-commit cleanup failures. The desktop
+runtime uses the same six public tarballs and the bundled private closure.
 
 ## Automated publication
 

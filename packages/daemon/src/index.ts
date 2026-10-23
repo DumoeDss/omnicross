@@ -3,8 +3,7 @@
  * ProviderProxy + outbound API server with file-backed default port impls.
  *
  * Public barrel: bootstrap + the four port implementations + config loader +
- * the CCR importer. Internal package (`private:true`); the standalone-binary
- * build + public release are deferred.
+ * the CCR importer, published alongside the serving core.
  *
  * @module @omnicross/daemon
  */
