@@ -337,8 +337,9 @@ export function resolveReasoningPlan(
     }
     if ((targetsOpenAI && capabilities.reasoning !== false
       && (input.preserveNativeEffort || !capabilities.thinkingLevels?.length))
-      || (capabilities.thinkingLevels?.includes('none')
-        && (targetsOpenAI || (input.target === 'anthropic' && usesNativeLevels)))) {
+      || (targetsOpenAI && capabilities.thinkingLevels?.includes('none'))
+      || (input.target === 'anthropic'
+        && (usesNativeLevels || capabilities.thinkingLevels?.includes('none')))) {
       return { kind: 'level', effort: 'none', enabled: false };
     }
 

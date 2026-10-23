@@ -437,7 +437,7 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
         glm: zaiProvider,
         qwen: { ...deepseekProvider, name: 'Qwen', baseUrl: 'https://dashscope.aliyuncs.com' },
       };
-      const models = { deepseek: 'deepseek-flash', openai: 'gpt-5.1', glm: 'glm-5.3', qwen: 'qwen3.8-max' };
+      const models = { deepseek: 'deepseek-flash', openai: 'gpt-5.1', glm: 'glm-4.7', qwen: 'qwen3.8-max' };
       const provider = providers[name];
       const model = models[name];
       try {
@@ -457,13 +457,16 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
     },
   );
 
-  it('rejects unsupported off even when the provider has learned a replay demand', async () => {
-    const openai = { ...deepseekProvider, name: 'OpenAI', baseUrl: 'https://api.openai.com' };
+  it.each([
+    { provider: { ...deepseekProvider, name: 'OpenAI', baseUrl: 'https://api.openai.com' }, model: 'o3' },
+    { provider: zaiProvider, model: 'glm-5.3' },
+    { provider: zaiProvider, model: 'glm-5.3-flash' },
+  ])('rejects unsupported off for $model even when the provider has learned a replay demand', async ({ provider, model }) => {
     try {
-      markReasoningReplayRequired(reasoningReplayKey(openai, 'o3'));
+      markReasoningReplayRequired(reasoningReplayKey(provider, model));
       await expect(new OpenAITransformer().transformRequestIn(
-        req({ model: 'o3', messages: history as never, reasoning: { enabled: false } }),
-        openai,
+        req({ model, messages: history as never, reasoning: { enabled: false } }),
+        provider,
         replayContext(replay),
       )).rejects.toThrow();
     } finally {

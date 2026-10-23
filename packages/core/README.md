@@ -41,6 +41,34 @@ same injected resources through `CompletionService.getApiKeyPool()`,
 the existing injection or `null` when none was configured; they do not construct
 new pools, recorders, or event sinks.
 
+Affinity avoids unnecessary credential changes; it does not guarantee an upstream
+prompt-cache hit. Providers still control cache scope, model compatibility, and
+request-prefix matching.
+
+## Explicit thinking controls
+
+Thinking policy is negotiated against the resolved model and API format, including
+direct, streaming, transformed, and tool-loop requests. Omitting a thinking policy
+preserves provider defaults; it is not equivalent to explicitly requesting `none`.
+
+| Target, when disabling is supported | Explicit-off wire control |
+| --- | --- |
+| OpenAI Chat Completions | `reasoning_effort: "none"` |
+| DeepSeek Chat Completions, such as `deepseek-flash` | `thinking: { type: "disabled" }`, without `reasoning_effort` |
+| Kimi K2.5 / K2.6 Chat Completions | `thinking: { type: "disabled" }`, without `reasoning_effort` |
+| OpenAI Responses | `reasoning: { effort: "none" }`, without automatic summary |
+| Anthropic native thinking | `thinking: { type: "disabled" }`, without an enabled-thinking budget |
+
+Models known not to support disabling reject explicit off before an upstream
+request. This includes Kimi K3 and GLM-5.3 variants; selecting a smaller positive
+effort is not a substitute for disabling. Protocol fallback alone does not prove
+that an unknown model supports native thinking controls.
+
+Reasoning replay follows the actual outgoing controls. Disabled requests suppress
+incompatible learned reasoning replay; omission does not silently disable replay
+required by default-thinking providers. Native Responses input, opaque continuation
+items, and provenance are retained rather than reconstructed for this policy.
+
 ## License
 
 [MIT](LICENSE) 

@@ -59,7 +59,7 @@ describe('Canonical Kimi K3 reasoning wire policy', () => {
       const unified = await encode({
         model: 'kimi-k3',
         messages: [{ role: 'user', content: 'Answer briefly.' }],
-        reasoning: { effort: thinkLevel, enabled: thinkLevel !== 'none' },
+        reasoning: { effort: thinkLevel, enabled: true },
       });
       const options: CompletionOptions = {
         providerId: provider.id,
