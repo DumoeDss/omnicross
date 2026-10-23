@@ -111,28 +111,13 @@ describe('StreamEventBuffer', () => {
     ]);
   });
 
-  it('caps the queue at 200 events and evicts oldest non-terminal first', () => {
+  it('preserves every text delta when the subscription queue reaches its cap', () => {
     const { sender, sent } = makeSender();
-    const id = 's4';
-
-    register(id, sender as never);
-    // Fill with 200 deltas: chunk-0 through chunk-199.
-    for (let i = 0; i < 200; i++) {
-      emit(id, { type: 'delta', content: `chunk-${i}` });
-    }
-    expect(_peekForTests(id)?.queueLength).toBe(200);
-
-    // Overflow: evict oldest non-terminal (chunk-0), append new tail.
-    emit(id, { type: 'delta', content: 'overflow-1' });
-
-    expect(_peekForTests(id)?.queueLength).toBe(200);
-
-    attach(id);
-    expect(sent.length).toBe(200);
-    const first = sent[0].payload as unknown as { content: string };
-    const last = sent[sent.length - 1].payload as unknown as { content: string };
-    expect(first.content).toBe('chunk-1'); // chunk-0 was evicted
-    expect(last.content).toBe('overflow-1');
+    register('burst', sender);
+    const chunks = Array.from({ length: 250 }, (_, i) => `chunk-${i}`);
+    for (const content of chunks) emit('burst', { type: 'delta', content });
+    attach('burst');
+    expect(sent.map(event => event.payload.content).join('')).toBe(chunks.join(''));
   });
 
   it('keeps terminal events sticky across overflow', () => {
@@ -151,7 +136,7 @@ describe('StreamEventBuffer', () => {
     expect(types).toContain('error');
   });
 
-  it('preserves done event when emitted before subscribe and releases on next tick', async () => {
+  it('delivers completed output to a subscriber on a later event-loop tick', async () => {
     const { sender, sent } = makeSender();
     const id = 's6';
 
@@ -161,12 +146,15 @@ describe('StreamEventBuffer', () => {
     emit(id, { type: 'done', message: { content: 'a' } });
 
     release(id);
+    const { promise, resolve } = Promise.withResolvers<void>();
+    setImmediate(resolve);
+    await promise;
 
     // Still buffered — release defers when not attached.
     expect(_peekForTests(id)).not.toBeNull();
     expect(_peekForTests(id)?.queueLength).toBe(3);
 
-    // Late subscribe within the same tick still drains.
+    // Subscription may arrive after the producer has already completed.
     const result = attach(id);
     expect(result.drained).toBe(3);
     expect(sent.map((s) => (s.payload as StreamEvent).type)).toEqual([

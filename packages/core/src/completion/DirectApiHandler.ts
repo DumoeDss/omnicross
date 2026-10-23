@@ -7,31 +7,30 @@
 
 import type {
   AnthropicChatResponse,
-  ConversionConfig,
   OpenAIChatRequest,
   OpenAIChatResponse
 } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
-import { convertAnthropicToOpenAI, convertOpenAIToAnthropic } from '..';
 import type { Logger } from '../ports/logger';
 import { applyOpenAIChatReasoning } from '../reasoning/openai-chat-wire';
 
 import {
   buildProviderApiUrl,
-  type CompletionOptions,
-  type CompletionResult,
   convertMessageToAnthropic,
-  convertMessageToGemini,
   convertMessageToOpenAI,
   getProviderHeaders
 } from './';
+import type { CompletionOptions, CompletionResult } from './';
 import {
   buildAnthropicReasoningWire,
   buildGeminiThinkingConfig,
+  resolveCompletionModel,
   resolveCompletionReasoningPlan,
   resolveOpenAIResponsesEffort,
 } from './ReasoningRequestBuilder';
+import { convertMessagesToGemini, convertMessagesToResponses } from './message-converter';
+import { applyAugmentation } from './NativeSearchInjector';
 
 /**
  * Call OpenAI-compatible completion API
@@ -42,6 +41,8 @@ export async function callOpenAICompletion(
   options: CompletionOptions,
   logger: Logger
 ): Promise<CompletionResult> {
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
   const request: OpenAIChatRequest = {
     model: options.model,
     messages: options.messages.map(m => convertMessageToOpenAI(m)),
@@ -58,6 +59,7 @@ export async function callOpenAICompletion(
     options.model,
   );
 
+  if (options.nativeSearchAugmentation) applyAugmentation(request as unknown as Record<string, unknown>, options.nativeSearchAugmentation);
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
   const headers = getProviderHeaders(provider, apiKey);
 
@@ -78,7 +80,8 @@ export async function callOpenAICompletion(
   }
 
   const data = await response.json() as OpenAIChatResponse;
-  const choice = data.choices[0];
+  const choice = data.choices?.[0];
+  if (!choice) return { success: false, error: 'No choices in response' };
 
   return {
     success: true,
@@ -87,13 +90,18 @@ export async function callOpenAICompletion(
       role: 'assistant',
       content: choice.message.content || '',
       timestamp: Date.now(),
-      thinking: data.reasoning_content ? { content: data.reasoning_content } : undefined,
+      thinking: (choice.message.reasoning_content || choice.message.thinking || data.reasoning_content)
+        ? { ...choice.message.thinking, content: choice.message.reasoning_content ?? choice.message.thinking?.content ?? data.reasoning_content ?? '' } : undefined,
+      toolCalls: choice.message.tool_calls?.map(tc => ({
+        id: tc.id, name: tc.function.name, args: JSON.parse(tc.function.arguments),
+      })),
     },
-    usage: {
+    finishReason: choice.finish_reason,
+    usage: data.usage ? {
       promptTokens: data.usage.prompt_tokens,
       completionTokens: data.usage.completion_tokens,
       totalTokens: data.usage.total_tokens,
-    },
+    } : undefined,
   };
 }
 
@@ -106,134 +114,50 @@ export async function callAnthropicCompletion(
   options: CompletionOptions,
   logger: Logger
 ): Promise<CompletionResult> {
-  // Check if any messages have images
-  const hasImages = options.messages.some(m => m.images && m.images.length > 0);
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
   const reasoningWire = buildAnthropicReasoningWire(provider, options);
-
-  if (hasImages) {
-    // Build Anthropic request directly with image support
-    const systemMessages = options.messages.filter(m => m.role === 'system');
-    const nonSystemMessages = options.messages.filter(m => m.role !== 'system');
-
-    const anthropicRequest: Record<string, unknown> = {
-      model: options.model,
-      max_tokens: reasoningWire.effectiveMaxTokens,
-      ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
-      ...(systemMessages.length > 0 ? { system: systemMessages.map(m => m.content).join('\n\n') } : {}),
-      messages: nonSystemMessages.map(m => convertMessageToAnthropic(m)),
-      stream: false,
-      ...(reasoningWire.thinking ? { thinking: reasoningWire.thinking } : {}),
-      ...(reasoningWire.outputConfig ? { output_config: reasoningWire.outputConfig } : {}),
-    };
-
-    const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
-    const headers = getProviderHeaders(provider, apiKey);
-
-    logger.info('Calling Anthropic completion API with images', { url: apiUrl, model: options.model });
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(anthropicRequest),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        success: false,
-        error: `API error (${response.status}): ${errorText}`,
-      };
-    }
-
-    const anthropicResponse = await response.json() as AnthropicChatResponse;
-    const openaiResponse = convertAnthropicToOpenAI(anthropicResponse);
-    const choice = openaiResponse.choices[0];
-
-    return {
-      success: true,
-      message: {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: choice.message?.content || '',
-        timestamp: Date.now(),
-      },
-      usage: openaiResponse.usage ? {
-        promptTokens: openaiResponse.usage.prompt_tokens,
-        completionTokens: openaiResponse.usage.completion_tokens,
-        totalTokens: openaiResponse.usage.total_tokens,
-      } : undefined,
-    };
-  }
-
-  // Original flow for text-only messages
-  // Convert simple messages to OpenAI format first
-  const openaiRequest: OpenAIChatRequest = {
+  const system = options.messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+  const request = {
     model: options.model,
-    messages: options.messages.map(m => ({
-      role: m.role,
-      content: m.content,
-    })),
-    // Anthropic requires max_tokens; use 16384 default if not explicitly set
     max_tokens: reasoningWire.effectiveMaxTokens,
-    temperature: reasoningWire.legacyBudgetEnabled ? undefined : options.temperature,
+    ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
+    ...(system ? { system } : {}),
+    messages: options.messages.filter(m => m.role !== 'system').map(convertMessageToAnthropic),
     stream: false,
+    ...(reasoningWire.thinking ? { thinking: reasoningWire.thinking } : {}),
+    ...(reasoningWire.outputConfig ? { output_config: reasoningWire.outputConfig } : {}),
   };
-
-  // Convert to Anthropic format
-  const config: ConversionConfig = {
-    defaultModel: options.model,
-  };
-  const anthropicRequest = convertOpenAIToAnthropic(openaiRequest, config);
-  const anthropicRequestBody = anthropicRequest as unknown as Record<string, unknown>;
-  if (reasoningWire.thinking) {
-    anthropicRequestBody.thinking = reasoningWire.thinking;
-  }
-  if (reasoningWire.outputConfig) {
-    anthropicRequestBody.output_config = reasoningWire.outputConfig;
-  }
-  if (reasoningWire.legacyBudgetEnabled) {
-    delete anthropicRequestBody.temperature;
-  }
-
-  // Build the correct endpoint URL for Anthropic Messages API
-  const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
-  const headers = getProviderHeaders(provider, apiKey);
-
-  logger.info('Calling Anthropic completion API', { url: apiUrl, model: options.model });
-
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(anthropicRequest),
+  if (options.nativeSearchAugmentation) applyAugmentation(request, options.nativeSearchAugmentation);
+  const url = buildProviderApiUrl(provider, { model: options.model, stream: false });
+  logger.info('Calling Anthropic completion API', { url, model: options.model });
+  const response = await fetch(url, {
+    method: 'POST', headers: getProviderHeaders(provider, apiKey), body: JSON.stringify(request),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    return {
-      success: false,
-      error: `API error (${response.status}): ${errorText}`,
-    };
+  if (!response.ok) return { success: false, error: `API error (${response.status}): ${await response.text()}` };
+  const native = await response.json() as AnthropicChatResponse;
+  let content = '';
+  let reasoning = '';
+  const toolCalls: NonNullable<NonNullable<CompletionResult['message']>['toolCalls']> = [];
+  for (const block of native.content) {
+    if (block.type === 'text') content += block.text;
+    else if (block.type === 'thinking') reasoning += block.thinking;
+    else if (block.type === 'tool_use') toolCalls.push({ id: block.id, name: block.name, args: block.input });
   }
-
-  const anthropicResponse = await response.json() as AnthropicChatResponse;
-
-  // Convert back to OpenAI format
-  const openaiResponse = convertAnthropicToOpenAI(anthropicResponse);
-  const choice = openaiResponse.choices[0];
-
+  const promptTokens = native.usage.input_tokens + (native.usage.cache_read_input_tokens ?? 0) + (native.usage.cache_creation_input_tokens ?? 0);
   return {
     success: true,
     message: {
-      id: `msg_${Date.now()}`,
-      role: 'assistant',
-      content: choice.message.content || '',
-      timestamp: Date.now(),
-      thinking: openaiResponse.reasoning_content ? { content: openaiResponse.reasoning_content } : undefined,
+      id: native.id, role: 'assistant', content, timestamp: Date.now(),
+      thinking: reasoning ? { content: reasoning } : undefined,
+      providerMetadata: { apiFormat: 'anthropic', content: native.content as unknown as Record<string, unknown>[] },
+      toolCalls: toolCalls.length ? toolCalls : undefined,
     },
+    finishReason: native.stop_reason,
     usage: {
-      promptTokens: openaiResponse.usage.prompt_tokens,
-      completionTokens: openaiResponse.usage.completion_tokens,
-      totalTokens: openaiResponse.usage.total_tokens,
+      promptTokens,
+      completionTokens: native.usage.output_tokens,
+      totalTokens: promptTokens + native.usage.output_tokens,
     },
   };
 }
@@ -248,20 +172,9 @@ export async function callGeminiCompletion(
   options: CompletionOptions,
   logger: Logger
 ): Promise<CompletionResult> {
-  // Build Gemini request format
-  // Convert messages to Gemini contents format
-  const contents: Array<{ role: string; parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> }> = [];
-  let systemInstruction: { parts: Array<{ text: string }> } | undefined;
-
-  for (const msg of options.messages) {
-    if (msg.role === 'system') {
-      // Gemini uses systemInstruction for system messages
-      systemInstruction = { parts: [{ text: msg.content }] };
-    } else {
-      // Use convertMessageToGemini for proper image handling
-      contents.push(convertMessageToGemini(msg));
-    }
-  }
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
+  const { contents, systemInstruction } = convertMessagesToGemini(options.messages);
 
   const thinkingConfig = buildGeminiThinkingConfig(provider, options);
   const request: Record<string, unknown> = {
@@ -280,6 +193,7 @@ export async function callGeminiCompletion(
   // Build non-streaming URL
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
   const headers = getProviderHeaders(provider, apiKey);
+  if (options.nativeSearchAugmentation) applyAugmentation(request, options.nativeSearchAugmentation);
 
   logger.info('Calling Gemini completion API', { url: apiUrl, model: options.model });
 
@@ -309,14 +223,17 @@ export async function callGeminiCompletion(
   }
 
   const candidate = candidates[0];
+  if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
+    return { success: false, error: `Gemini generation stopped: ${candidate.finishReason}` };
+  }
   const content = candidate.content;
   let textContent = '';
+  let reasoning = '';
 
   if (content?.parts) {
     for (const part of content.parts) {
-      if (part.text) {
-        textContent += part.text;
-      }
+      if (part.thought === true && part.text) reasoning += part.text;
+      else if (part.text) textContent += part.text;
     }
   }
 
@@ -330,11 +247,15 @@ export async function callGeminiCompletion(
       role: 'assistant',
       content: textContent,
       timestamp: Date.now(),
+      thinking: reasoning ? { content: reasoning } : undefined,
+      providerMetadata: { apiFormat: 'google', content: content?.parts ?? [] },
+      images: content?.parts?.filter((part: { inlineData?: { mimeType?: string; data?: string } }) => part.inlineData?.mimeType?.startsWith('image/') && part.inlineData.data)
+        .map((part: { inlineData: { mimeType: string; data: string } }) => ({ mimeType: part.inlineData.mimeType, url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` })),
     },
     usage: usage ? {
       promptTokens: usage.promptTokenCount || 0,
-      completionTokens: usage.candidatesTokenCount || 0,
-      totalTokens: usage.totalTokenCount || 0,
+      completionTokens: (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0),
+      totalTokens: usage.totalTokenCount ?? ((usage.promptTokenCount ?? 0) + (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0)),
     } : undefined,
   };
 }
@@ -349,15 +270,10 @@ export async function callOpenAIResponseCompletion(
   options: CompletionOptions,
   logger: Logger
 ): Promise<CompletionResult> {
+  const redirected = resolveCompletionModel(provider, options);
+  if (redirected) ({ provider, options } = redirected);
   // Convert messages to Response API input format
-  const input: Array<Record<string, unknown>> = [];
-  for (const msg of options.messages) {
-    if (msg.role === 'system') {
-      input.push({ role: 'developer', content: msg.content });
-    } else {
-      input.push({ role: msg.role, content: msg.content });
-    }
-  }
+  const input = convertMessagesToResponses(options.messages);
 
   const request: Record<string, unknown> = {
     model: options.model,
@@ -377,6 +293,7 @@ export async function callOpenAIResponseCompletion(
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
   const headers = getProviderHeaders(provider, apiKey);
+  if (options.nativeSearchAugmentation) applyAugmentation(request, options.nativeSearchAugmentation);
 
   logger.info('Calling OpenAI Response API', { url: apiUrl, model: options.model });
 
@@ -395,9 +312,14 @@ export async function callOpenAIResponseCompletion(
   }
 
   const data = await response.json() as Record<string, unknown>;
+  if (data.error || data.status === 'failed') {
+    return { success: false, error: JSON.stringify(data.error ?? 'Response failed') };
+  }
 
   // Extract text from response output
   let textContent = '';
+  let reasoning = '';
+  const toolCalls: NonNullable<NonNullable<CompletionResult['message']>['toolCalls']> = [];
   const output = data.output as Array<Record<string, unknown>> | undefined;
   if (output) {
     for (const item of output) {
@@ -410,6 +332,12 @@ export async function callOpenAIResponseCompletion(
             }
           }
         }
+      }
+      if (item.type === 'reasoning') {
+        for (const part of (item.summary ?? []) as Array<{ text?: string }>) reasoning += part.text ?? '';
+      }
+      if (item.type === 'function_call') {
+        toolCalls.push({ id: String(item.call_id), name: String(item.name), args: JSON.parse(String(item.arguments || '{}')) });
       }
     }
   }
@@ -424,6 +352,9 @@ export async function callOpenAIResponseCompletion(
       role: 'assistant',
       content: textContent,
       timestamp: Date.now(),
+      thinking: reasoning ? { content: reasoning } : undefined,
+      providerMetadata: { apiFormat: 'openai-response', content: output ?? [] },
+      toolCalls: toolCalls.length ? toolCalls : undefined,
     },
     usage: usage ? {
       promptTokens: usage.input_tokens || 0,

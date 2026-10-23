@@ -332,10 +332,6 @@ describe('builtin contributions', () => {
   it('declares source, kind and capabilities explicitly, with no ordering hint', () => {
     const contributions = builtinHttpSearchContributions();
 
-    expect(contributions.map((contribution) => contribution.id)).toEqual([
-      'http-bing',
-      'http-duckduckgo',
-    ]);
     for (const contribution of contributions) {
       expect(contribution.source).toBe('builtin');
       expect(contribution.kind).toBe('http');

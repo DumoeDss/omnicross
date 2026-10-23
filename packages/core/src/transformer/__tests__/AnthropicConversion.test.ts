@@ -19,6 +19,8 @@ import {
   transformAnthropicRequestToUnified,
 } from '../transformers/AnthropicConversion';
 import type { UnifiedChatRequest } from '../types';
+import { buildRequestBody as buildGeminiRequestBody } from '../transformers/utils/gemini.util';
+import { transformResponseOut as decodeGeminiResponse } from '../transformers/utils/gemini.stream';
 
 // ---------------------------------------------------------------------------
 // convertAnthropicResponseToOpenAI
@@ -96,20 +98,10 @@ describe('convertAnthropicResponseToOpenAI', () => {
     expect(result.choices[0].finish_reason).toBe('tool_calls');
   });
 
-  it('maps server_tool_use blocks to tool_calls', () => {
-    const result = convertAnthropicResponseToOpenAI({
-      id: 'msg_s',
-      model: 'claude-sonnet-4',
-      content: [
-        { type: 'server_tool_use', id: 'srv_1', name: 'web_search', input: { query: 'ai' } },
-      ],
-      stop_reason: 'tool_use',
-      usage: { input_tokens: 3, output_tokens: 1 },
-    });
-
-    expect(result.choices[0].message.tool_calls).toEqual([
-      { id: 'srv_1', type: 'function', function: { name: 'web_search', arguments: '{"query":"ai"}' } },
-    ]);
+  it('does not turn a provider-executed server tool into a client tool call', () => {
+    expect(() => convertAnthropicResponseToOpenAI({
+      content: [{ type: 'server_tool_use', id: 'srv_1', name: 'web_search', input: { query: 'ai' } }],
+    })).toThrow('Unsupported Anthropic response block: server_tool_use');
   });
 
   it('preserves thinking block on the message', () => {
@@ -127,6 +119,7 @@ describe('convertAnthropicResponseToOpenAI', () => {
     expect(result.choices[0].message.thinking).toEqual({
       content: 'reasoning here',
       signature: 'sig_abc',
+      blocks: [{ type: 'thinking', thinking: 'reasoning here', signature: 'sig_abc' }],
     });
   });
 
@@ -192,29 +185,10 @@ describe('convertOpenAIResponseToAnthropic', () => {
     expect(result.stop_reason).toBe('tool_use');
   });
 
-  it('falls back to {text: arguments} when arguments JSON is invalid', () => {
-    const result = convertOpenAIResponseToAnthropic({
-      id: 'c3',
-      model: 'm',
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: null,
-          tool_calls: [
-            { id: 'c', type: 'function', function: { name: 'n', arguments: 'not-json' } },
-          ],
-        },
-        finish_reason: 'tool_calls',
-      }],
-    });
-
-    expect(result.content).toContainEqual({
-      type: 'tool_use',
-      id: 'c',
-      name: 'n',
-      input: { text: 'not-json' },
-    });
+  it('rejects invalid tool arguments rather than fabricating a different tool input', () => {
+    expect(() => convertOpenAIResponseToAnthropic({
+      choices: [{ message: { tool_calls: [{ id: 'c', function: { name: 'n', arguments: 'not-json' } }] } }],
+    })).toThrow('Invalid JSON arguments');
   });
 
   // thinking MUST be first in the Anthropic content array — the API enforces
@@ -283,6 +257,42 @@ describe('transformAnthropicRequestToUnified', () => {
     expect(result.messages[0]).toEqual({ role: 'system', content: 'You are helpful.' });
   });
 
+  it('preserves in-message system instructions alongside the top-level system prompt', () => {
+    const inline = { type: 'text', text: 'Additional instructions.', cache_control: { type: 'ephemeral' } };
+    const result = transformAnthropicRequestToUnified({
+      model: 'deepseek-flash',
+      max_tokens: 4096,
+      system: 'Primary instructions.',
+      messages: [
+        { role: 'user', content: 'Run the task.' },
+        { role: 'system', content: [inline] },
+        { role: 'system', content: 'Final instructions.' },
+      ],
+    });
+    expect(result.messages).toEqual([
+      { role: 'system', content: 'Primary instructions.' },
+      { role: 'user', content: 'Run the task.' },
+      { role: 'system', content: [inline] },
+      { role: 'system', content: 'Final instructions.' },
+    ]);
+    expect(buildAnthropicRequestBody(result)).toMatchObject({
+      system: [
+        { type: 'text', text: 'Primary instructions.' },
+        inline,
+        { type: 'text', text: 'Final instructions.' },
+      ],
+      messages: [{ role: 'user', content: 'Run the task.' }],
+    });
+  });
+
+  it('rejects tool calls inside in-message system instructions', () => {
+    expect(() => transformAnthropicRequestToUnified({
+      model: 'deepseek-flash',
+      max_tokens: 4096,
+      messages: [{ role: 'system', content: [{ type: 'tool_use', id: 'call_1', name: 'read', input: {} }] }],
+    })).toThrow('Anthropic system messages only support text');
+  });
+
   it('converts user tool_result to role:tool messages', () => {
     const result = transformAnthropicRequestToUnified({
       model: 'claude',
@@ -305,10 +315,7 @@ describe('transformAnthropicRequestToUnified', () => {
     });
   });
 
-  it('flattens a BLOCK-ARRAY tool_result to text (Claude Code sends this shape)', () => {
-    // Claude Code returns tool results as content blocks far more often than as
-    // a bare string. Stringifying made the upstream model read the literal
-    // `[{"type":"text","text":"…"}]` envelope on every single tool result.
+  it('preserves tool-result text blocks through a complete round trip', () => {
     const result = transformAnthropicRequestToUnified({
       model: 'claude',
       max_tokens: 1024,
@@ -329,14 +336,14 @@ describe('transformAnthropicRequestToUnified', () => {
       ],
     });
 
-    const toolMsg = result.messages.find((m) => m.role === 'tool')!;
-    expect(toolMsg.content).toBe('line one\nline two');
-    expect(typeof toolMsg.content).toBe('string');
+    expect(buildAnthropicRequestBody(result).messages).toEqual([
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool_1', content: [
+        { type: 'text', text: 'line one' }, { type: 'text', text: 'line two' },
+      ] }] },
+    ]);
   });
 
-  it('replaces an image block in a tool_result with a placeholder, not base64', () => {
-    // A chat `tool` message cannot carry image parts; dumping the base64 into
-    // the prompt is worse than saying an image was there.
+  it('preserves screenshot tool results as images rather than placeholders', () => {
     const result = transformAnthropicRequestToUnified({
       model: 'claude',
       max_tokens: 1024,
@@ -357,9 +364,12 @@ describe('transformAnthropicRequestToUnified', () => {
       ],
     });
 
-    const toolMsg = result.messages.find((m) => m.role === 'tool')!;
-    expect(toolMsg.content).toBe('screenshot taken\n[image omitted]');
-    expect(toolMsg.content).not.toContain('iVBORw0KGgo');
+    expect(buildAnthropicRequestBody(result).messages).toEqual([
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool_1', content: [
+        { type: 'text', text: 'screenshot taken' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo…' } },
+      ] }] },
+    ]);
   });
 
   it('converts assistant tool_use to tool_calls', () => {
@@ -398,8 +408,9 @@ describe('transformAnthropicRequestToUnified', () => {
       ],
     });
 
-    const assistant = result.messages.find(m => m.role === 'assistant')!;
-    expect(assistant.thinking).toEqual({ content: 'reasoning', signature: undefined });
+    expect(buildAnthropicRequestBody(result).messages).toEqual([
+      { role: 'assistant', content: [{ type: 'thinking', thinking: 'reasoning' }, { type: 'text', text: 'reply' }] },
+    ]);
   });
 
   it('maps tool_choice type "tool" to function tool_choice', () => {
@@ -442,14 +453,13 @@ describe('transformAnthropicRequestToUnified', () => {
     });
     expect(disabled.reasoning).toEqual({ effort: 'none', enabled: false });
 
-    const malformed = transformAnthropicRequestToUnified({
+    expect(() => transformAnthropicRequestToUnified({
       model: 'claude',
       max_tokens: 1024,
       messages: [],
       thinking: { type: 'adaptive' },
       output_config: { effort: 'turbo' },
-    });
-    expect(malformed.reasoning).toBeUndefined();
+    })).toThrow('Unsupported Anthropic effort');
   });
 });
 
@@ -639,7 +649,7 @@ describe('buildAnthropicRequestBody', () => {
       reasoning_effort: 'xhigh',
     });
     expect(body.thinking).toEqual({ type: 'adaptive' });
-    expect(body.output_config).toEqual({ effort: 'xhigh' });
+    expect(body.output_config).toEqual({ effort: 'max' });
   });
 
   it('honors and clamps explicit legacy budgets against provider bounds', () => {
@@ -810,7 +820,7 @@ describe('buildAnthropicRequestBody', () => {
   });
 
   it('does not override a provider declaration that excludes disabled thinking', () => {
-    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody({
+    expect(() => buildAnthropicRequestBody({
       model: 'claude-sonnet-4-6',
       messages: [{ role: 'user', content: 'hi' }],
       reasoning: { effort: 'none', enabled: false },
@@ -819,10 +829,7 @@ describe('buildAnthropicRequestBody', () => {
         id: 'claude-sonnet-4-6',
         thinkingLevels: ['low', 'high'],
       }],
-    })));
-
-    expect(wire).not.toHaveProperty('thinking');
-    expect(wire).not.toHaveProperty('output_config');
+    })).toThrow();
   });
 
   it('converts image_url data URIs to Anthropic image source', () => {
@@ -847,5 +854,137 @@ describe('buildAnthropicRequestBody', () => {
       type: 'image',
       source: { type: 'base64', media_type: 'image/png', data: 'abc123' },
     });
+  });
+});
+
+describe('reasoning and parallel tool replay', () => {
+  it('preserves native Chat reasoning into Claude and the next parallel tool-result turn', () => {
+    const response = convertOpenAIResponseToAnthropic({
+      id: 'deepseek-turn', model: 'deepseek-flash',
+      choices: [{ message: {
+        role: 'assistant', reasoning_content: 'Compare both cities.', content: null,
+        tool_calls: [
+          { id: 'a', function: { name: 'weather', arguments: '{"city":"A"}' } },
+          { id: 'b', function: { name: 'weather', arguments: '{"city":"B"}' } },
+        ],
+      }, finish_reason: 'tool_calls' }],
+    });
+    expect(response.content).toEqual([
+      { type: 'thinking', thinking: 'Compare both cities.' },
+      { type: 'tool_use', id: 'a', name: 'weather', input: { city: 'A' } },
+      { type: 'tool_use', id: 'b', name: 'weather', input: { city: 'B' } },
+    ]);
+    const messages = [
+      { role: 'assistant', content: response.content },
+      { role: 'user', content: [
+        { type: 'tool_result', tool_use_id: 'a', content: 'sunny' },
+        { type: 'tool_result', tool_use_id: 'b', content: 'timeout', is_error: true },
+      ] },
+    ];
+    const replay = buildAnthropicRequestBody(transformAnthropicRequestToUnified({
+      model: 'claude', messages,
+    }));
+    expect(replay.messages).toEqual(messages);
+  });
+
+  it('round-trips multiple signed and redacted response blocks without embedding signatures in text', () => {
+    const content = [
+      { type: 'thinking', thinking: 'one', signature: 'opaque-1' },
+      { type: 'redacted_thinking', data: 'encrypted' },
+      { type: 'thinking', thinking: 'two', signature: 'opaque-2' },
+      { type: 'text', text: 'answer' },
+    ];
+    const unified = convertAnthropicResponseToOpenAI({ content, stop_reason: 'end_turn' });
+    expect(convertOpenAIResponseToAnthropic(unified).content).toEqual(content);
+  });
+
+  it('retains every system instruction and explicit tool-choice restrictions', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude', messages: [
+        { role: 'system', content: 'first' }, { role: 'system', content: 'second' },
+        { role: 'user', content: 'hello' },
+      ], tool_choice: 'none',
+    });
+    expect(body.system).toEqual([{ type: 'text', text: 'first' }, { type: 'text', text: 'second' }]);
+    expect(body.tool_choice).toEqual({ type: 'none' });
+    const decoded = transformAnthropicRequestToUnified({
+      model: 'claude', messages: [], tool_choice: { type: 'any', disable_parallel_tool_use: true },
+    });
+    expect(decoded.tool_choice).toBe('required');
+    expect(decoded.parallel_tool_calls).toBe(false);
+  });
+
+  it('rejects unrepresentable request content instead of deleting it', () => {
+    expect(() => transformAnthropicRequestToUnified({
+      model: 'claude', messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'file', file_id: 'f' } }] }],
+    })).toThrow('Unsupported Anthropic content block: document');
+  });
+});
+
+describe('Anthropic native capabilities', () => {
+  it('retains completed server search sources without asking the client to execute the search', () => {
+    const result = convertAnthropicResponseToOpenAI({
+      content: [
+        { type: 'server_tool_use', id: 's', name: 'web_search', input: { query: 'weather' } },
+        { type: 'web_search_tool_result', tool_use_id: 's', content: [
+          { type: 'web_search_result', title: 'Weather', url: 'https://example.com/weather', encrypted_content: 'opaque' },
+        ] },
+        { type: 'text', text: 'Sunny.', citations: [{ type: 'web_search_result_location', title: 'Weather', url: 'https://example.com/weather' }] },
+      ],
+      stop_reason: 'end_turn',
+    });
+    expect(result.choices[0].message.content).toContain('[Weather](https://example.com/weather)');
+    expect(result.choices[0].message.content).toContain('Sunny.');
+    expect(result.choices[0].message.content).not.toContain('opaque');
+    expect(result.choices[0].message.tool_calls).toBeUndefined();
+  });
+
+  it('replays provider-defined client tools without inventing their JSON schemas', () => {
+    const tools = [{ type: 'computer_20250124', name: 'computer', display_width_px: 1024, display_height_px: 768 }];
+    const request = transformAnthropicRequestToUnified({ model: 'claude', messages: [], tools });
+    expect(buildAnthropicRequestBody(request).tools).toEqual(tools);
+  });
+
+  it('negotiates MiniMax adaptive thinking without unsupported effort and retains explicit disabled', () => {
+    expect(buildAnthropicRequestBody({
+      model: 'MiniMax-M3', messages: [], reasoning: { effort: 'high', enabled: true },
+    })).toMatchObject({ thinking: { type: 'adaptive' } });
+    expect(buildAnthropicRequestBody({
+      model: 'MiniMax-M3', messages: [], reasoning: { effort: 'high', enabled: true },
+    })).not.toHaveProperty('output_config');
+    expect(buildAnthropicRequestBody({
+      model: 'MiniMax-M3', messages: [], reasoning: { effort: 'none', enabled: false },
+    }).thinking).toEqual({ type: 'disabled' });
+  });
+});
+
+describe('foreign signature gateway extensions', () => {
+  it('replays Gemini signed parts after a Claude client echoes extended content and returns parallel tool results', async () => {
+    const parts = [
+      { text: 'Compare cities.', thought: true, thoughtSignature: 'google-thought' },
+      { functionCall: { id: 'a', name: 'weather', args: { city: 'A' } }, thoughtSignature: 'google-tool-a' },
+      { functionCall: { id: 'b', name: 'weather', args: { city: 'B' } }, thoughtSignature: 'google-tool-b' },
+    ];
+    const unifiedResponse = await decodeGeminiResponse(Response.json({
+      candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP' }],
+    }), 'google');
+    const claude = convertOpenAIResponseToAnthropic(await unifiedResponse.json());
+    const echoed = JSON.parse(JSON.stringify(claude.content));
+    const next = transformAnthropicRequestToUnified({
+      model: 'gemini-3.1-pro-preview',
+      messages: [
+        { role: 'assistant', content: echoed },
+        { role: 'user', content: [
+          { type: 'tool_result', tool_use_id: 'a', content: 'sunny' },
+          { type: 'tool_result', tool_use_id: 'b', content: 'rainy' },
+        ] },
+      ],
+    });
+    const wire = buildGeminiRequestBody(next);
+    expect(wire.contents[0]).toEqual({ role: 'model', parts });
+    expect(JSON.stringify(wire.contents)).toContain('"functionResponse"');
+    expect(echoed.filter((block: { type: string }) => block.type === 'thinking')).toEqual([
+      { type: 'thinking', thinking: 'Compare cities.', extra_content: { google: { parts } } },
+    ]);
   });
 });

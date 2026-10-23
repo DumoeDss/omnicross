@@ -11,7 +11,7 @@
  * ids; it is not a second model registry.
  */
 
-import { lookupCanonicalCapabilities } from './canonical-models';
+import { lookupCanonicalCapabilities, normalizeModelId } from './canonical-models';
 import type { ThinkLevel } from './completion-types';
 import type { ModelConfig } from './llm-config';
 
@@ -90,7 +90,6 @@ export const LEGACY_THINKING_TOKEN_LIMITS: Record<string, { min: number; max: nu
   'deepseek-flash': { min: 0, max: 32768 },
   'deepseek-v4-flash': { min: 0, max: 32768 },
   'deepseek-r1': { min: 0, max: 32768 },
-  'deepseek-reasoner': { min: 0, max: 32768 },
 
   // Baichuan
   'baichuan-m2': { min: 0, max: 30000 },
@@ -124,11 +123,11 @@ export const REASONING_MODEL_PATTERNS: RegExp[] = [
   /gemini-4(?:[.-]|$)/i,
   /^o[134](-mini|-preview|-pro)?$/i,
   /^gpt-5(\.\d)?(-pro|-codex|-codex-max)?/i,
-  /claude.*3[.-]?5.*sonnet|claude.*sonnet.*3[.-]?5|claude-sonnet-4|claude-opus-4|claude-(haiku|sonnet|opus)-4[.-]?5/i,
+  /claude.*3[.-]?7.*sonnet|claude.*sonnet.*3[.-]?7|claude-sonnet-4|claude-opus-4|claude-(haiku|sonnet|opus)-4[.-]?5/i,
   /gemini.*(2\.0|2-|2\.5|3).*flash|gemini.*(2\.5|3).*pro|gemini.*think/i,
   /grok-3/i,
   /qwq|qwen.*qwq|qwen.*thinking/i,
-  /deepseek-v4|deepseek.*r1|r1.*deepseek|deepseek-reasoner/i,
+  /deepseek-v4|deepseek.*r1|r1.*deepseek/i,
   /glm.*zero/i,
   /hunyuan.*t1/i,
   /doubao.*think/i,
@@ -141,6 +140,8 @@ export const CANNOT_DISABLE_THINKING_PATTERNS: RegExp[] = [
   /gemini.*3.*pro/i,
   /gemini.*2\.5.*pro/i,
   /^o1-pro$/i,
+  /^glm-5\.3(?:-flash)?$/i,
+  /^minimax-m2(?:[.-]|$)/i,
 ];
 
 // ============================================================================
@@ -150,13 +151,18 @@ export const CANNOT_DISABLE_THINKING_PATTERNS: RegExp[] = [
 /** Whether the model supports thinking/reasoning. */
 export function isReasoningModel(modelId: string): boolean {
   if (!modelId) return false;
+  const capabilities = lookupCanonicalCapabilities(modelId);
+  if (capabilities?.reasoning !== undefined) return capabilities.reasoning;
   return REASONING_MODEL_PATTERNS.some((pattern) => pattern.test(modelId));
 }
 
 /** Whether the model can disable thinking. */
 export function canDisableThinking(modelId: string): boolean {
   if (!modelId) return true;
-  return !CANNOT_DISABLE_THINKING_PATTERNS.some((pattern) => pattern.test(modelId));
+  const levels = lookupCanonicalCapabilities(modelId)?.thinkingLevels;
+  if (levels?.length) return levels.includes('none');
+  const normalized = normalizeModelId(modelId);
+  return !CANNOT_DISABLE_THINKING_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 /**
@@ -210,13 +216,7 @@ export function calculateThinkingBudget(
   level: ThinkLevel,
   userMaxTokens?: number,
 ): number | undefined {
-  if (level === 'none') {
-    const tokenLimit = findTokenLimit(modelId);
-    if (tokenLimit && tokenLimit.min > 0) {
-      return tokenLimit.min;
-    }
-    return undefined;
-  }
+  if (level === 'none') return undefined;
 
   const tokenLimit = findTokenLimit(modelId);
   const ratio = EFFORT_RATIO[level];
@@ -239,16 +239,12 @@ export function calculateThinkingBudget(
   return formulaResult;
 }
 
-/** Claude max_tokens after subtracting the thinking budget. */
+/** Anthropic max_tokens includes thinking and final output; never subtract twice. */
 export function getClaudeMaxTokens(
   userMaxTokens: number | undefined,
-  thinkingBudget: number | undefined,
+  _thinkingBudget: number | undefined,
 ): number | undefined {
-  if (!userMaxTokens) return undefined;
-  if (!thinkingBudget) return userMaxTokens;
-
-  const outputTokens = userMaxTokens - thinkingBudget;
-  return outputTokens > 0 ? outputTokens : undefined;
+  return userMaxTokens;
 }
 
 /**
@@ -308,12 +304,14 @@ export function buildAnthropicThinking(
     return undefined;
   }
 
-  const budget = calculateThinkingBudget(modelId, level, userMaxTokens);
-  if (!budget || budget < 1024) {
-    return { type: 'enabled', budget_tokens: 1024 };
+  if (userMaxTokens !== undefined && userMaxTokens <= 1024) {
+    throw new Error('Anthropic thinking requires max_tokens greater than 1024');
   }
-
-  return { type: 'enabled', budget_tokens: budget };
+  const budget = Math.max(1024, calculateThinkingBudget(modelId, level, userMaxTokens) ?? 1024);
+  return {
+    type: 'enabled',
+    budget_tokens: userMaxTokens === undefined ? budget : Math.min(budget, Math.floor(userMaxTokens) - 1),
+  };
 }
 
 /** Qwen/DeepSeek enable_thinking config builder. */

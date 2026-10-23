@@ -89,6 +89,10 @@ export function chatUsageToResponsesUsage(
   if (cacheRead > 0) {
     out.input_tokens_details = { cached_tokens: cacheRead };
   }
+  const reasoning = (usage.completion_tokens_details as Record<string, unknown> | undefined)?.reasoning_tokens;
+  if (typeof reasoning === 'number' && Number.isFinite(reasoning)) {
+    out.output_tokens_details = { reasoning_tokens: reasoning };
+  }
   return out;
 }
 
@@ -111,6 +115,10 @@ export function responsesUsageToChatUsage(
   const cacheRead = detailCachedTokens(usage, 'input_tokens_details');
   if (cacheRead > 0) {
     out.prompt_tokens_details = { cached_tokens: cacheRead };
+  }
+  const reasoning = (usage.output_tokens_details as Record<string, unknown> | undefined)?.reasoning_tokens;
+  if (typeof reasoning === 'number' && Number.isFinite(reasoning)) {
+    out.completion_tokens_details = { reasoning_tokens: reasoning };
   }
   return out;
 }

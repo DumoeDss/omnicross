@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Hitelesítési mód",
+      "public": "Nyilvános (korlátozott, kulcs nélkül)",
+      "api": "API (kulcs szükséges)",
+      "description": "A nyilvános hozzáférés korlátozott és nem mindig elérhető. Az API mód kulcsot igényel, és nem vált nyilvános módra.",
+      "missingKey": "Az API módhoz kulcs szükséges: {{providers}}",
+      "enableHint": "Engedélyezze a nyilvános módot, vagy válassza az API-t és adjon meg kulcsot."
+    },
+    "providerDescription": {
+      "keyed": "Hivatalos, kulcsos API; az elérhetőség, számlázás és korlátok a szolgáltatói fióktól függenek.",
+      "keyRequired": "API-kulcs szükséges.",
+      "publicApi": "Korlátozott nyilvános hozzáférés vagy kulcsos API; ingyenes keret nem garantált.",
+      "ollama": "Az Ollama keresési API kulcsot igényel; az egyéni kiszolgáló nem jelent kulcs nélküli helyi keresést."
+    },
+    "http": {
+      "aggregateDescription": "Az engedélyezett és házirend szerint megengedett nyilvános HTTP-motorokat egyesíti. Külön bekapcsolást igényel; az eredmény nem garantált."
+    },
     "title": "Keresésszolgáltatók",
     "description": "A webes keresés futásidejű beállításai: szolgáltatói hitelesítő adatok, tartalék irányelv, kimenő hálózati forgalom és végrehajtási módok frontendenként.",
     "unsupportedDaemon": "A démon e verziója nem támogatja a keresési beállítási szekciót.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Szolgáltatók",
       "tavily": {
-        "description": "Kereső-API bőkezű ingyenes kvótával; kulcs szükséges."
+        "description": "Keresési API; kulcs szükséges. A keretek és a számlázás a szolgáltatótól függnek."
       },
       "jina": {
         "description": "Kulcs nélkül is használható keresés; a kulcs emeli a limiteket."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Kulcs nélküli motor, mindig elérhető. Nem igényel beállítást."
+      "description": "Nyilvános HTTP-keresés kulcs nélkül; blokkolható, korlátozható vagy elérhetetlen lehet."
     },
     "status": {
       "ready": "Kész",
@@ -943,6 +960,9 @@
       "deepseek": "Adjon meg egy kulcsot, használja újra egy DeepSeek-szolgáltató kulcsát, vagy állítson be egyet a Szolgáltatók alatt."
     },
     "field": {
+      "enabled": "Engedélyezve",
+      "model": "Modell",
+      "modelPlaceholder": "Opcionális; üresen a szolgáltató alapértéke",
       "apiKey": "API-kulcs",
       "apiKeyPlaceholder": "Üresen hagyva megőrzi a tárolt kulcsot",
       "apiKeyNew": "Adja meg az API-kulcsot",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Havi",
       "codexRefreshConfirmTitle": "Frissíti ezt a keretet a Luna használatával?",
       "codexRefreshConfirmDescription": "Valós kérés lesz elküldve a gpt-5.6-luna modellnek ezzel a Codex-fiókkal a legfrissebb keret lekéréséhez. Ez felhasznál egy kis részt az előfizetési keretből. Folytatja?",

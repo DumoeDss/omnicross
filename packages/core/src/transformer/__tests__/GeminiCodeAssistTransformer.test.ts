@@ -15,6 +15,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { GeminiCodeAssistTransformer } from '../transformers/GeminiCodeAssistTransformer';
+import { AntigravityTransformer } from '../transformers/AntigravityTransformer';
+import { unwrapCcaResponse } from '../transformers/ccaEnvelope';
 import { buildRequestBody } from '../transformers/utils/gemini.util';
 import type { LLMProvider, TransformerContext, UnifiedChatRequest } from '../types';
 
@@ -163,4 +165,86 @@ describe('GeminiCodeAssistTransformer.transformResponseOut (envelope unwrap)', (
     expect(text).toContain('"content":"world"');
     expect(text).toContain('chat.completion.chunk');
   });
+
+  it('decodes fragmented CRLF and multiline SSE events without joining separate events', async () => {
+    const text = 'data: {"response":\r\ndata: {"candidates":[{"content":{"parts":[{"text":"你好"}]}}]}}\r\n\r\n' +
+      'data: {"response":{"candidates":[{"content":{"parts":[{"text":"!"}]},"finishReason":"STOP"}]}}\r\n\r\n';
+    const bytes = new TextEncoder().encode(text);
+    const upstream = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let index = 0; index < bytes.length; index++) controller.enqueue(bytes.slice(index, index + 1));
+        controller.close();
+      },
+    }), { headers: { 'Content-Type': 'text/event-stream' } });
+    const result = await new GeminiCodeAssistTransformer().transformResponseOut(upstream, ctx);
+    const events = (await result.text()).split('\n\n').filter((event) => event.startsWith('data: {'));
+    const content = events.flatMap((event) => JSON.parse(event.slice(6)).choices ?? [])
+      .map((choice) => choice.delta?.content ?? '').join('');
+    expect(content).toBe('你好!');
+  });
+
+  it('preserves event boundaries for consumers that parse complete SSE frames', async () => {
+    const upstream = new Response('data: {"response":{"candidates":[]}}\n\n' +
+      'data: {"response":{"usageMetadata":{"totalTokenCount":7}}}\n\n', {
+      headers: { 'Content-Type': 'text/event-stream', 'Content-Length': '999' },
+    });
+    const decoded = await unwrapCcaResponse(upstream);
+    const events = (await decoded.text()).trim().split('\n\n');
+    expect(events.map((event) => JSON.parse(event.slice(6)))).toEqual([
+      { candidates: [] }, { usageMetadata: { totalTokenCount: 7 } },
+    ]);
+    expect(decoded.headers.has('content-length')).toBe(false);
+  });
+
+  it('rejects malformed JSON instead of turning it into a successful empty response', async () => {
+    const transformer = new GeminiCodeAssistTransformer();
+    await expect(transformer.transformResponseOut(new Response('{broken', {
+      headers: { 'Content-Type': 'application/json' },
+    }), ctx)).rejects.toThrow();
+    await expect(transformer.transformResponseOut(Response.json({ response: null }), ctx))
+      .rejects.toThrow('Invalid Code Assist response envelope');
+  });
+
+  it('keeps an outer error even when a response key is present', async () => {
+    const error = { code: 403, status: 'PERMISSION_DENIED', message: 'project access denied' };
+    const response = await unwrapCcaResponse(Response.json({ error, response: {} }, { status: 403 }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error, response: {} });
+  });
+
+  it('wraps endpoint SSE responses so they can be consumed as Code Assist events', async () => {
+    const transformer = new GeminiCodeAssistTransformer();
+    const input = [
+      { id: 'r', model: 'gemini-2.5-pro', choices: [{ index: 0, delta: { role: 'assistant', content: 'Hello' }, finish_reason: null }] },
+      { id: 'r', model: 'gemini-2.5-pro', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] },
+    ].map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+    const encoded = await transformer.transformResponseIn(new Response(input, {
+      headers: { 'Content-Type': 'text/event-stream' },
+    }), ctx);
+    const events = (await encoded.text()).split('\n\n').filter((event) => event.startsWith('data: {'))
+      .map((event) => JSON.parse(event.slice(6)));
+    expect(events.length).toBeGreaterThan(0);
+    const text = events.flatMap((event) => event.response.candidates ?? [])
+      .flatMap((candidate) => candidate.content?.parts ?? []).map((part) => part.text ?? '').join('');
+    expect(text).toBe('Hello');
+  });
+
+  it.each([GeminiCodeAssistTransformer, AntigravityTransformer])(
+    'surfaces nested JSON and SSE errors instead of successful empty completions (%s)',
+    async (TransformerClass) => {
+      const transformer = new TransformerClass();
+      const error = { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'quota exhausted' };
+      const json = await transformer.transformResponseOut(Response.json({ response: { error } }), ctx);
+      expect(await json.json()).toEqual({ error });
+      const stream = await transformer.transformResponseOut(new Response(
+        `data: ${JSON.stringify({ response: { error } })}\n\n`,
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      ), ctx);
+      const text = await stream.text();
+      expect(text).toContain('"error"');
+      expect(text).toContain('quota exhausted');
+      expect(text).not.toContain('chat.completion.chunk');
+      expect(text).not.toContain('[DONE]');
+    },
+  );
 });

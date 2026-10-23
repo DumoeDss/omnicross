@@ -82,6 +82,7 @@ flowchart LR
 - **Streaming-native proxy** — a resident in-process proxy relays SSE streams verbatim where formats match, and re-encodes them where they don't.
 - **Code CLI launcher** — start `claude` / `codex` / `gemini` / `qwen` / `copilot` / `opencode` against a local proxy so a CLI session can run on **any** provider or subscription you've configured.
 - **Codex session provider migration** — inspect a project's Codex rollouts and move selected sessions between providers while keeping JSONL and `state_5.sqlite` synchronized; see [`docs/codex-session-provider-switch.md`](docs/codex-session-provider-switch.md).
+- **Search providers** — opt into Exa/Parallel public MCP, Firecrawl keyless REST, additional keyed search APIs and policy-bounded HTTP aggregation. Public and API authentication modes stay distinct; see [search providers](docs/search-providers.md).
 - **Host-agnostic & typed** — pure Node + TypeScript, dependency-light contract types published separately, zero coupling to any host app.
 
 ## 📦 Layout

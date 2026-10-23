@@ -172,11 +172,6 @@ function messageEnvelope(
   return { role: message.role, content: inputContent(message.content, images, budget) };
 }
 
-/** The read-only capability warning Codex renders for browser-only turns. */
-export function chatGptReadOnlyContextWarning(route: ChatGptWebModelRoute): string {
-  const label = route.adapterEffort === 'max' ? 'ChatGPT Pro' : `ChatGPT Web ${route.displayName}`;
-  return `> **Local tools unavailable**\n>\n> \`${label}\` cannot access the local Codex computer in this turn. It receives the complete accumulated task context, including earlier tool results or their compaction summary and attachments, but it cannot read or modify local files further. ChatGPT-native capabilities such as web search remain available when the product provides them.`;
-}
 
 export interface CompileChatGptWebPromptOptions {
   /**

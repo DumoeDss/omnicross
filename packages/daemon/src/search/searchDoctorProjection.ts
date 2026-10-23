@@ -27,6 +27,8 @@ import type {
   SearchTransportKind,
 } from '@omnicross/contracts/search-types';
 import {
+  ADDITIONAL_API_CAPABILITIES,
+  ADDITIONAL_API_PROVIDER_IDS,
   DEEPSEEK_CAPABILITIES,
   JINA_CAPABILITIES,
   SEARXNG_CAPABILITIES,
@@ -117,6 +119,24 @@ const API_DOCTOR_PROVIDERS: ReadonlyArray<{
     // the live probe as `config_missing`, not as a fabricated unconfigured row.
     missingReason: 'not configured (a key can be reused from a DeepSeek provider row)',
   },
+  ...ADDITIONAL_API_PROVIDER_IDS.map((id) => ({
+    id,
+    capabilities: ADDITIONAL_API_CAPABILITIES[id],
+    configured: (configs: SearchApiProviderConfigs): boolean => {
+      const config = configs[id];
+      if (!config) return false;
+      if (id === 'exa' || id === 'parallel' || id === 'firecrawl') {
+        const publicConfig = configs[id]!;
+        const mode = publicConfig.authMode ??
+          (publicConfig.apiKey?.trim() ? 'api' : 'public');
+        return mode === 'public' || Boolean(publicConfig.apiKey?.trim());
+      }
+      return Boolean(config.apiKey?.trim());
+    },
+    missingReason: id === 'exa' || id === 'parallel' || id === 'firecrawl'
+      ? 'not configured (enable public mode explicitly, or supply an API key for API mode)'
+      : 'no API key configured',
+  })),
 ];
 
 /**
@@ -134,7 +154,8 @@ export function buildSearchDoctorSnapshot(
   // the two shapes agree on exactly these four fields, which lets the
   // config-first path project the REAL assembled runtime rather than a second
   // contribution set built to look like it.
-  contributions: ReadonlyArray<SearchProviderDeclaration> = builtinHttpSearchContributions(),
+  contributions: ReadonlyArray<SearchProviderDeclaration> = builtinHttpSearchContributions()
+    .filter(({ id }) => id === 'http-bing' || id === 'http-duckduckgo'),
   apiConfigs?: SearchApiProviderConfigs,
 ): SearchDoctorRow[] {
   const rows: SearchDoctorRow[] = contributions.map((contribution) => ({

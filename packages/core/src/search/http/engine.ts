@@ -53,7 +53,7 @@ export interface HttpSearchEngine {
   /** Anti-decoy check, run before any outcome classification. */
   trustError?(finalUrl: string, html: string): string | null;
   /** Extract results and decide whether the page is this engine's SERP. */
-  parse(html: string, maxResults: number): ParsedSerp;
+  parse(html: string, maxResults: number, query?: string): ParsedSerp;
 }
 
 /**
@@ -130,7 +130,7 @@ export async function runHttpSearch(
         });
       }
 
-      const parsed = engine.parse(resource.rawText, maxResults);
+      const parsed = engine.parse(resource.rawText, maxResults, query);
       if (parsed.results.length > 0) return parsed.results;
       if (parsed.recognized) {
         sawRecognizedEmpty = true;

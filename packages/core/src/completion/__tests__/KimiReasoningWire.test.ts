@@ -7,8 +7,8 @@ import { TransformerChainExecutor } from '../../transformer/TransformerChainExec
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
 import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { LLMProvider as TransformerProvider } from '../../transformer/types';
-import { callOpenAICompletion } from '../DirectApiHandler';
-import { streamOpenAICompletion } from '../StreamHandler';
+import { callOpenAICompletion, callOpenAIResponseCompletion } from '../DirectApiHandler';
+import { streamOpenAICompletion, streamOpenAIResponseCompletion } from '../StreamHandler';
 import type { CompletionOptions } from '../types';
 
 const preset = getPresetById('kimi');
@@ -53,7 +53,7 @@ afterEach(() => {
 });
 
 describe('Canonical Kimi K3 reasoning wire policy', () => {
-  it.each(['none', 'low', 'high', 'max'] as const)(
+  it.each(['low', 'high', 'max'] as const)(
     'negotiates %s in unified, direct and streaming Chat producers without a K2.x toggle',
     async (thinkLevel) => {
       const unified = await encode({
@@ -72,21 +72,44 @@ describe('Canonical Kimi K3 reasoning wire policy', () => {
 
       expect(bodies).toHaveLength(2);
       for (const body of [unified, ...bodies]) {
-        if (thinkLevel === 'none') {
-          // K3 cannot turn thinking off: omission keeps its always-reasoning default.
-          expect(body).not.toHaveProperty('reasoning_effort');
-        } else {
-          expect(body.reasoning_effort).toBe(thinkLevel);
-        }
+        expect(body.reasoning_effort).toBe(thinkLevel);
         expect(body).not.toHaveProperty('thinking');
         expect(body).not.toHaveProperty('reasoning');
       }
     },
   );
 
+  it('rejects explicit K3 off in unified, native, direct and streaming producers before HTTP', async () => {
+    const messages = [{ role: 'user', content: 'Answer briefly.' }];
+    await expect(encode({
+      model: 'kimi-k3', messages, reasoning: { effort: 'none', enabled: false },
+    })).rejects.toThrow('cannot be disabled');
+    await expect(encode({
+      model: 'kimi-k3', messages, reasoning_effort: 'none',
+    })).rejects.toThrow('cannot be disabled');
+    await expect(encode({
+      model: 'kimi-k3', input: 'Answer briefly.', reasoning: { effort: 'none' },
+    }, true)).rejects.toThrow('cannot be disabled');
+    const options: CompletionOptions = {
+      providerId: provider.id,
+      model: 'kimi-k3',
+      thinkLevel: 'none',
+      messages: [{ id: 'user-1', role: 'user', content: 'Answer briefly.', timestamp: 1 }],
+    };
+    await expect(callOpenAICompletion(provider, 'test-key', options, logger))
+      .rejects.toThrow('cannot be disabled');
+    await expect(streamOpenAICompletion(provider, 'test-key', options, 'stream-off', {}, logger))
+      .rejects.toThrow('cannot be disabled');
+    const responses = { ...provider, apiFormat: 'openai-response' as const };
+    await expect(callOpenAIResponseCompletion(responses, 'test-key', options, logger))
+      .rejects.toThrow('cannot be disabled');
+    await expect(streamOpenAIResponseCompletion(responses, 'test-key', options, 'stream-off', {}, logger))
+      .rejects.toThrow('cannot be disabled');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['kimi-k3', undefined],
-    ['kimi-k3', 'none'],
     ['kimi-k2-thinking', 'none'],
   ] as const)(
     'preserves mandatory reasoning and tool continuation for %s with Responses effort %s',
@@ -169,7 +192,6 @@ describe('Canonical Kimi native Chat off negotiation', () => {
   it.each([
     ['kimi-k2.5', 'disabled'],
     ['kimi-k2.6', 'disabled'],
-    ['kimi-k3', undefined],
   ] as const)('negotiates native none for %s without a unified reasoning object', async (model, toggle) => {
     const body = await encode({
       model,

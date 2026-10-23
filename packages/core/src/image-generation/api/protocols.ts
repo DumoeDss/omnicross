@@ -214,7 +214,7 @@ export async function buildApiImageRequest(
       ...(request.resolution ? { image_size: request.resolution } : {}),
     };
   } else if (protocol === 'gemini-interactions' || (protocol === 'gemini' && model === 'gemini-nano-banana-2.1')) {
-    url = apiUrl(credentials.baseUrl.replace(/\/(?:v1beta|v1)\/models\/?$/u, ''), 'interactions', 'v1beta');
+    url = apiUrl(credentials.baseUrl.replace(/\/(?:v1beta|v1)(?:\/models)?\/?$/u, ''), 'interactions', 'v1beta');
     const input: unknown[] = [{ type: 'text', text: request.prompt }];
     if (request.action === 'edit') for (const image of request.images) {
       const value = await inline(image, signal);

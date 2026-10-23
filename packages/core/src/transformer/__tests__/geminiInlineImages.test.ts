@@ -255,23 +255,46 @@ describe('transformResponseOut SSE: inlineData → delta.images', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildRequestBody: responseModalities injection', () => {
-  it('injects [TEXT, IMAGE] for an image model and coexists with thinkingConfig', () => {
-    const body = buildRequestBody(baseRequest({
-      model: 'gemini-3.1-flash-image',
-      reasoning: { effort: 'high', enabled: true },
-    }));
+  it.each(['gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview'])(
+    'injects [TEXT, IMAGE] for %s alongside native thinking levels',
+    (model) => {
+      for (const effort of ['minimal', 'high'] as const) {
+        const body = buildRequestBody(baseRequest({
+          model,
+          reasoning: { effort, enabled: true },
+        }));
 
-    expect(body.generationConfig?.responseModalities).toEqual(['TEXT', 'IMAGE']);
-    // Coexistence (spec scenario): thinking config is not displaced — the image
-    // model is not in the canonical thinking-levels registry, so reasoning
-    // resolves to a BUDGET; either shape satisfies coexistence.
-    const thinking = body.generationConfig?.thinkingConfig;
-    expect(thinking).toBeDefined();
-    expect(thinking?.includeThoughts).toBe(true);
-    expect(
-      thinking?.thinkingLevel !== undefined || thinking?.thinkingBudget !== undefined,
-    ).toBe(true);
+        expect(body.generationConfig?.responseModalities).toEqual(['TEXT', 'IMAGE']);
+        expect(body.generationConfig?.thinkingConfig).toEqual({
+          includeThoughts: true,
+          thinkingLevel: effort,
+        });
+      }
+    },
+  );
+
+  it.each([
+    'gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview',
+    'gemini-3-pro-image', 'gemini-3-pro-image-preview',
+  ])('rejects disabling automatic image thinking for %s', (model) => {
+    expect(() => buildRequestBody(baseRequest({
+      model,
+      reasoning: { enabled: false },
+    }))).toThrow('Thinking cannot be disabled');
   });
+
+  it.each(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])(
+    'does not fabricate an adjustable thinking budget for %s',
+    (model) => {
+      const body = buildRequestBody(baseRequest({ model }));
+      expect(body.generationConfig?.responseModalities).toEqual(['TEXT', 'IMAGE']);
+      expect(body.generationConfig?.thinkingConfig).toBeUndefined();
+      expect(() => buildRequestBody(baseRequest({
+        model,
+        reasoning: { effort: 'high', enabled: true },
+      }))).toThrow('Thinking effort controls are not supported');
+    },
+  );
 
   it('injects for canonical ids that CONTAIN -image (gemini-3-pro-image-preview)', () => {
     const body = buildRequestBody(baseRequest({ model: 'gemini-3-pro-image-preview' }));

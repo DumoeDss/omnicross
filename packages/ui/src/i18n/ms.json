@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Mod pengesahan",
+      "public": "Awam (terhad, tanpa kunci)",
+      "api": "API (kunci diperlukan)",
+      "description": "Akses awam terhad dan mungkin tidak tersedia. Mod API memerlukan kunci dan tidak beralih ke awam.",
+      "missingKey": "Mod API memerlukan kunci: {{providers}}",
+      "enableHint": "Aktifkan mod awam atau pilih API dan masukkan kunci."
+    },
+    "providerDescription": {
+      "keyed": "API rasmi dengan kunci; ketersediaan, pengebilan dan had bergantung pada akaun penyedia.",
+      "keyRequired": "Memerlukan kunci API.",
+      "publicApi": "Akses awam terhad atau API dengan kunci; kuota percuma tidak dijamin.",
+      "ollama": "API carian Ollama memerlukan kunci; hos tersuai tidak bermakna enjin carian setempat tanpa kunci."
+    },
+    "http": {
+      "aggregateDescription": "Menggabungkan enjin HTTP awam yang aktif dan dibenarkan dasar. Perlu pengaktifan jelas; hasil tidak dijamin."
+    },
     "title": "Penyedia carian",
     "description": "Konfigurasi runtime carian web: kredensial penyedia, dasar fallback, trafik keluar rangkaian dan mod pelaksanaan setiap frontend.",
     "unsupportedDaemon": "Versi daemon ini tidak menyokong bahagian konfigurasi carian.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Penyedia",
       "tavily": {
-        "description": "API carian dengan kuota percuma besar; kunci diperlukan."
+        "description": "API carian; kunci diperlukan. Kuota dan pengebilan bergantung pada penyedia."
       },
       "jina": {
         "description": "Carian boleh tanpa kunci; kunci menaikkan had kadar."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Enjin tanpa kunci, sentiasa tersedia. Tidak perlu konfigurasi."
+      "description": "Carian HTTP awam tanpa kunci; boleh disekat, dihadkan atau tidak tersedia."
     },
     "status": {
       "ready": "Sedia",
@@ -943,6 +960,9 @@
       "deepseek": "Masukkan kunci, guna semula kunci penyedia DeepSeek, atau konfigurasikannya dalam Penyedia."
     },
     "field": {
+      "enabled": "Diaktifkan",
+      "model": "Model",
+      "modelPlaceholder": "Pilihan; kosong menggunakan lalai penyedia",
       "apiKey": "Kunci API",
       "apiKeyPlaceholder": "Kosong mengekalkan kunci tersimpan",
       "apiKeyNew": "Masukkan kunci API",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Bulanan",
       "codexRefreshConfirmTitle": "Gunakan Luna untuk menyegarkan kuota ini?",
       "codexRefreshConfirmDescription": "Permintaan sebenar akan dihantar kepada gpt-5.6-luna menggunakan akaun Codex ini untuk mendapatkan kuota terkini. Ini akan menggunakan sedikit kuota langganan. Teruskan?",

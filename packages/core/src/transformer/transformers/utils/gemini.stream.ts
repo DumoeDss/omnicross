@@ -1,599 +1,183 @@
-/**
- * Gemini Stream Processing
- *
- * Handles Gemini response transformation, including streaming responses.
- * Converts Gemini response format to OpenAI-compatible format.
- *
- * @module transformer/transformers/utils/gemini.stream
- */
-
+/** Gemini provider responses → unified Chat responses. */
 import type { TransformerLogger } from '../../types';
+import { readAnthropicSSE } from '../AnthropicSSE';
 
-/**
- * Gemini response candidate
- */
-interface GeminiCandidate {
-  content?: {
-    parts?: GeminiResponsePart[];
-  };
-  finishReason?: string;
-  groundingMetadata?: {
-    groundingChunks?: Array<{
-      web?: {
-        uri?: string;
-        title?: string;
-      };
-    }>;
-    groundingSupports?: Array<{
-      groundingChunkIndices?: number[];
-      segment?: {
-        text?: string;
-        startIndex?: number;
-        endIndex?: number;
-      };
-    }>;
-  };
-}
-
-interface GeminiResponsePart {
+type Data = Record<string, unknown>;
+interface GeminiPart {
   text?: string;
   thought?: boolean;
   thoughtSignature?: string;
-  functionCall?: {
-    id?: string;
-    name?: string;
-    args?: Record<string, unknown>;
-  };
-  // Image output (chat-inline-images): image models return generated images as
-  // inlineData parts. The REST surface reports camelCase `mimeType`; some
-  // relays emit snake_case — accept both (mirrors the antigravity image wire).
-  inlineData?: {
-    mimeType?: string;
-    mime_type?: string;
-    data?: string;
-  };
-  inline_data?: {
-    mimeType?: string;
-    mime_type?: string;
-    data?: string;
+  functionCall?: { id?: string; name?: string; args?: Record<string, unknown> };
+  inlineData?: { mimeType?: string; mime_type?: string; data?: string };
+  inline_data?: { mimeType?: string; mime_type?: string; data?: string };
+}
+interface GeminiCandidate {
+  index?: number;
+  content?: { parts?: GeminiPart[] };
+  finishReason?: string;
+  groundingMetadata?: {
+    groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
+    groundingSupports?: Array<{ groundingChunkIndices?: number[]; segment?: { text?: string; startIndex?: number; endIndex?: number } }>;
   };
 }
-
-/**
- * Convert an inlineData part to a `data:<mime>;base64,<data>` URL, or `null`
- * when the part carries no usable payload. Shared by the JSON and SSE paths.
- */
-function inlineDataToDataUrl(part: GeminiResponsePart): string | null {
-  const inline = part.inlineData ?? part.inline_data;
-  const data = inline?.data;
-  if (typeof data !== 'string' || !data) return null;
-  const mime = inline?.mimeType ?? inline?.mime_type ?? 'image/png';
-  return `data:${mime};base64,${data}`;
-}
-
-interface GeminiUsageMetadata {
-  candidatesTokenCount?: number;
+interface GeminiUsage {
   promptTokenCount?: number;
-  cachedContentTokenCount?: number;
-  totalTokenCount?: number;
+  candidatesTokenCount?: number;
   thoughtsTokenCount?: number;
+  totalTokenCount?: number;
+  cachedContentTokenCount?: number;
 }
-
-interface GeminiJsonResponse {
+interface GeminiResponse {
+  error?: unknown;
   responseId?: string;
   modelVersion?: string;
   candidates?: GeminiCandidate[];
-  usageMetadata?: GeminiUsageMetadata;
+  promptFeedback?: { blockReason?: string };
+  usageMetadata?: GeminiUsage;
 }
 
-/**
- * OpenAI-compatible response format
- */
-interface OpenAIResponse {
-  id: string;
-  choices: Array<{
-    finish_reason: string | null;
-    index: number;
-    message: {
-      content: string;
-      role: string;
-      images?: string[];
-      tool_calls?: Array<{
-        id: string;
-        type: string;
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }>;
-      thinking?: {
-        content: string;
-        signature?: string;
-      };
-    };
-  }>;
-  created: number;
-  model: string;
-  object: string;
-  usage: {
-    completion_tokens: number;
-    prompt_tokens: number;
-    prompt_tokens_details?: {
-      cached_tokens: number;
-    };
-    total_tokens: number;
-    output_tokens_details?: {
-      reasoning_tokens: number;
-    };
+function finishReason(reason: string | undefined, hasTools: boolean): string | null {
+  if (!reason) return null;
+  if (reason === 'STOP') return hasTools ? 'tool_calls' : 'stop';
+  if (reason === 'MAX_TOKENS') return 'length';
+  if (['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'IMAGE_SAFETY', 'IMAGE_PROHIBITED_CONTENT'].includes(reason)) return 'content_filter';
+  return hasTools ? 'tool_calls' : 'stop';
+}
+
+function usage(metadata: GeminiUsage): Data {
+  const reasoning = metadata.thoughtsTokenCount ?? 0;
+  return {
+    prompt_tokens: metadata.promptTokenCount ?? 0,
+    completion_tokens: (metadata.candidatesTokenCount ?? 0) + reasoning,
+    total_tokens: metadata.totalTokenCount ?? ((metadata.promptTokenCount ?? 0) + (metadata.candidatesTokenCount ?? 0) + reasoning),
+    prompt_tokens_details: { cached_tokens: metadata.cachedContentTokenCount ?? 0 },
+    completion_tokens_details: { reasoning_tokens: reasoning },
+    output_tokens_details: { reasoning_tokens: reasoning },
   };
 }
 
-/**
- * Transform Gemini response to OpenAI-compatible format
- *
- * @param response - Gemini API response
- * @param providerName - Provider name for logging
- * @param logger - Optional logger
- * @returns Transformed response
- */
-export async function transformResponseOut(
-  response: Response,
-  providerName: string,
-  logger?: TransformerLogger
-): Promise<Response> {
-  const contentType = response.headers.get('Content-Type') ?? '';
-
-  if (contentType.includes('application/json')) {
-    return handleJsonResponse(response, providerName, logger);
-  } else if (contentType.includes('stream') || contentType.includes('text/event-stream')) {
-    return handleStreamResponse(response, providerName, logger);
-  }
-
-  return response;
-}
-
-/**
- * Handle JSON (non-streaming) response
- */
-async function handleJsonResponse(
-  response: Response,
-  providerName: string,
-  logger?: TransformerLogger
-): Promise<Response> {
-  const jsonResponse: GeminiJsonResponse = await response.json();
-  logger?.debug(`${providerName} JSON response received`);
-
-  const parts = jsonResponse.candidates?.[0]?.content?.parts || [];
-
-  // Extract thinking content
-  let thinkingContent = '';
-  let thinkingSignature = '';
-  const nonThinkingParts: GeminiResponsePart[] = [];
-
+function convertParts(parts: GeminiPart[], streaming: boolean, nextToolIndex: () => number): Data {
+  const message: Data = { role: 'assistant' };
+  let text = '';
+  let thinking = '';
+  const calls: Data[] = [];
+  const images: string[] = [];
   for (const part of parts) {
-    if (part.text && part.thought === true) {
-      thinkingContent += part.text;
-    } else {
-      nonThinkingParts.push(part);
+    if (typeof part.text === 'string') {
+      if (part.thought) thinking += part.text;
+      else text += part.text;
     }
+    if (part.functionCall) {
+      const call = part.functionCall;
+      calls.push({
+        ...(streaming ? { index: nextToolIndex() } : {}),
+        id: call.id || `call_${crypto.randomUUID()}`,
+        type: 'function',
+        function: { name: call.name ?? '', arguments: JSON.stringify(call.args ?? {}) },
+        ...(part.thoughtSignature ? { extra_content: { google: { thought_signature: part.thoughtSignature } } } : {}),
+      });
+    }
+    const inline = part.inlineData ?? part.inline_data;
+    if (inline?.data) images.push(`data:${inline.mimeType ?? inline.mime_type ?? 'image/png'};base64,${inline.data}`);
   }
+  if (thinking) message.thinking = { content: thinking };
+  if (calls.length) message.tool_calls = calls;
+  if (images.length) message.images = images;
+  if (!streaming || text) message.content = text;
+  // Retain exact part ordering/signature attachment for Gemini endpoint replay.
+  if (parts.length) message.extra_content = { google: { parts } };
+  return message;
+}
 
-  // Get signature
-  thinkingSignature =
-    parts.find((part) => part.thoughtSignature)?.thoughtSignature ?? '';
-
-  // Extract tool calls
-  const toolCalls = nonThinkingParts
-    .filter((part) => part.functionCall)
-    .map((part) => ({
-      id: part.functionCall?.id || `tool_${Math.random().toString(36).substring(2, 15)}`,
-      type: 'function',
-      function: {
-        name: part.functionCall?.name ?? '',
-        arguments: JSON.stringify(part.functionCall?.args || {}),
-      },
-    }));
-
-  // Extract text content
-  const textContent = nonThinkingParts
-    .filter((part) => part.text)
-    .map((part) => part.text)
-    .join('\n');
-
-  // Extract images (chat-inline-images): inlineData parts become data URLs on
-  // the OpenAI-compatible message; pure-text traffic emits NO images field
-  // (byte-identical to the pre-images output).
-  const images = nonThinkingParts
-    .map((part) => inlineDataToDataUrl(part))
-    .filter((url): url is string => url !== null);
-
-  const openAIResponse: OpenAIResponse = {
-    id: jsonResponse.responseId ?? '',
-    choices: [
-      {
-        finish_reason:
-          (jsonResponse.candidates?.[0]?.finishReason ?? '').toLowerCase() || null,
-        index: 0,
-        message: {
-          content: textContent,
-          role: 'assistant',
-          images: images.length > 0 ? images : undefined,
-          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-          ...(thinkingSignature && {
-            thinking: {
-              content: thinkingContent || '(no content)',
-              signature: thinkingSignature,
-            },
-          }),
-        },
-      },
-    ],
-    created: Math.floor(Date.now() / 1000),
-    model: jsonResponse.modelVersion ?? '',
-    object: 'chat.completion',
-    usage: {
-      completion_tokens: jsonResponse.usageMetadata?.candidatesTokenCount || 0,
-      prompt_tokens: jsonResponse.usageMetadata?.promptTokenCount || 0,
-      prompt_tokens_details: {
-        cached_tokens: jsonResponse.usageMetadata?.cachedContentTokenCount || 0,
-      },
-      total_tokens: jsonResponse.usageMetadata?.totalTokenCount || 0,
-      output_tokens_details: {
-        reasoning_tokens: jsonResponse.usageMetadata?.thoughtsTokenCount || 0,
-      },
-    },
-  };
-
-  return new Response(JSON.stringify(openAIResponse), {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
+function annotations(candidate: GeminiCandidate): Data[] | undefined {
+  const metadata = candidate.groundingMetadata;
+  return metadata?.groundingChunks?.map((chunk, index) => {
+    const support = metadata.groundingSupports?.find((item) => item.groundingChunkIndices?.includes(index));
+    return { type: 'url_citation', url_citation: {
+      url: chunk.web?.uri ?? '', title: chunk.web?.title ?? '',
+      content: support?.segment?.text ?? '', start_index: support?.segment?.startIndex ?? 0,
+      end_index: support?.segment?.endIndex ?? 0,
+    } };
   });
 }
 
-/**
- * Handle streaming response
- */
-function handleStreamResponse(
-  response: Response,
-  providerName: string,
-  logger?: TransformerLogger
-): Response {
-  if (!response.body) {
-    return response;
+function convertResponse(data: GeminiResponse, streaming: boolean, toolIndices: Map<number, number>, toolChoices: Set<number>): Data {
+  if (data.error) return { error: data.error };
+  const candidates = data.candidates ?? (data.promptFeedback?.blockReason
+    ? [{ index: 0, finishReason: data.promptFeedback.blockReason, content: { parts: [] } }]
+    : []);
+  const failure = candidates.find((candidate) =>
+    candidate.finishReason === 'MALFORMED_FUNCTION_CALL' || candidate.finishReason === 'UNEXPECTED_TOOL_CALL');
+  if (failure) return { error: { type: 'upstream_generation_error', message: `Gemini generation failed: ${failure.finishReason}` } };
+  const choices = candidates.map((candidate, position) => {
+    const index = candidate.index ?? position;
+    const message = convertParts(candidate.content?.parts ?? [], streaming, () => {
+      const next = toolIndices.get(index) ?? 0;
+      toolIndices.set(index, next + 1);
+      return next;
+    });
+    if (candidate.finishReason) {
+      message.extra_content = { google: { parts: candidate.content?.parts ?? [], finishReason: candidate.finishReason } };
+    }
+    if (message.tool_calls) toolChoices.add(index);
+    const citations = annotations(candidate);
+    if (citations?.length) message.annotations = citations;
+    return {
+      index,
+      [streaming ? 'delta' : 'message']: message,
+      finish_reason: finishReason(candidate.finishReason, toolChoices.has(index)),
+    };
+  });
+  return {
+    id: data.responseId ?? '', model: data.modelVersion ?? '',
+    object: streaming ? 'chat.completion.chunk' : 'chat.completion',
+    created: Math.floor(Date.now() / 1000), choices,
+    ...(data.usageMetadata ? { usage: usage(data.usageMetadata) } : {}),
+    ...(data.promptFeedback ? { extra_content: { google: { promptFeedback: data.promptFeedback } } } : {}),
+  };
+}
+
+export async function transformResponseOut(response: Response, providerName: string, logger?: TransformerLogger): Promise<Response> {
+  if (!response.ok) return response;
+  const contentType = response.headers.get('Content-Type') ?? '';
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    const converted = convertResponse(data, false, new Map(), new Set());
+    return new Response(JSON.stringify(converted), { status: response.status, statusText: response.statusText, headers });
   }
-
-  const decoder = new TextDecoder();
+  if (!contentType.includes('stream') || !response.body) return response;
+  const reader = response.body.getReader();
   const encoder = new TextEncoder();
-
-  let signatureSent = false;
-  let contentSent = false;
-  let hasThinkingContent = false;
-  let pendingContent = '';
-  let contentIndex = 0;
-  let toolCallIndex = -1;
-  // Set when the current chunk's text was buffered for post-signature flush
-  // (Gemini 3.x content-before-signature). When true the text emission block
-  // is skipped but tool calls in the same chunk MUST still be emitted.
-  let textBuffered = false;
-
-  const stream = new ReadableStream({
+  const toolIndices = new Map<number, number>();
+  const toolChoices = new Set<number>();
+  let responseId = '';
+  let modelVersion = '';
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const reader = response.body!.getReader();
-      let buffer = '';
-
-      const processLine = async (line: string) => {
-        if (!line.startsWith('data: ')) return;
-
-        const chunkStr = line.slice(6).trim();
-        if (!chunkStr) return;
-
-        logger?.debug(`${providerName} chunk: ${chunkStr.substring(0, 100)}...`);
-
-        try {
-          const chunk: GeminiJsonResponse = JSON.parse(chunkStr);
-
-          if (!chunk.candidates?.[0]) {
-            logger?.debug('Invalid chunk structure');
-            return;
-          }
-
-          const candidate = chunk.candidates[0];
-          const parts = candidate.content?.parts || [];
-
-          // Reset per-chunk: text from this chunk may be buffered (Gemini 3.x
-          // pre-signature case); tool calls must still flow through.
-          textBuffered = false;
-
-          // Process thinking content
-          parts
-            .filter((part) => part.text && part.thought === true)
-            .forEach((part) => {
-              hasThinkingContent = true;
-              const thinkingChunk = createChunk({
-                responseId: chunk.responseId,
-                modelVersion: chunk.modelVersion,
-                contentIndex,
-                delta: {
-                  role: 'assistant',
-                  content: null,
-                  thinking: { content: part.text },
-                },
-              });
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(thinkingChunk)}\n\n`));
-            });
-
-          // Handle signature
-          const signature = parts.find((part) => part.thoughtSignature)?.thoughtSignature;
-          if (signature && !signatureSent) {
-            if (!hasThinkingContent) {
-              // Send empty thinking content so the signature block has a valid start
-              const thinkingChunk = createChunk({
-                responseId: chunk.responseId,
-                modelVersion: chunk.modelVersion,
-                contentIndex,
-                delta: {
-                  role: 'assistant',
-                  content: null,
-                  thinking: { content: '' },
-                },
-              });
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(thinkingChunk)}\n\n`));
-            }
-
-            const signatureChunk = createChunk({
-              responseId: chunk.responseId,
-              modelVersion: chunk.modelVersion,
-              contentIndex,
-              delta: {
-                role: 'assistant',
-                content: null,
-                thinking: { signature },
-              },
-            });
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(signatureChunk)}\n\n`));
-            signatureSent = true;
-            contentIndex++;
-
-            // Send pending content
-            if (pendingContent) {
-              const pendingChunk = createChunk({
-                responseId: chunk.responseId,
-                modelVersion: chunk.modelVersion,
-                contentIndex,
-                delta: { role: 'assistant', content: pendingContent },
-              });
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(pendingChunk)}\n\n`));
-              pendingContent = '';
-              contentSent = true;
-            }
-          }
-
-          // Extract tool calls
-          const toolCalls = parts
-            .filter((part) => part.functionCall)
-            .map((part) => ({
-              id:
-                part.functionCall?.id ||
-                `ccr_tool_${Math.random().toString(36).substring(2, 15)}`,
-              type: 'function',
-              function: {
-                name: part.functionCall?.name ?? '',
-                arguments: JSON.stringify(part.functionCall?.args || {}),
-              },
-            }));
-
-          // Extract text content
-          const textContent = parts
-            .filter((part) => part.text && part.thought !== true)
-            .map((part) => part.text)
-            .join('\n');
-
-          // Handle empty content after signature
-          if (!textContent && signatureSent && !contentSent) {
-            // Mark as sent without emitting placeholder text.
-            // Tool_call or real text content will follow, and AnthropicTransformer
-            // properly closes the thinking block before opening tool_use blocks.
-            contentSent = true;
-          }
-
-          // Handle content before signature (Gemini 3.x)
-          if (hasThinkingContent && textContent && !signatureSent) {
-            if (chunk.modelVersion?.includes('3')) {
-              pendingContent += textContent;
-              // Do NOT early-return: the same chunk may also carry functionCall
-              // parts whose tool_calls must be emitted this turn (buffering the
-              // text must not silently drop tool-call events).
-              textBuffered = true;
-            } else {
-              // Generate signature for older models
-              const signatureChunk = createChunk({
-                responseId: chunk.responseId,
-                modelVersion: chunk.modelVersion,
-                contentIndex,
-                delta: {
-                  role: 'assistant',
-                  content: null,
-                  thinking: { signature: `ccr_${Date.now()}` },
-                },
-              });
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(signatureChunk)}\n\n`));
-              signatureSent = true;
-            }
-          }
-
-          // Extract images (chat-inline-images): ALL inlineData parts of THIS
-          // chunk merge into ONE delta carrying the full array; chunks without
-          // images emit nothing (byte-identical to the pre-images stream).
-          const images = parts
-            .map((part) => inlineDataToDataUrl(part))
-            .filter((url): url is string => url !== null);
-
-          // Send text content (skip when the text was buffered for post-signature flush)
-          if (textContent && !textBuffered) {
-            if (!pendingContent) contentIndex++;
-
-            const contentChunk = createChunk({
-              responseId: chunk.responseId,
-              modelVersion: chunk.modelVersion,
-              contentIndex,
-              delta: { role: 'assistant', content: textContent },
-              finishReason: candidate.finishReason,
-              usageMetadata: chunk.usageMetadata,
-              groundingMetadata: candidate.groundingMetadata,
-            });
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`));
-            contentSent = true;
-          }
-
-          // Send images after the text of the same chunk. finishReason /
-          // usageMetadata attach exactly like the text chunk (an image chunk is
-          // often the FINAL chunk — without this the terminal metadata is lost).
-          if (images.length > 0) {
-            const imageChunk = createChunk({
-              responseId: chunk.responseId,
-              modelVersion: chunk.modelVersion,
-              contentIndex,
-              delta: { role: 'assistant', images },
-              finishReason: candidate.finishReason,
-              usageMetadata: chunk.usageMetadata,
-              groundingMetadata: candidate.groundingMetadata,
-            });
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(imageChunk)}\n\n`));
-            contentSent = true;
-          }
-
-          // Send tool calls
-          if (toolCalls.length > 0) {
-            for (const tool of toolCalls) {
-              contentIndex++;
-              toolCallIndex++;
-
-              const toolChunk = createChunk({
-                responseId: chunk.responseId,
-                modelVersion: chunk.modelVersion,
-                contentIndex,
-                delta: {
-                  role: 'assistant',
-                  tool_calls: [{ ...tool, index: toolCallIndex }],
-                },
-                finishReason: candidate.finishReason,
-                usageMetadata: chunk.usageMetadata,
-                groundingMetadata: candidate.groundingMetadata,
-              });
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolChunk)}\n\n`));
-            }
-            contentSent = true;
-          }
-        } catch (_error) {
-          logger?.error(`Error parsing ${providerName} stream chunk: ${chunkStr}`);
-        }
-      };
-
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            if (buffer) await processLine(buffer);
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            await processLine(line);
-          }
-        }
+        let failed = false;
+        await readAnthropicSSE(reader, (data: GeminiResponse) => {
+          responseId = data.responseId || responseId;
+          modelVersion = data.modelVersion || modelVersion;
+          data.responseId = responseId;
+          data.modelVersion = modelVersion;
+          const converted = convertResponse(data, true, toolIndices, toolChoices);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(converted)}\n\n`));
+          if (converted.error) { failed = true; return false; }
+        }, logger);
+        if (!failed) controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
       } catch (error) {
+        logger?.error(`Error decoding ${providerName} stream`, error);
         controller.error(error);
       } finally {
-        controller.close();
+        reader.releaseLock();
       }
     },
+    cancel(reason) { return reader.cancel(reason); },
   });
-
-  return new Response(stream, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-}
-
-/**
- * Create an OpenAI-compatible stream chunk
- */
-function createChunk(options: {
-  responseId?: string;
-  modelVersion?: string;
-  contentIndex: number;
-  delta: Record<string, unknown>;
-  finishReason?: string;
-  usageMetadata?: GeminiUsageMetadata;
-  groundingMetadata?: GeminiCandidate['groundingMetadata'];
-}): Record<string, unknown> {
-  const {
-    responseId,
-    modelVersion,
-    contentIndex,
-    delta,
-    finishReason,
-    usageMetadata,
-    groundingMetadata,
-  } = options;
-
-  const chunk: Record<string, unknown> = {
-    choices: [
-      {
-        delta,
-        finish_reason: finishReason?.toLowerCase() || null,
-        index: contentIndex,
-        logprobs: null,
-      },
-    ],
-    created: Math.floor(Date.now() / 1000),
-    id: responseId || '',
-    model: modelVersion || '',
-    object: 'chat.completion.chunk',
-    system_fingerprint: 'fp_a49d71b8a1',
-  };
-
-  // Add usage metadata if available
-  if (usageMetadata) {
-    chunk.usage = {
-      completion_tokens: usageMetadata.candidatesTokenCount || 0,
-      prompt_tokens: usageMetadata.promptTokenCount || 0,
-      prompt_tokens_details: {
-        cached_tokens: usageMetadata.cachedContentTokenCount || 0,
-      },
-      total_tokens: usageMetadata.totalTokenCount || 0,
-      output_tokens_details: {
-        reasoning_tokens: usageMetadata.thoughtsTokenCount || 0,
-      },
-    };
-  }
-
-  // Add grounding annotations if available
-  if (groundingMetadata?.groundingChunks?.length) {
-    const annotations = groundingMetadata.groundingChunks.map((groundingChunk, index) => {
-      const support = groundingMetadata.groundingSupports?.find((s) =>
-        s.groundingChunkIndices?.includes(index)
-      );
-      return {
-        type: 'url_citation',
-        url_citation: {
-          url: groundingChunk.web?.uri || '',
-          title: groundingChunk.web?.title || '',
-          content: support?.segment?.text || '',
-          start_index: support?.segment?.startIndex || 0,
-          end_index: support?.segment?.endIndex || 0,
-        },
-      };
-    });
-    (chunk.choices as Array<{ delta: Record<string, unknown> }>)[0].delta.annotations =
-      annotations;
-  }
-
-  return chunk;
+  return new Response(stream, { status: response.status, statusText: response.statusText, headers });
 }

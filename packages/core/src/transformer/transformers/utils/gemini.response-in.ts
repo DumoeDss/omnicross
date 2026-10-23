@@ -1,352 +1,193 @@
-/**
- * Gemini Response-In Conversion (OpenAI → Gemini)
- *
- * Converts OpenAI-compatible responses back to Gemini API format.
- * Used when GeminiTransformer acts as endpointTransformer
- * (i.e., the client expects Gemini-format responses).
- *
- * @module transformer/transformers/utils/gemini.response-in
- */
-
+/** Unified Chat responses → Gemini endpoint responses. */
 import type { TransformerLogger } from '../../types';
+import { readAnthropicSSE } from '../AnthropicSSE';
 
-// ============================================================================
-// Gemini response types (output format)
-// ============================================================================
-
-interface GeminiResponsePart {
-  text?: string;
-  thought?: boolean;
-  thoughtSignature?: string;
-  functionCall?: {
-    id?: string;
-    name: string;
-    args: Record<string, unknown>;
-  };
-}
-
+type Data = Record<string, unknown>;
 interface GeminiResponse {
   responseId: string;
   modelVersion: string;
-  candidates: Array<{
-    content: { parts: GeminiResponsePart[] };
-    finishReason: string | null;
-  }>;
-  usageMetadata?: {
-    promptTokenCount: number;
-    candidatesTokenCount: number;
-    totalTokenCount: number;
-    cachedContentTokenCount?: number;
-    thoughtsTokenCount?: number;
-  };
+  candidates: Array<{ index: number; content: { role: string; parts: Data[] }; finishReason: string | null }>;
+  usageMetadata?: Record<string, number>;
+  promptFeedback?: unknown;
+}
+interface GoogleMetadata {
+  google?: { parts?: Data[]; thought_signature?: string; promptFeedback?: unknown; finishReason?: string };
+}
+interface ChatToolCall {
+  id?: string;
+  index?: number;
+  function: { name?: string; arguments?: string };
+  extra_content?: GoogleMetadata;
+}
+interface ChatMessage {
+  content?: string | null | Array<{ type: string; text?: string }>;
+  role?: string;
+  reasoning_content?: string;
+  thinking?: { content?: string; signature?: string };
+  images?: Array<string | { image_url?: { url?: string } }>;
+  tool_calls?: ChatToolCall[];
+  extra_content?: GoogleMetadata;
+}
+interface ChatUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  prompt_tokens_details?: { cached_tokens?: number };
+  completion_tokens_details?: { reasoning_tokens?: number };
+  output_tokens_details?: { reasoning_tokens?: number };
+}
+interface ChatResponse {
+  id?: string;
+  model?: string;
+  error?: unknown;
+  choices?: Array<{ index?: number; message?: ChatMessage; delta?: ChatMessage; finish_reason?: string | null }>;
+  usage?: ChatUsage;
+  extra_content?: GoogleMetadata;
 }
 
-// ============================================================================
-// Finish reason mapping (OpenAI → Gemini)
-// ============================================================================
-
-const FINISH_REASON_TO_GEMINI: Record<string, string> = {
-  stop: 'STOP',
-  length: 'MAX_TOKENS',
-  tool_calls: 'STOP',
-  content_filter: 'SAFETY',
-  // Already-lowercased Gemini reasons (pass-through from another transformer)
-  max_tokens: 'MAX_TOKENS',
-  safety: 'SAFETY',
+const FINISH_REASONS: Record<string, string> = {
+  stop: 'STOP', tool_calls: 'STOP', length: 'MAX_TOKENS', max_tokens: 'MAX_TOKENS',
+  content_filter: 'SAFETY', safety: 'SAFETY',
 };
 
-function toGeminiFinishReason(openaiReason: string | null): string | null {
-  if (!openaiReason) return null;
-  return FINISH_REASON_TO_GEMINI[openaiReason] || openaiReason.toUpperCase();
-}
-
-// ============================================================================
-// Non-streaming: OpenAI JSON → Gemini JSON
-// ============================================================================
-
-export function convertOpenAIResponseToGemini(
-  openaiData: Record<string, unknown>
-): GeminiResponse {
-  const choice = (openaiData.choices as Array<Record<string, unknown>>)?.[0];
-  const message = (choice?.message ?? {}) as Record<string, unknown>;
-  const usage = openaiData.usage as Record<string, unknown> | undefined;
-  const usagePromptDetails = usage?.prompt_tokens_details as Record<string, unknown> | undefined;
-  const usageOutputDetails = usage?.output_tokens_details as Record<string, unknown> | undefined;
-
-  const parts: GeminiResponsePart[] = [];
-
-  // Thinking → thought parts (before text/tool)
-  const thinking = message.thinking as Record<string, unknown> | undefined;
-  if (thinking?.content) {
-    parts.push({ text: thinking.content as string, thought: true });
-  }
-  if (thinking?.signature) {
-    parts.push({ thoughtSignature: thinking.signature as string });
-  }
-
-  // Text content
-  if (message.content) {
-    parts.push({ text: message.content as string });
-  }
-
-  // Tool calls → functionCall parts
-  const toolCalls = message.tool_calls as Array<Record<string, unknown>> | undefined;
-  if (toolCalls?.length) {
-    for (const tc of toolCalls) {
-      const func = tc.function as Record<string, unknown>;
-      let args: Record<string, unknown> = {};
-      try {
-        const raw = func.arguments as string;
-        args = typeof raw === 'string' ? JSON.parse(raw) : (raw as unknown as Record<string, unknown>);
-      } catch {
-        args = {};
-      }
-      parts.push({
-        functionCall: {
-          id: tc.id as string,
-          name: func.name as string,
-          args,
-        },
-      });
+function responseParts(message: ChatMessage): Data[] {
+  const native = message.extra_content?.google?.parts;
+  if (Array.isArray(native)) return native;
+  const parts: Data[] = [];
+  const reasoning = message.reasoning_content ?? message.thinking?.content;
+  if (reasoning) parts.push({ text: reasoning, thought: true });
+  if (typeof message.content === 'string' && message.content) parts.push({ text: message.content });
+  else if (Array.isArray(message.content)) {
+    for (const part of message.content) {
+      if (part.type === 'text') parts.push({ text: part.text });
     }
   }
-
-  // Ensure at least one part
-  if (parts.length === 0) {
-    parts.push({ text: '' });
+  for (const image of message.images ?? []) {
+    const url = typeof image === 'string' ? image : image.image_url?.url;
+    const match = typeof url === 'string' ? /^data:([^;,]+);base64,([\s\S]*)$/.exec(url) : null;
+    if (!match) throw new Error('Gemini generated images require a base64 data URL');
+    parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
   }
+  for (const call of message.tool_calls ?? []) {
+    const raw = call.function?.arguments;
+    const args = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw ?? {});
+    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Gemini function arguments must be an object');
+    const signature = call.extra_content?.google?.thought_signature;
+    parts.push({ functionCall: { id: call.id, name: call.function.name, args }, ...(signature ? { thoughtSignature: signature } : {}) });
+  }
+  return parts;
+}
 
+function convertUsage(usage: ChatUsage): Record<string, number> {
+  const reasoning = usage.completion_tokens_details?.reasoning_tokens ?? usage.output_tokens_details?.reasoning_tokens ?? 0;
   return {
-    responseId: (openaiData.id as string) || '',
-    modelVersion: (openaiData.model as string) || '',
-    candidates: [{
-      content: { parts },
-      finishReason: toGeminiFinishReason(choice?.finish_reason as string | null),
-    }],
-    usageMetadata: usage ? {
-      promptTokenCount: (usage.prompt_tokens as number) || 0,
-      candidatesTokenCount: (usage.completion_tokens as number) || 0,
-      totalTokenCount: (usage.total_tokens as number) || 0,
-      cachedContentTokenCount: (usagePromptDetails?.cached_tokens as number) || 0,
-      thoughtsTokenCount: (usageOutputDetails?.reasoning_tokens as number) || 0,
-    } : undefined,
+    promptTokenCount: usage.prompt_tokens ?? 0,
+    candidatesTokenCount: Math.max(0, (usage.completion_tokens ?? 0) - reasoning),
+    totalTokenCount: usage.total_tokens ?? ((usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0)),
+    cachedContentTokenCount: usage.prompt_tokens_details?.cached_tokens ?? 0,
+    thoughtsTokenCount: reasoning,
   };
 }
 
-// ============================================================================
-// Streaming: OpenAI SSE → Gemini SSE
-// ============================================================================
+export function convertOpenAIResponseToGemini(data: ChatResponse): GeminiResponse {
+  if (data.error) throw new Error(`Cannot convert an upstream error into Gemini candidates: ${JSON.stringify(data.error)}`);
+  return {
+    responseId: data.id ?? '', modelVersion: data.model ?? '',
+    candidates: (data.choices ?? []).map((choice, index) => ({
+      index: choice.index ?? index,
+      content: { role: 'model', parts: responseParts(choice.message ?? {}) },
+      finishReason: choice.message?.extra_content?.google?.finishReason ??
+        (choice.finish_reason ? (FINISH_REASONS[choice.finish_reason] ?? choice.finish_reason.toUpperCase()) : null),
+    })),
+    ...(data.usage ? { usageMetadata: convertUsage(data.usage) } : {}),
+    ...(data.extra_content?.google?.promptFeedback ? { promptFeedback: data.extra_content.google.promptFeedback } : {}),
+  };
+}
 
-/**
- * Convert an OpenAI SSE stream to Gemini SSE format.
- *
- * Gemini streaming emits complete `functionCall` parts rather than
- * incremental argument deltas, so we accumulate partial tool-call
- * data from OpenAI and flush complete functionCall parts on:
- *   - the next tool-call starting, or
- *   - stream end / finish_reason received.
- */
-export function convertOpenAIStreamToGemini(
-  openaiStream: ReadableStream<Uint8Array>,
-  logger?: TransformerLogger
-): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
+export function convertOpenAIStreamToGemini(openaiStream: ReadableStream<Uint8Array>, logger?: TransformerLogger): ReadableStream<Uint8Array> {
+  const reader = openaiStream.getReader();
   const encoder = new TextEncoder();
-
-  // Accumulator for in-progress tool calls (keyed by OpenAI tool_call index)
-  const pendingToolCalls = new Map<number, {
-    id: string;
-    name: string;
-    args: string;
-  }>();
-
+  const pending = new Map<number, Map<number, ChatToolCall & { function: { name: string; arguments: string } }>>();
   let model = '';
   let responseId = '';
-
-  return new ReadableStream({
-    start: async (controller) => {
-      const reader = openaiStream.getReader();
-      let buffer = '';
-      let isClosed = false;
-
-      const emit = (data: GeminiResponse) => {
-        if (isClosed) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-        } catch {
-          isClosed = true;
-        }
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emit = (value: Data) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+      const flushCalls = (choiceIndex: number): Data[] => {
+        const calls = pending.get(choiceIndex);
+        if (!calls) return [];
+        pending.delete(choiceIndex);
+        return responseParts({ tool_calls: [...calls.values()] });
       };
-
-      /** Flush all pending tool calls as a single Gemini chunk */
-      const flushToolCalls = () => {
-        if (pendingToolCalls.size === 0) return;
-        const parts: GeminiResponsePart[] = [];
-        for (const tc of pendingToolCalls.values()) {
-          let args: Record<string, unknown> = {};
-          try { args = JSON.parse(tc.args || '{}'); } catch { /* keep empty */ }
-          parts.push({
-            functionCall: { id: tc.id, name: tc.name, args },
-          });
-        }
-        pendingToolCalls.clear();
-        emit({
-          responseId,
-          modelVersion: model,
-          candidates: [{ content: { parts }, finishReason: null }],
-        });
-      };
-
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (isClosed) break;
-            if (!line.startsWith('data:')) continue;
-
-            const data = line.slice(5).trim();
-            if (!data || data === '[DONE]') continue;
-
-            try {
-              const chunk = JSON.parse(data);
-              if (!responseId && chunk.id) responseId = chunk.id;
-              if (!model && chunk.model) model = chunk.model;
-
-              const choice = chunk.choices?.[0];
-              if (!choice) continue;
-              const delta = choice.delta ?? {};
-
-              // --- Thinking ---
-              if (delta.thinking) {
-                const parts: GeminiResponsePart[] = [];
-                if (delta.thinking.content) {
-                  parts.push({ text: delta.thinking.content, thought: true });
+        let failed = false;
+        await readAnthropicSSE(reader, (chunk: ChatResponse) => {
+          if (chunk.error) { failed = true; emit({ error: chunk.error }); return false; }
+          responseId = chunk.id || responseId;
+          model = chunk.model || model;
+          const candidates: Data[] = [];
+          for (const choice of chunk.choices ?? []) {
+            const index = choice.index ?? 0;
+            const delta = choice.delta ?? {};
+            const native = Array.isArray(delta.extra_content?.google?.parts);
+            const parts = responseParts(native ? delta : { ...delta, tool_calls: undefined });
+            if (!native) {
+              for (const call of delta.tool_calls ?? []) {
+                let calls = pending.get(index);
+                if (!calls) { calls = new Map(); pending.set(index, calls); }
+                const callIndex = call.index ?? 0;
+                let accumulated = calls.get(callIndex);
+                if (!accumulated) {
+                  accumulated = { id: call.id, function: { name: '', arguments: '' } };
+                  calls.set(callIndex, accumulated);
                 }
-                if (delta.thinking.signature) {
-                  parts.push({ thoughtSignature: delta.thinking.signature });
-                }
-                if (parts.length > 0) {
-                  emit({
-                    responseId,
-                    modelVersion: model,
-                    candidates: [{ content: { parts }, finishReason: null }],
-                  });
-                }
+                if (call.id) accumulated.id = call.id;
+                if (call.function?.name) accumulated.function.name += call.function.name;
+                if (call.function?.arguments) accumulated.function.arguments += call.function.arguments;
+                if (call.extra_content) accumulated.extra_content = call.extra_content;
               }
-
-              // --- Text content ---
-              if (delta.content) {
-                emit({
-                  responseId,
-                  modelVersion: model,
-                  candidates: [{
-                    content: { parts: [{ text: delta.content }] },
-                    finishReason: null,
-                  }],
-                });
-              }
-
-              // --- Tool calls (accumulate) ---
-              if (delta.tool_calls) {
-                for (const tc of delta.tool_calls as Array<Record<string, unknown>>) {
-                  const idx = (tc.index ?? 0) as number;
-                  const existing = pendingToolCalls.get(idx);
-                  const func = tc.function as Record<string, unknown> | undefined;
-
-                  if (existing) {
-                    // Append arguments
-                    if (func?.arguments) {
-                      existing.args += func.arguments as string;
-                    }
-                  } else {
-                    // New tool call
-                    pendingToolCalls.set(idx, {
-                      id: (tc.id as string) || `tool_${Date.now()}_${idx}`,
-                      name: (func?.name as string) || '',
-                      args: (func?.arguments as string) || '',
-                    });
-                  }
-                }
-              }
-
-              // --- Finish reason / usage ---
-              if (choice.finish_reason) {
-                flushToolCalls();
-
-                const geminiUsage = chunk.usage ? {
-                  promptTokenCount: chunk.usage.prompt_tokens || 0,
-                  candidatesTokenCount: chunk.usage.completion_tokens || 0,
-                  totalTokenCount: chunk.usage.total_tokens || 0,
-                  cachedContentTokenCount: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-                  thoughtsTokenCount: chunk.usage.output_tokens_details?.reasoning_tokens || 0,
-                } : undefined;
-
-                emit({
-                  responseId,
-                  modelVersion: model,
-                  candidates: [{
-                    content: { parts: [{ text: '' }] },
-                    finishReason: toGeminiFinishReason(choice.finish_reason) || 'STOP',
-                  }],
-                  usageMetadata: geminiUsage,
-                });
-              }
-            } catch (e) {
-              logger?.error(`Error parsing OpenAI stream chunk for Gemini conversion: ${e}`);
             }
+            if (choice.finish_reason) parts.push(...flushCalls(index));
+            if (parts.length || choice.finish_reason) candidates.push({
+              index, content: { role: 'model', parts },
+              finishReason: delta.extra_content?.google?.finishReason ??
+                (choice.finish_reason ? (FINISH_REASONS[choice.finish_reason] ?? choice.finish_reason.toUpperCase()) : null),
+            });
+          }
+          if (candidates.length || chunk.usage || chunk.extra_content?.google?.promptFeedback) emit({
+            responseId, modelVersion: model, candidates,
+            ...(chunk.usage ? { usageMetadata: convertUsage(chunk.usage) } : {}),
+            ...(chunk.extra_content?.google?.promptFeedback ? { promptFeedback: chunk.extra_content.google.promptFeedback } : {}),
+          });
+        }, logger);
+        if (!failed) {
+          for (const index of pending.keys()) {
+            emit({ responseId, modelVersion: model, candidates: [{ index, content: { role: 'model', parts: flushCalls(index) }, finishReason: null }] });
           }
         }
-
-        // Flush any remaining tool calls
-        flushToolCalls();
-      } catch (e) {
-        if (!isClosed) controller.error(e);
+        controller.close();
+      } catch (error) {
+        logger?.error('Error converting OpenAI stream to Gemini', error);
+        controller.error(error);
       } finally {
-        if (!isClosed) {
-          try { controller.close(); } catch { /* already closed */ }
-        }
         reader.releaseLock();
       }
     },
+    cancel(reason) { return reader.cancel(reason); },
   });
 }
 
-/**
- * Convert an OpenAI-compatible Response to Gemini format.
- * Handles both JSON and streaming responses.
- */
-export async function transformResponseIn(
-  response: Response,
-  logger?: TransformerLogger
-): Promise<Response> {
-  const contentType = response.headers.get('Content-Type') ?? '';
-
-  if (contentType.includes('text/event-stream')) {
-    if (!response.body) {
-      throw new Error('Stream response body is null');
-    }
-    const geminiStream = convertOpenAIStreamToGemini(response.body, logger);
-    return new Response(geminiStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    });
+export async function transformResponseIn(response: Response, logger?: TransformerLogger): Promise<Response> {
+  if (!response.ok) return response;
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  if (headers.get('Content-Type')?.includes('text/event-stream')) {
+    if (!response.body) throw new Error('Stream response body is null');
+    return new Response(convertOpenAIStreamToGemini(response.body, logger), { status: response.status, statusText: response.statusText, headers });
   }
-
-  // Non-streaming JSON
   const data = await response.json();
-  const geminiResponse = convertOpenAIResponseToGemini(data);
-  return new Response(JSON.stringify(geminiResponse), {
-    status: response.status,
-    statusText: response.statusText,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  if (data.error) return new Response(JSON.stringify(data), { status: response.status, statusText: response.statusText, headers });
+  headers.set('Content-Type', 'application/json');
+  return new Response(JSON.stringify(convertOpenAIResponseToGemini(data)), { status: response.status, statusText: response.statusText, headers });
 }

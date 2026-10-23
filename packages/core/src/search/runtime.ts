@@ -26,7 +26,7 @@ import type {
   SearchRequest,
 } from '@omnicross/contracts/search-types';
 
-import { builtinHttpSearchContributions } from './http';
+import { builtinHttpSearchContributions, type HttpPublicChildId } from './http';
 import { SearchOrchestrator, type SearchRuntimeEventListener } from './orchestrator';
 import { SearchProviderRegistry } from './registry';
 
@@ -35,9 +35,9 @@ export interface SearchRuntimeOptions {
   /**
    * Providers to register at construction.
    *
-   * Defaults to {@link builtinHttpSearchContributions} — the two keyless HTTP
-   * engines. Pass an explicit list (including an empty one) to build a runtime
-   * that has only what the caller supplies.
+   * Defaults to Bing/DDG plus engines explicitly named in `policy.allowed`.
+   * Pass an explicit list (including an empty one) to build a runtime that has
+   * only what the caller supplies. A preferred provider alone is not an opt-in.
    */
   contributions?: SearchProviderContribution[];
   /** Default policy for every search. Defaults to fallback on, all allowed, unbounded. */
@@ -74,20 +74,31 @@ export interface SearchRuntime {
   listProviders(): SearchProviderDescriptor[];
 }
 
+function defaultSearchContributions(policy?: SearchPolicy): SearchProviderContribution[] {
+  const allowed = policy?.allowed ?? [];
+  const childIds: readonly HttpPublicChildId[] = [
+    'http-bing', 'http-duckduckgo', 'http-startpage', 'http-ecosia', 'http-mojeek',
+  ];
+  return builtinHttpSearchContributions(undefined, {
+    allowedChildIds: childIds.filter((id) => allowed.includes(id)),
+  }).filter((contribution) =>
+    contribution.id === 'http-bing' ||
+    contribution.id === 'http-duckduckgo' ||
+    allowed.includes(contribution.id));
+}
+
 /**
  * Build a runtime.
  *
- * Defaults to the builtin HTTP providers with an unrestricted policy: the
- * deliberate 阶段3 stance, since a sensitive default (one provider, egress
- * restricted) only becomes meaningful once user-facing configuration exists to
- * express the choice. Both are reachable today through {@link SearchPolicy}.
+ * Defaults retain the original Bing/DDG pair. New HTTP engines and public
+ * aggregation require explicit contributions or an explicit policy allow-list.
  */
 export function createSearchRuntime(options: SearchRuntimeOptions = {}): SearchRuntime {
   const registry = new SearchProviderRegistry({
     allowBuiltinOverride: options.allowBuiltinOverride === true,
   });
 
-  for (const contribution of options.contributions ?? builtinHttpSearchContributions()) {
+  for (const contribution of options.contributions ?? defaultSearchContributions(options.policy)) {
     registry.register(contribution);
   }
 

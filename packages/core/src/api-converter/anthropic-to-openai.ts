@@ -14,7 +14,6 @@
 import type {
   AnthropicChatRequest,
   AnthropicChatResponse,
-  AnthropicContentPart,
   OpenAIChatRequest,
   OpenAIChatResponse,
   OpenAIContentPart,
@@ -22,7 +21,7 @@ import type {
   OpenAIToolCall,
 } from '@omnicross/contracts/completion-types';
 
-import { flattenToolResultContent, mapAnthropicStopReason } from './shared';
+import { flattenToolResultContent, mapAnthropicStopReason, readSSEData } from './shared';
 
 /**
  * Build an OpenAI Chat `usage` from an Anthropic usage block, preserving
@@ -39,18 +38,19 @@ function anthropicUsageToChatUsage(usage: {
   output_tokens: number;
   cache_read_input_tokens?: number;
   cache_creation_input_tokens?: number;
-}): { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details?: { cached_tokens: number } } {
+}): OpenAIChatResponse['usage'] {
   const input = usage.input_tokens || 0;
   const output = usage.output_tokens || 0;
   const cacheRead = usage.cache_read_input_tokens || 0;
   const cacheCreation = usage.cache_creation_input_tokens || 0;
   const promptTokens = input + cacheRead + cacheCreation;
-  const out: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details?: { cached_tokens: number } } = {
+  const out: OpenAIChatResponse['usage'] = {
     prompt_tokens: promptTokens,
     completion_tokens: output,
     total_tokens: promptTokens + output,
   };
   if (cacheRead > 0) out.prompt_tokens_details = { cached_tokens: cacheRead };
+  if (cacheCreation > 0) out.cache_creation_input_tokens = cacheCreation;
   return out;
 }
 
@@ -63,6 +63,7 @@ export function convertAnthropicToOpenAI(
   const content: string[] = [];
   const toolCalls: OpenAIToolCall[] = [];
   let reasoningContent = '';
+  const thinkingBlocks = response.content.filter(block => block.type === 'thinking' || block.type === 'redacted_thinking');
 
   // Process content blocks
   for (const block of response.content) {
@@ -79,6 +80,8 @@ export function convertAnthropicToOpenAI(
       });
     } else if (block.type === 'thinking') {
       reasoningContent += block.thinking;
+    } else if (block.type !== 'redacted_thinking') {
+      throw new Error(`Cannot encode Anthropic response content in Chat: ${block.type}`);
     }
   }
 
@@ -94,8 +97,10 @@ export function convertAnthropicToOpenAI(
         index: 0,
         message: {
           role: 'assistant',
-          content: content.join('\n') || null,
+          content: content.join('') || null,
           ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+          ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+          ...(thinkingBlocks.length ? { thinking: { content: reasoningContent, blocks: thinkingBlocks } } : {}),
         },
         finish_reason: finishReason,
       },
@@ -103,9 +108,6 @@ export function convertAnthropicToOpenAI(
     usage: anthropicUsageToChatUsage(response.usage),
   };
 
-  if (reasoningContent) {
-    result.reasoning_content = reasoningContent;
-  }
 
   return result;
 }
@@ -141,12 +143,19 @@ export function convertAnthropicRequestToOpenAI(
     } else if (Array.isArray(msg.content)) {
       const openaiContent: OpenAIContentPart[] = [];
       const toolCalls: OpenAIToolCall[] = [];
-      let toolResultId: string | undefined;
-      let toolResultContent: string | undefined;
+      const toolResults: OpenAIMessage[] = [];
+      let reasoning = '';
+      const thinkingBlocks = msg.content.filter(part => part.type === 'thinking' || part.type === 'redacted_thinking');
 
       for (const part of msg.content) {
         if (part.type === 'text') {
           openaiContent.push({ type: 'text', text: part.text });
+        } else if (part.type === 'document') {
+          if (part.source.type !== 'base64') throw new Error('Chat document conversion requires inline base64 data');
+          openaiContent.push({ type: 'file', file: {
+            filename: part.title || 'document.pdf',
+            file_data: `data:${part.source.media_type};base64,${part.source.data}`,
+          } });
         } else if (part.type === 'image') {
           if (part.source.type === 'base64') {
             openaiContent.push({
@@ -171,31 +180,37 @@ export function convertAnthropicRequestToOpenAI(
             },
           });
         } else if (part.type === 'tool_result') {
-          toolResultId = part.tool_use_id;
-          // Anthropic tool results are usually a block ARRAY; stringifying it
-          // fed the model the literal `[{"type":"text","text":"…"}]` envelope.
-          toolResultContent = flattenToolResultContent(part.content);
+          toolResults.push({
+            role: 'tool', tool_call_id: part.tool_use_id,
+            content: part.is_error
+              ? JSON.stringify({ error: flattenToolResultContent(part.content) })
+              : flattenToolResultContent(part.content),
+          });
+        } else if (part.type === 'thinking') {
+          reasoning += part.thinking;
+        } else if (part.type !== 'redacted_thinking') {
+          throw new Error(`Unsupported OpenAI content conversion: ${part.type}`);
         }
       }
 
-      if (toolResultId && toolResultContent !== undefined) {
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolResultId,
-          content: toolResultContent,
-        });
-      } else if (toolCalls.length > 0) {
+      messages.push(...toolResults);
+      if (toolCalls.length > 0) {
         messages.push({
           role: 'assistant',
           content: openaiContent.length > 0
-            ? openaiContent.map(c => c.type === 'text' ? c.text : '').join('\n')
+            ? openaiContent.every(part => part.type === 'text')
+              ? openaiContent.map(part => part.text).join('') : openaiContent
             : null,
           tool_calls: toolCalls,
+          ...(reasoning ? { reasoning_content: reasoning } : {}),
+          ...(thinkingBlocks.length ? { thinking: { content: reasoning, blocks: thinkingBlocks } } : {}),
         });
-      } else {
+      } else if (openaiContent.length || reasoning || !toolResults.length) {
         messages.push({
           role: msg.role,
           content: openaiContent.length > 0 ? openaiContent : null,
+          ...(reasoning ? { reasoning_content: reasoning } : {}),
+          ...(thinkingBlocks.length ? { thinking: { content: reasoning, blocks: thinkingBlocks } } : {}),
         });
       }
     }
@@ -206,6 +221,9 @@ export function convertAnthropicRequestToOpenAI(
     messages,
     max_tokens: request.max_tokens,
     stream: request.stream,
+    ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+    ...(request.top_p !== undefined ? { top_p: request.top_p } : {}),
+    ...(request.stop_sequences !== undefined ? { stop: request.stop_sequences } : {}),
   };
 
   // Convert tools
@@ -222,6 +240,8 @@ export function convertAnthropicRequestToOpenAI(
     if (request.tool_choice) {
       if (request.tool_choice.type === 'auto') {
         result.tool_choice = 'auto';
+      } else if (request.tool_choice.type === 'none') {
+        result.tool_choice = 'none';
       } else if (request.tool_choice.type === 'any') {
         result.tool_choice = 'required';
       } else if (request.tool_choice.type === 'tool') {
@@ -231,8 +251,14 @@ export function convertAnthropicRequestToOpenAI(
         };
       }
     }
+    if (request.tool_choice?.disable_parallel_tool_use !== undefined) {
+      result.parallel_tool_calls = !request.tool_choice.disable_parallel_tool_use;
+    }
   }
 
+  if (request.thinking) {
+    throw new Error('Anthropic thinking configuration requires a target-specific OpenAI reasoning mapping');
+  }
   return result;
 }
 
@@ -242,21 +268,7 @@ export function convertAnthropicRequestToOpenAI(
 export function convertAnthropicToOpenAIWithThinking(
   response: AnthropicChatResponse
 ): OpenAIChatResponse {
-  const baseResult = convertAnthropicToOpenAI(response);
-
-  // Extract thinking content
-  const thinkingBlocks = response.content.filter(
-    (block): block is AnthropicContentPart & { type: 'thinking' } =>
-      block.type === 'thinking'
-  );
-
-  if (thinkingBlocks.length > 0) {
-    baseResult.reasoning_content = thinkingBlocks
-      .map(block => ('thinking' in block ? block.thinking : ''))
-      .join('\n');
-  }
-
-  return baseResult;
+  return convertAnthropicToOpenAI(response);
 }
 
 /**
@@ -267,130 +279,75 @@ export async function* convertAnthropicStreamToOpenAI(
 ): AsyncGenerator<string> {
   let messageId = '';
   let model = 'unknown';
-  const toolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
-
-  for await (const line of anthropicStream) {
-    if (!line.startsWith('data:')) continue;
-    const data = line.slice(5).trim();
-
-    try {
-      const event = JSON.parse(data);
-
-      switch (event.type) {
-        case 'message_start':
-          messageId = event.message?.id || `chatcmpl-${Date.now()}`;
-          model = event.message?.model || model;
-          break;
-
-        case 'content_block_delta':
-          if (event.delta?.type === 'text_delta') {
-            yield `data: ${JSON.stringify({
-              id: messageId,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model,
-              choices: [{
-                index: 0,
-                delta: { content: event.delta.text },
-                finish_reason: null
-              }]
-            })}\n\n`;
-          } else if (event.delta?.type === 'thinking_delta') {
-            yield `data: ${JSON.stringify({
-              id: messageId,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model,
-              choices: [{
-                index: 0,
-                delta: { reasoning_content: event.delta.thinking },
-                finish_reason: null
-              }]
-            })}\n\n`;
-          } else if (event.delta?.type === 'input_json_delta') {
-            const toolIndex = event.index || 0;
-            const tc = toolCalls.get(toolIndex);
-            if (tc) {
-              yield `data: ${JSON.stringify({
-                id: messageId,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model,
-                choices: [{
-                  index: 0,
-                  delta: {
-                    tool_calls: [{
-                      index: toolIndex,
-                      function: { arguments: event.delta.partial_json }
-                    }]
-                  },
-                  finish_reason: null
-                }]
-              })}\n\n`;
-            }
-          }
-          break;
-
-        case 'content_block_start':
-          if (event.content_block?.type === 'tool_use') {
-            const toolIndex = event.index || 0;
-            toolCalls.set(toolIndex, {
-              id: event.content_block.id,
-              name: event.content_block.name,
-              arguments: ''
-            });
-            yield `data: ${JSON.stringify({
-              id: messageId,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model,
-              choices: [{
-                index: 0,
-                delta: {
-                  tool_calls: [{
-                    index: toolIndex,
-                    id: event.content_block.id,
-                    type: 'function',
-                    function: { name: event.content_block.name, arguments: '' }
-                  }]
-                },
-                finish_reason: null
-              }]
-            })}\n\n`;
-          }
-          break;
-
-        case 'message_delta':
-          if (event.delta?.stop_reason) {
-            const finishReason = mapAnthropicStopReason(event.delta.stop_reason);
-            yield `data: ${JSON.stringify({
-              id: messageId,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model,
-              choices: [{
-                index: 0,
-                delta: {},
-                finish_reason: finishReason
-              }],
-              usage: event.usage
-                ? anthropicUsageToChatUsage({
-                    input_tokens: event.usage.input_tokens || 0,
-                    output_tokens: event.usage.output_tokens || 0,
-                    cache_read_input_tokens: (event.usage as Record<string, unknown>).cache_read_input_tokens as number | undefined,
-                    cache_creation_input_tokens: (event.usage as Record<string, unknown>).cache_creation_input_tokens as number | undefined,
-                  })
-                : undefined
-            })}\n\n`;
-          }
-          break;
-
-        case 'message_stop':
-          yield 'data: [DONE]\n\n';
-          break;
+  let usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+  const tools = new Map<number, number>();
+  const thinkingIndices = new Set<number>();
+  const chunk = (delta: Record<string, unknown>, finishReason: string | null = null, finalUsage = false) =>
+    `data: ${JSON.stringify({
+      id: messageId, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model,
+      choices: [{ index: 0, delta, finish_reason: finishReason }],
+      ...(finalUsage ? { usage: anthropicUsageToChatUsage(usage) } : {}),
+    })}\n\n`;
+  for await (const data of readSSEData(anthropicStream)) {
+    const event = JSON.parse(data);
+    switch (event.type) {
+      case 'message_start':
+        messageId = event.message.id;
+        model = event.message.model;
+        usage = { ...usage, ...event.message.usage };
+        yield chunk({ role: 'assistant', content: '' });
+        break;
+      case 'content_block_start': {
+        const block = event.content_block;
+        if (block.type === 'tool_use') {
+          const index = tools.size;
+          tools.set(event.index, index);
+          yield chunk({ tool_calls: [{
+            index, id: block.id, type: 'function',
+            function: { name: block.name, arguments: Object.keys(block.input ?? {}).length ? JSON.stringify(block.input) : '' },
+          }] });
+        } else if (block.type === 'text' && block.text) {
+          yield chunk({ content: block.text });
+        } else if (block.type === 'thinking') {
+          thinkingIndices.add(event.index);
+          yield chunk({
+            ...(block.thinking ? { reasoning_content: block.thinking } : {}),
+            thinking: { index: event.index, content: block.thinking || '', ...(block.signature ? { signature: block.signature } : {}) },
+          });
+        } else if (block.type === 'redacted_thinking') {
+          yield chunk({ thinking: { index: event.index, type: block.type, data: block.data } });
+        }
+        break;
       }
-    } catch {
-      // Skip malformed events
+      case 'content_block_delta':
+        if (event.delta.type === 'text_delta') yield chunk({ content: event.delta.text });
+        else if (event.delta.type === 'thinking_delta') yield chunk({
+          reasoning_content: event.delta.thinking,
+          thinking: { index: event.index, content: event.delta.thinking },
+        });
+        else if (event.delta.type === 'signature_delta') yield chunk({
+          thinking: { index: event.index, signature: event.delta.signature },
+        });
+        else if (event.delta.type === 'input_json_delta') {
+          const index = tools.get(event.index);
+          if (index === undefined) throw new Error('Tool argument delta without a tool start');
+          yield chunk({ tool_calls: [{ index, function: { arguments: event.delta.partial_json } }] });
+        }
+        break;
+      case 'content_block_stop':
+        if (thinkingIndices.has(event.index)) yield chunk({ thinking: { index: event.index, done: true } });
+        break;
+      case 'message_delta':
+        usage = { ...usage, ...event.usage };
+        if (event.delta?.stop_reason) yield chunk({}, mapAnthropicStopReason(event.delta.stop_reason), true);
+        break;
+      case 'message_stop':
+        yield 'data: [DONE]\n\n';
+        return;
+      case 'error':
+        yield `data: ${JSON.stringify({ error: event.error })}\n\n`;
+        return;
     }
   }
+  throw new Error('Anthropic stream ended before message_stop');
 }

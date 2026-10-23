@@ -100,7 +100,7 @@ describe('OpenAIResponseTransformer — codex function-call streaming (Task 2)',
       .filter((tc) => tc.id !== undefined);
     expect(openCalls).toHaveLength(1);
     expect(openCalls[0]).toEqual({
-      index: 1,
+      index: 0,
       id: 'call_abc',
       type: 'function',
       function: { name: 'Glob', arguments: '' },

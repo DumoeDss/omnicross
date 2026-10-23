@@ -15,7 +15,7 @@ let providers = [
 ];
 
 const presets = [
-  { id: 'deepseek', presetId: 'deepseek', name: 'DeepSeek', apiFormat: 'openai', baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-chat'] },
+  { id: 'deepseek', presetId: 'deepseek', name: 'DeepSeek', apiFormat: 'openai', baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-flash'] },
 ];
 
 // ── Phase-2 in-memory state (server / status / keys / accounts) ───────────────

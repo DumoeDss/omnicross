@@ -15,6 +15,22 @@ export type WebSearchProviderId =
   | 'bocha'
   | 'claude'
   | 'grok'
+  | 'deepseek'
+  | 'parallel'
+  | 'firecrawl'
+  | 'brave'
+  | 'kagi'
+  | 'kimi'
+  | 'synthetic'
+  | 'ollama'
+  | 'tinyfish'
+  | 'perplexity'
+  | 'http-bing'
+  | 'http-duckduckgo'
+  | 'http-startpage'
+  | 'http-ecosia'
+  | 'http-mojeek'
+  | 'public'
   | 'local-google'
   | 'local-bing'
   | 'local-baidu'
@@ -33,6 +49,10 @@ export interface WebSearchProviderConfig {
   apiKey?: string;
   /** Custom API host URL */
   apiHost?: string;
+  /** Public mode never consumes a stored API credential. */
+  authMode?: 'public' | 'api';
+  /** Model used by services whose search API requires a model. */
+  model?: string;
   /** HTTP basic auth username (for Searxng) */
   basicAuthUsername?: string;
   /** HTTP basic auth password (for Searxng) */

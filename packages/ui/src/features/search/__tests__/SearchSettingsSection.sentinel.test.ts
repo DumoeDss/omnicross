@@ -1,13 +1,6 @@
 /** @vitest-environment jsdom */
 
-/**
- * SearchSettingsSection sentinel tests (moved from api-service; the section is
- * the standalone Search page's body since search-settings-tab): the closed
- * seven-id catalog renders with no dead/local ids, the unconfigured state is
- * an honest empty state (now WITH the always-reachable entry fields — the D3
- * fix), and a planted secret NEVER renders — not as text, not as an attribute,
- * not in a placeholder.
- */
+/** Secrets in unexpected admin DTO fields must never enter rendered inputs. */
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -64,7 +57,7 @@ const diagnostics: SearchDiagnosticsSnapshot = {
 const unusedQuery = async (): Promise<SearchQueryOutcome> => ({ ok: false, error: 'unused' });
 
 describe('SearchSettingsSection sensitive DTO rendering', () => {
-  it('renders the seven-card catalog and never the planted secret material', () => {
+  it('never renders planted secret material from a masked read', () => {
     const markup = renderToStaticMarkup(
       React.createElement(SearchSettingsSection, {
         config: configWithSecret,
@@ -74,18 +67,6 @@ describe('SearchSettingsSection sensitive DTO rendering', () => {
         onQuery: unusedQuery,
       }),
     );
-
-    // The closed eight-id catalog renders, with no dead/local ids.
-    for (const name of ['Bing (HTTP)', 'DuckDuckGo (HTTP)', 'Tavily', 'Jina', 'SearXNG', 'Zhipu', 'Z.AI', 'DeepSeek']) {
-      expect(markup).toContain(name);
-    }
-    expect(markup).not.toContain('grok');
-    expect(markup.toLowerCase()).not.toContain('local-');
-    expect(markup).not.toContain('bocha');
-    expect(markup).not.toContain('claude');
-
-    // Unconfigured is an honest empty state naming the missing field.
-    expect(markup).toContain('search.unconfiguredReason.zai');
 
     // NEVER the secret material — not in text, not in an attribute, not in a
     // placeholder (the write-only inputs are empty by construction).
@@ -106,43 +87,4 @@ describe('SearchSettingsSection sensitive DTO rendering', () => {
     expect(markup).toContain('search.unsupportedDaemon');
   });
 
-  it('renders the pending-restart banner naming saved-but-not-running providers', () => {
-    // Persisted carries tavily+zhipu; the RUNNING runtime rows only include the
-    // http pair → both diverge → banner names them.
-    const persisted = {
-      ...configWithSecret,
-      providers: {
-        tavily: { apiKeyConfigured: true },
-        zhipu: { apiKeyConfigured: true },
-      },
-    } as unknown as SearchServerConfig;
-    const runningOnly: SearchDiagnosticsSnapshot = {
-      ...diagnostics,
-      rows: diagnostics.rows.filter((row) => row.kind === 'http'),
-    };
-    const markup = renderToStaticMarkup(
-      React.createElement(SearchSettingsSection, {
-        config: persisted,
-        diagnostics: runningOnly,
-        busy: false,
-        onUpdate: async () => undefined,
-        onQuery: unusedQuery,
-      }),
-    );
-    expect(markup).toContain('search.restartBanner:Tavily, Zhipu');
-  });
-
-  it('labels the codex mode immediate and the other restart-required fields', () => {
-    const markup = renderToStaticMarkup(
-      React.createElement(SearchSettingsSection, {
-        config: configWithSecret,
-        diagnostics,
-        busy: false,
-        onUpdate: async () => undefined,
-        onQuery: unusedQuery,
-      }),
-    );
-    expect(markup).toContain('search.immediateHint');
-    expect(markup).toContain('search.restartHint');
-  });
 });

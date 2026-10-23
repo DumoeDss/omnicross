@@ -204,6 +204,12 @@ export async function readMultipartEdit(
       parser.destroy(error instanceof Error ? error : invalid());
       reject(error);
     };
+    const discardFile = (file: NodeJS.ReadableStream, error: ImageGenerationError): void => {
+      // Unconsumed files have no materializer to observe parser.destroy() errors.
+      file.once('error', fail);
+      file.resume();
+      fail(error);
+    };
     const onAbort = (): void => fail(new ImageGenerationError('request_cancelled', { cause: signal.reason }));
     let requestEnded = false;
     const onEnd = (): void => { requestEnded = true; };
@@ -232,34 +238,31 @@ export async function readMultipartEdit(
 
     parser.on('file', (name, file) => {
       if (settled) {
+        file.once('error', fail);
         file.resume();
         return;
       }
       if (byteLength(name) > limits.maxFieldNameBytes) {
-        file.resume();
-        fail(tooLarge());
+        discardFile(file, tooLarge());
         return;
       }
       let kind: PendingFile['kind'];
       if (name === 'image' || name === 'image[]') {
         imageCount += 1;
         if (imageCount > 16) {
-          file.resume();
-          fail(invalid('image'));
+          discardFile(file, invalid('image'));
           return;
         }
         kind = 'image';
       } else if (name === 'mask') {
         maskCount += 1;
         if (maskCount > 1) {
-          file.resume();
-          fail(invalid('mask'));
+          discardFile(file, invalid('mask'));
           return;
         }
         kind = 'mask';
       } else {
-        file.resume();
-        fail(invalid(name.length <= 128 ? name : undefined));
+        discardFile(file, invalid(name.length <= 128 ? name : undefined));
         return;
       }
       let truncated = false;

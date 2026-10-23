@@ -17,8 +17,10 @@
  * @module transformer/transformers/AnthropicRequestBuilder
  */
 
+import { normalizeModelId } from '@omnicross/contracts/canonical-models';
 import { resolveAnthropicMaxTokens } from '../../anthropicMaxTokens';
-import type { LLMProvider, TextContent, UnifiedChatRequest } from '../types';
+import { OpenAIOperationError } from '../../openai-operation';
+import type { LLMProvider, UnifiedChatRequest } from '../types';
 import {
   extractReasoningIntent,
   resolveReasoningPlan,
@@ -30,6 +32,7 @@ import type {
   AnthropicThinkingContent,
   AnthropicToolResultContent,
 } from './AnthropicTypes';
+import { readGoogleReplayContent } from './AnthropicTypes';
 
 /**
  * Unified block content → Anthropic tool_result content blocks: text parts to
@@ -47,7 +50,8 @@ function toolResultContentBlocks(content: NonNullable<UnifiedChatRequest['messag
       }
       return { type: 'image', source: { type: 'url', url } };
     }
-    return { type: 'text', text: part && typeof part === 'object' && 'text' in part ? String(part.text) : String(part) };
+    if (part.type === 'text') return { ...part };
+    throw new Error('Unsupported Anthropic tool result content block');
   });
 }
 
@@ -58,6 +62,12 @@ export function buildAnthropicRequestBody(
   request: UnifiedChatRequest,
   provider?: Pick<LLMProvider, 'modelConfigs'>,
 ): Record<string, unknown> {
+  if (request.n !== undefined && request.n !== 1) {
+    throw new OpenAIOperationError({
+      status: 400, code: 'unsupported_capability',
+      message: 'Anthropic Messages supports only one candidate (n=1)',
+    });
+  }
   let systemContent: string | Array<{ type: 'text'; text: string; cache_control?: unknown }> | undefined;
   const anthropicMessages: AnthropicMessage[] = [];
 
@@ -66,16 +76,19 @@ export function buildAnthropicRequestBody(
 
     // System message → extract to top-level field
     if (msg.role === 'system') {
-      if (typeof msg.content === 'string') {
+      const parts = typeof msg.content === 'string'
+        ? [{ type: 'text' as const, text: msg.content }]
+        : (msg.content ?? []).map((part) => {
+          if (part.type !== 'text') throw new Error('Anthropic system messages only support text');
+          return { ...part };
+        });
+      if (systemContent === undefined && typeof msg.content === 'string') {
         systemContent = msg.content;
-      } else if (Array.isArray(msg.content)) {
-        systemContent = msg.content
-          .filter((c): c is TextContent => c.type === 'text')
-          .map((c) => ({
-            type: 'text' as const,
-            text: c.text,
-            ...(c.cache_control ? { cache_control: c.cache_control } : {}),
-          }));
+      } else {
+        systemContent = [
+          ...(typeof systemContent === 'string' ? [{ type: 'text' as const, text: systemContent }] : systemContent ?? []),
+          ...parts,
+        ];
       }
       continue;
     }
@@ -83,29 +96,31 @@ export function buildAnthropicRequestBody(
     // Assistant message → content blocks (text + tool_use + thinking)
     if (msg.role === 'assistant') {
       const content: AnthropicContent[] = [];
+      const googleReplay = readGoogleReplayContent('extra_content' in msg ? msg.extra_content : undefined);
 
       // Thinking block (must precede text/tool_use in Anthropic format).
       // `signature` is only included when the upstream returned one — some
       // Anthropic-compat providers (e.g. Xiaomi MiMo) emit thinking blocks
       // without it, and a literal `signature: undefined` would still serialise
       // as a missing field but it's clearer to omit it explicitly.
-      if (msg.thinking?.content) {
-        const block: AnthropicThinkingContent = {
-          type: 'thinking',
-          thinking: msg.thinking.content,
-        };
-        if (msg.thinking.signature) {
-          block.signature = msg.thinking.signature;
+      if (msg.thinking?.blocks?.length) {
+        content.push(...msg.thinking.blocks);
+      } else {
+        const reasoning = msg.thinking?.content ??
+          ('reasoning_content' in msg && typeof msg.reasoning_content === 'string' ? msg.reasoning_content : undefined);
+        if (reasoning !== undefined && (!googleReplay || reasoning.length > 0)) {
+          const block: AnthropicThinkingContent = { type: 'thinking', thinking: reasoning };
+          if (!googleReplay && msg.thinking?.signature) block.signature = msg.thinking.signature;
+          content.push(block);
         }
-        content.push(block);
       }
 
-      if (msg.content) {
-        const text = typeof msg.content === 'string'
-          ? msg.content
-          : msg.content.filter((c): c is TextContent => c.type === 'text').map(c => c.text).join('\n');
-        if (text) {
-          content.push({ type: 'text', text });
+      if (typeof msg.content === 'string') {
+        if (msg.content) content.push({ type: 'text', text: msg.content });
+      } else if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type !== 'text') throw new Error('Anthropic assistant messages only support text and reasoning/tool blocks');
+          content.push({ ...part });
         }
       }
 
@@ -117,7 +132,7 @@ export function buildAnthropicRequestBody(
               ? JSON.parse(tc.function.arguments)
               : (tc.function.arguments as unknown as Record<string, unknown>);
           } catch {
-            input = { text: tc.function.arguments || '' };
+            throw new Error(`Invalid JSON arguments for Anthropic tool ${tc.function.name}`);
           }
           content.push({
             type: 'tool_use',
@@ -152,6 +167,7 @@ export function buildAnthropicRequestBody(
             ? (t.content ?? '')
             : toolResultContentBlocks(t.content),
           ...(t.cache_control ? { cache_control: t.cache_control } : {}),
+          ...(t.is_error !== undefined ? { is_error: t.is_error } : {}),
         });
         j++;
       }
@@ -182,7 +198,8 @@ export function buildAnthropicRequestBody(
             source: { type: 'url' as const, url },
           };
         }
-        return { type: 'text' as const, text: part.text };
+        if (part.type === 'text') return { ...part };
+        throw new Error('Unsupported Anthropic user content block');
       });
       anthropicMessages.push({ role: 'user', content });
     }
@@ -242,7 +259,7 @@ export function buildAnthropicRequestBody(
     if (typeof request.tool_choice === 'string') {
       if (request.tool_choice === 'required') {
         body.tool_choice = { type: 'any' };
-      } else if (request.tool_choice !== 'none') {
+      } else {
         body.tool_choice = { type: request.tool_choice };
       }
     } else if (typeof request.tool_choice === 'object' && 'function' in request.tool_choice) {
@@ -261,9 +278,7 @@ export function buildAnthropicRequestBody(
     }
   }
 
-  // Convert reasoning immediately before the Anthropic wire boundary. Models
-  // declaring discrete levels use adaptive thinking; older targets retain the
-  // bounded budget_tokens contract.
+  // The shared planner negotiates native adaptive levels versus legacy budgets.
   const reasoningPlan = resolveReasoningPlan({
     intent: extractReasoningIntent(request),
     model: request.model,
@@ -275,7 +290,9 @@ export function buildAnthropicRequestBody(
     body.thinking = { type: 'disabled' };
   } else if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
     body.thinking = { type: 'adaptive' };
-    body.output_config = { effort: reasoningPlan.effort };
+    if (!/^minimax-m(?:2(?:[.-]|$)|3$)/.test(normalizeModelId(request.model))) {
+      body.output_config = { effort: reasoningPlan.effort };
+    }
   } else if (reasoningPlan?.kind === 'budget' && reasoningPlan.enabled) {
     body.thinking = { type: 'enabled', budget_tokens: reasoningPlan.budgetTokens };
     // Legacy extended thinking requires temperature=1. Adaptive thinking does not.

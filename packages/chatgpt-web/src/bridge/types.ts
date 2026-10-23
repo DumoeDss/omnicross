@@ -118,9 +118,6 @@ export interface CodexJsonSchemaOutputFormat {
 }
 
 export interface CodexRequestOptions {
-  maxOutputTokens?: number;
-  temperature?: number;
-  topP?: number;
   reasoning?: string;
   hideThinkingSummary?: boolean;
   verbosity?: CodexVerbosity;

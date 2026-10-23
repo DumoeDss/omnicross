@@ -167,9 +167,9 @@ describe('official OpenAI JavaScript SDK through the booted daemon', () => {
     expect((await jsonEdit(harness, harness.token, reference.referenceId)).status).toBe(200);
   });
 
-  it('maps validation/provider failures and releases resources after cancellation', async () => {
-    const first = await setup();
-    const invalid = await first.client.images.generate({
+  it('maps invalid image requests to SDK validation errors without starting the provider', async () => {
+    const { client, harness } = await setup();
+    const invalid = await client.images.generate({
       model: 'gpt-image-2',
       prompt: 'invalid transparency combination',
       background: 'transparent',
@@ -177,10 +177,12 @@ describe('official OpenAI JavaScript SDK through the booted daemon', () => {
     }).catch((error: unknown) => error);
     expect(invalid).toBeInstanceOf(APIError);
     expect(invalid).toMatchObject({ status: 400, code: 'invalid_image_request' });
-    expect(first.harness.capture.starts).toBe(0);
+    expect(harness.capture.starts).toBe(0);
+  });
 
-    const failed = await setup({ failWith: 'image_generation_failed' });
-    const providerError = await failed.client.images.generate({
+  it('maps provider failures to SDK upstream errors', async () => {
+    const { client } = await setup({ failWith: 'image_generation_failed' });
+    const providerError = await client.images.generate({
       model: 'gpt-image-2',
       prompt: 'synthetic terminal failure',
     }).catch((error: unknown) => error);
@@ -189,52 +191,101 @@ describe('official OpenAI JavaScript SDK through the booted daemon', () => {
       status: 502,
       code: 'image_generation_failed',
     });
+  });
 
-    const cancelled = await setup({
-      beforeComplete: () => new Promise((resolve) => setTimeout(resolve, 150)),
+  it('cancels an accepted wire stream and releases all provider and daemon resources', async ({ signal }) => {
+    let releaseProvider!: () => void;
+    const providerGate = new Promise<void>((resolve) => { releaseProvider = resolve; });
+    let notifyProviderEntered!: () => void;
+    const providerEntered = new Promise<void>((resolve) => { notifyProviderEntered = resolve; });
+    let notifyProviderAborted!: () => void;
+    const providerAborted = new Promise<void>((resolve) => { notifyProviderAborted = resolve; });
+    const { harness } = await setup({
+      beforeComplete: async (_request, context) => {
+        const onAbort = (): void => {
+          notifyProviderAborted();
+          releaseProvider();
+        };
+        context.signal.addEventListener('abort', onAbort, { once: true });
+        try {
+          if (context.signal.aborted) onAbort();
+          notifyProviderEntered();
+          await providerGate;
+        } finally {
+          context.signal.removeEventListener('abort', onAbort);
+        }
+      },
     });
-    // Cancellation needs a REAL wire abort. The SDK's AbortController path no
-    // longer produces one on current Node: undici errors the local body
-    // iterator but keeps DRAINING the connection so it stays pool-reusable —
-    // the daemon never sees a disconnect and the generation completes into
-    // the void (observed: starts=1, cancels=0 on Node v24/undici-current).
-    // `socket.resetAndDestroy()` (RST) is the disconnect the registry's
-    // `req.aborted` / early-`res.close` listeners exist for — what a browser
-    // EventSource abort or a killed client process actually looks like.
-    await new Promise<void>((resolveCancellation) => {
-      const url = new URL(`${cancelled.harness.baseURL}/images/generations`);
-      const request = http.request({
-        hostname: url.hostname,
-        port: url.port,
-        path: `${url.pathname}${url.search}`,
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${cancelled.harness.token}`,
-          'Content-Type': 'application/json',
-        },
-      }, (response) => {
-        response.on('data', () => { /* stream drains until the reset */ });
-        response.on('error', () => undefined);
-        // Headers are live once the provider's `accepted` event flushed them;
-        // reset mid-generation (beforeComplete holds completion for 150ms).
-        setTimeout(() => {
-          response.socket?.resetAndDestroy();
-          resolveCancellation();
-        }, 50);
-      });
-      request.on('error', () => undefined);
-      request.end(JSON.stringify({
-        model: 'gpt-image-2',
-        prompt: 'cancel the real daemon stream',
-        stream: true,
-        partial_images: 0,
-      }));
+    let request: http.ClientRequest | undefined;
+    let response: http.IncomingMessage | undefined;
+    let reset = false;
+    let failRequest!: (error: unknown) => void;
+    const requestFailed = new Promise<never>((_resolve, reject) => { failRequest = reject; });
+    let abortTest!: () => void;
+    const testAborted = new Promise<never>((_resolve, reject) => {
+      abortTest = () => {
+        releaseProvider();
+        request?.destroy();
+        reject(signal.reason);
+      };
+      signal.addEventListener('abort', abortTest, { once: true });
+      if (signal.aborted) abortTest();
     });
-    await expect.poll(() => cancelled.harness.capture.cancels).toBe(1);
-    await expect.poll(() => cancelled.harness.daemon.imageRuntimeManager.resourceStatus())
-      .toMatchObject({
-        queue: { activeJobs: 0, waitingJobs: 0 },
-        temporary: { activeScopes: 0, totalBytes: 0 },
+    const waitForStage = <T>(stage: Promise<T>): Promise<T> =>
+      Promise.race([stage, requestFailed, testAborted]);
+    try {
+      const url = new URL(`${harness.baseURL}/images/generations`);
+      const accepted = new Promise<http.IncomingMessage>((resolve) => {
+        request = http.request(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${harness.token}`,
+            'Content-Type': 'application/json',
+          },
+        }, (incoming) => {
+          response = incoming;
+          incoming.on('error', (error) => { if (!reset) failRequest(error); });
+          incoming.on('end', () => {
+            if (!reset) failRequest(new Error('image stream completed before the wire reset'));
+          });
+          incoming.resume();
+          resolve(incoming);
+        });
+        request.on('error', (error) => { if (!reset) failRequest(error); });
+        request.end(JSON.stringify({
+          model: 'gpt-image-2',
+          prompt: 'cancel the real daemon stream',
+          stream: true,
+          partial_images: 0,
+        }));
       });
+      const [incoming] = await waitForStage(Promise.all([accepted, providerEntered]));
+      expect(incoming.statusCode).toBe(200);
+      expect(incoming.headers['content-type']).toContain('text/event-stream');
+      expect(harness.capture.active).toBe(1);
+      expect(harness.capture.cancels).toBe(0);
+      expect(incoming.socket).not.toBeNull();
+      // The SDK/undici can drain a locally aborted body without disconnecting.
+      // Reset the actual accepted socket while the provider gate is still held;
+      // only the daemon's cancellation signal (or failure cleanup) opens it.
+      reset = true;
+      incoming.socket!.resetAndDestroy();
+      await waitForStage(providerAborted);
+      await expect.poll(() => ({
+        cancels: harness.capture.cancels,
+        active: harness.capture.active,
+        releases: harness.capture.releases,
+      })).toEqual({ cancels: 1, active: 0, releases: 1 });
+      await expect.poll(() => harness.daemon.imageRuntimeManager.resourceStatus())
+        .toMatchObject({
+          queue: { activeJobs: 0, waitingJobs: 0 },
+          temporary: { activeScopes: 0, totalBytes: 0 },
+        });
+    } finally {
+      releaseProvider();
+      signal.removeEventListener('abort', abortTest);
+      response?.destroy();
+      request?.destroy();
+    }
   });
 });

@@ -76,6 +76,60 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+
+describe('Completion retired-model redirects', () => {
+  it.each(['deepseek-chat', 'deepseek-reasoner'])('uses flash for %s across direct and streaming protocols', async (model) => {
+    const formats = [
+      ['openai', callOpenAICompletion, streamOpenAICompletion],
+      ['openai-response', callOpenAIResponseCompletion, streamOpenAIResponseCompletion],
+      ['anthropic', callAnthropicCompletion, streamAnthropicCompletion],
+      ['google', callGeminiCompletion, streamGeminiCompletion],
+    ] as const;
+    for (const [format, direct, stream] of formats) {
+      const upstream = provider(format, model, [
+        { id: model, name: 'Selected legacy row', enabled: true, thinkingLevels: ['low'] },
+        { id: 'deepseek-flash', name: 'Other row', enabled: true, thinkingLevels: ['high'] },
+      ]);
+      const requestOptions = options(model, 'high', { maxTokens: 4321, temperature: 0.4 });
+      await direct(upstream, 'key', requestOptions, logger);
+      await stream(upstream, 'key', requestOptions, 'message', callbacks, logger);
+      for (const body of bodies.slice(-2)) {
+        if (format === 'google') {
+          expect(body.generationConfig).toMatchObject({
+            maxOutputTokens: 4321,
+            thinkingConfig: { thinkingLevel: 'low' },
+          });
+          expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toContain('/models/deepseek-flash:');
+        } else {
+          expect(body.model).toBe('deepseek-flash');
+          expect(body[format === 'openai-response' ? 'max_output_tokens' : 'max_tokens']).toBe(4321);
+          if (format === 'openai') expect(body.reasoning_effort).toBe('low');
+          if (format === 'openai-response') expect(body.reasoning).toMatchObject({ effort: 'low' });
+          if (format === 'anthropic') {
+            expect(body.thinking.type).toBe('enabled');
+            expect(body.thinking.budget_tokens).toBeGreaterThanOrEqual(1024);
+            expect(body.thinking.budget_tokens).toBeLessThan(body.max_tokens);
+            expect(body.temperature).toBeUndefined();
+            expect(body.output_config).toBeUndefined();
+          }
+        }
+      }
+      expect(requestOptions.model).toBe(model);
+      expect(upstream.modelConfigs?.map(row => row.id)).toEqual([model, 'deepseek-flash']);
+    }
+  });
+
+  it.each(['custom-model', 'publisher/deepseek-chat', 'deepseek-reasoner:suffix', 'gpt-5.6'])('leaves non-redirect model %s unchanged', async model => {
+    await callOpenAICompletion(provider('openai', model), 'key', options(model, undefined), logger);
+    await streamOpenAICompletion(provider('openai', model), 'key', options(model, undefined), 'message', callbacks, logger);
+    expect(bodies.map(body => body.model)).toEqual([model, model]);
+  });
+
+  it.each(['deepseek-chat', 'deepseek-reasoner'])('negotiates flash levels for %s without a model override', async model => {
+    await callOpenAICompletion(provider('openai', model), 'key', options(model, 'max'), logger);
+    expect(bodies[0]).toMatchObject({ model: 'deepseek-flash', reasoning_effort: 'max' });
+  });
+});
 describe('Completion OpenAI reasoning wire bodies', () => {
   it('preserves GPT-5.6 max in direct and streaming Chat requests', async () => {
     const openai = provider('openai', 'gpt-5.6');
@@ -198,7 +252,10 @@ describe('Completion OpenAI reasoning wire bodies', () => {
     expect(bodies.slice(0, 8).map((body) => body.reasoning_effort)).toEqual([
       undefined, undefined, 'low', 'low', 'high', 'high', 'max', 'max',
     ]);
-    expect(bodies.slice(0, 8).every((body) => !Object.hasOwn(body, 'thinking'))).toBe(true);
+    expect(bodies.slice(0, 2).every((body) => !Object.hasOwn(body, 'thinking'))).toBe(true);
+    expect(bodies.slice(2, 8).map((body) => body.thinking)).toEqual(
+      Array.from({ length: 6 }, () => ({ type: 'enabled' })),
+    );
     for (const body of bodies.slice(8)) {
       expect(body.reasoning).toEqual({ effort: 'none' });
       expect(body).not.toHaveProperty('reasoning_effort');
@@ -206,9 +263,43 @@ describe('Completion OpenAI reasoning wire bodies', () => {
     }
   });
 
+  it.each(['grok-4.5', 'grok-4.3'])(
+    'rejects explicit off for native %s before Chat or Responses HTTP requests',
+    async (model) => {
+      const native: LLMProvider = {
+        ...getPresetById('grok')!,
+        api_key: 'secret',
+        enabled: true,
+      };
+      const disabled = options(model, 'none');
+      await expect(callOpenAICompletion(native, 'key', disabled, logger))
+        .rejects.toThrow('cannot be disabled');
+      await expect(streamOpenAICompletion(native, 'key', disabled, 'native-off', callbacks, logger))
+        .rejects.toThrow('cannot be disabled');
+      const responses = { ...native, apiFormat: 'openai-response' as const };
+      await expect(callOpenAIResponseCompletion(responses, 'key', disabled, logger))
+        .rejects.toThrow('cannot be disabled');
+      await expect(streamOpenAIResponseCompletion(responses, 'key', disabled, 'native-off', callbacks, logger))
+        .rejects.toThrow('cannot be disabled');
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects unsupported Copilot off before attempting HTTP', async () => {
+    const copilot: LLMProvider = {
+      ...provider('openai', 'gemini-3.5-flash'),
+      name: 'GitHub Copilot',
+      api_base_url: 'https://api.githubcopilot.com',
+    };
+    const disabled = options('gemini-3.5-flash', 'none');
+    await expect(callOpenAICompletion(copilot, 'key', disabled, logger))
+      .rejects.toThrow('cannot be disabled');
+    await expect(streamOpenAICompletion(copilot, 'key', disabled, 'copilot-off', callbacks, logger))
+      .rejects.toThrow('cannot be disabled');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
-    ['grok', 'grok-4.5'],
-    ['grok', 'grok-4.3'],
     ['xiaomi-mimo', 'mimo-v2.5'],
     ['xiaomi-mimo', 'mimo-v2.5-pro'],
     ['xiaomi-mimo', 'mimo-v2-pro'],
@@ -230,11 +321,17 @@ describe('Completion OpenAI reasoning wire bodies', () => {
     }
   });
 
-  it('omits unknown Copilot Chat off controls despite semantic none support', async () => {
+  it('omits unverified Copilot Chat off controls when an override explicitly supports semantic none', async () => {
     const copilot: LLMProvider = {
       ...provider('openai', 'gemini-3.5-flash'),
       name: 'GitHub Copilot',
       api_base_url: 'https://api.githubcopilot.com',
+      modelConfigs: [{
+        id: 'gemini-3.5-flash',
+        name: 'Semantic off override',
+        enabled: true,
+        thinkingLevels: ['none', 'low', 'medium', 'high'],
+      }],
     };
     const disabled = options('gemini-3.5-flash', 'none');
     await callOpenAICompletion(copilot, 'key', disabled, logger);
@@ -248,7 +345,6 @@ describe('Completion OpenAI reasoning wire bodies', () => {
   });
 
   it.each([
-    ['grok', 'grok-4.5'],
     ['xiaomi-mimo', 'mimo-v2.5'],
     ['kimi', 'kimi-k2.5'],
   ])('does not turn native %s semantic off into an unverified Responses control', async (presetId, model) => {
@@ -502,12 +598,6 @@ describe('Completion budget reasoning wire bodies', () => {
     ['gemini-2.5-flash-lite',
       { includeThoughts: true, thinkingBudget: 19660 },
       { includeThoughts: false, thinkingBudget: 0 }],
-    ['gemini-3-flash',
-      { includeThoughts: true, thinkingLevel: 'high' },
-      { includeThoughts: false, thinkingLevel: 'none' }],
-    ['gemini-4-argon',
-      { includeThoughts: true, thinkingLevel: 'high' },
-      undefined],
   ] as const)('encodes %s direct/stream × enabled/disabled equivalently', async (
     model,
     enabledConfig,
@@ -542,6 +632,56 @@ describe('Completion budget reasoning wire bodies', () => {
       disabledConfig,
       enabledConfig,
       disabledConfig,
+    ]);
+  });
+
+  it.each(['gemini-3-flash', 'gemini-4-argon'])(
+    'does not send a default-thinking request when %s cannot disable thinking', async (model) => {
+      const gemini = provider('google', model);
+      await expect(callGeminiCompletion(gemini, 'key', options(model, 'none'), logger))
+        .rejects.toThrow('cannot be disabled');
+      await expect(streamGeminiCompletion(gemini, 'key', options(model, 'none'), 'disabled', callbacks, logger))
+        .rejects.toThrow('cannot be disabled');
+      expect(bodies).toHaveLength(0);
+    },
+  );
+
+  it('preserves large requested Anthropic output bounds rather than truncating to 16384', async () => {
+    const anthropic = provider('anthropic', 'claude-haiku-4-5');
+    const requestOptions = options('claude-haiku-4-5', 'high', { maxTokens: 32000 });
+    await callAnthropicCompletion(anthropic, 'key', requestOptions, logger);
+    await streamAnthropicCompletion(anthropic, 'key', requestOptions, 'large', callbacks, logger);
+    expect(bodies.map((body) => [body.max_tokens, body.thinking])).toEqual([
+      [32000, { type: 'enabled', budget_tokens: 24000 }],
+      [32000, { type: 'enabled', budget_tokens: 24000 }],
+    ]);
+  });
+
+  it('explicitly disables Anthropic default thinking', async () => {
+    const anthropic = provider('anthropic', 'claude-opus-4-7');
+    await callAnthropicCompletion(anthropic, 'key', options('claude-opus-4-7', 'none'), logger);
+    await streamAnthropicCompletion(anthropic, 'key', options('claude-opus-4-7', 'none'), 'off', callbacks, logger);
+    expect(bodies.map((body) => body.thinking)).toEqual([{ type: 'disabled' }, { type: 'disabled' }]);
+  });
+
+  it.each(['MiniMax-M3', 'MiniMax-M2.5'])(
+    'enables %s adaptive thinking without unsupported budget or effort controls', async (model) => {
+      const minimax = provider('anthropic', model);
+      await callAnthropicCompletion(minimax, 'key', options(model, 'high'), logger);
+      await streamAnthropicCompletion(minimax, 'key', options(model, 'high'), 'minimax', callbacks, logger);
+      expect(bodies.map((body) => body.thinking)).toEqual([{ type: 'adaptive' }, { type: 'adaptive' }]);
+      expect(bodies.every((body) => body.output_config === undefined)).toBe(true);
+    },
+  );
+
+  it('negotiates model effort metadata to the legal Gemini wire enum', async () => {
+    const google = provider('google', 'claude-opus-4-6');
+    const request = options('claude-opus-4-6', 'max');
+    await callGeminiCompletion(google, 'key', request, logger);
+    await streamGeminiCompletion(google, 'key', request, 'google-envelope', callbacks, logger);
+    expect(bodies.map((body) => body.generationConfig.thinkingConfig)).toEqual([
+      { includeThoughts: true, thinkingLevel: 'high' },
+      { includeThoughts: true, thinkingLevel: 'high' },
     ]);
   });
 });

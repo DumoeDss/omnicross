@@ -1527,6 +1527,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "驗證模式",
+      "public": "公開（受限，無需金鑰）",
+      "api": "API（需要金鑰）",
+      "description": "公開存取受限且可能無法使用。API 模式需要金鑰，絕不會退回公開模式。",
+      "missingKey": "API 模式需要金鑰：{{providers}}",
+      "enableHint": "啟用公開模式，或選擇 API 模式並填寫金鑰。"
+    },
+    "providerDescription": {
+      "keyed": "官方金鑰 API；可用性、計費與限額取決於提供方帳戶。",
+      "keyRequired": "需要 API 金鑰。",
+      "publicApi": "可選擇受限公開存取或金鑰 API；不保證免費額度。",
+      "ollama": "Ollama 搜尋 API 需要金鑰；自訂主機不代表支援免金鑰的本機搜尋引擎。"
+    },
+    "http": {
+      "aggregateDescription": "彙整已啟用且政策允許的公開 HTTP 引擎。需明確啟用，不保證結果。"
+    },
     "title": "搜尋供應方",
     "description": "網頁搜尋執行時組態：供應方憑證、回退策略、網路出口與各前端執行模式。",
     "unsupportedDaemon": "目前的守護程序版本不支援搜尋組態區段。",
@@ -1549,7 +1566,7 @@
     "providers": {
       "title": "供應方",
       "tavily": {
-        "description": "搜尋 API，免費額度充足；需要金鑰。"
+        "description": "搜尋 API；需要金鑰。限額與計費由提供方決定。"
       },
       "jina": {
         "description": "支援免金鑰的搜尋；設定金鑰可提升限額。"
@@ -1568,7 +1585,7 @@
       }
     },
     "keyless": {
-      "description": "免金鑰引擎，隨時可用，無需設定。"
+      "description": "無需金鑰的公開 HTTP 搜尋；可能受阻、限流或無法使用。"
     },
     "status": {
       "ready": "就緒",
@@ -1587,6 +1604,9 @@
       "deepseek": "請填寫金鑰、重用 DeepSeek 供應方金鑰，或先在供應方設定中設定。"
     },
     "field": {
+      "enabled": "啟用",
+      "model": "模型",
+      "modelPlaceholder": "選填；留空使用提供方預設值",
       "apiKey": "API 金鑰",
       "apiKeyPlaceholder": "留空保留已存金鑰",
       "apiKeyNew": "輸入 API 金鑰",

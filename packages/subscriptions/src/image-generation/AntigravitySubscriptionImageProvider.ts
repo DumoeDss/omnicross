@@ -34,7 +34,6 @@ import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
 import type { AuthStrategy } from '../auth';
 import {
-  antigravityAspectRatioFor,
   ANTIGRAVITY_IMAGE_URL,
   buildAntigravityImageRequest,
   parseAntigravityImageResponse,
@@ -190,6 +189,7 @@ class AntigravitySubscriptionImageProvider implements ImageProvider {
         if (started) throw new ImageGenerationError('invalid_image_request');
         started = true;
         if (!capabilities.available) throw new ImageGenerationError('unsupported_capability');
+        if (request.history?.length) throw new ImageGenerationError('unsupported_capability', { param: 'history' });
         const unsupportedAction = request.action === 'generate'
           ? !capabilities.generate
           : !capabilities.edit || request.images.length === 0 ||
@@ -201,6 +201,8 @@ class AntigravitySubscriptionImageProvider implements ImageProvider {
           !capabilities.outputFormats.includes(request.outputFormat) ||
           (request.quality !== 'auto' && !capabilities.qualityLevels.includes(request.quality)) ||
           !capabilities.moderationModes.includes(request.moderation) ||
+          request.size.kind === 'pixels' || request.resolution !== undefined ||
+          (request.aspectRatio !== undefined && !capabilities.aspectRatios?.includes(request.aspectRatio)) ||
           request.outputCompression !== undefined
         ) {
           throw new ImageGenerationError('unsupported_capability');
@@ -297,9 +299,7 @@ class AntigravitySubscriptionImageProvider implements ImageProvider {
           prompt: request.prompt,
           project,
           ...(editImage ? { editImage } : {}),
-          ...(request.size.kind === 'pixels'
-            ? { aspectRatio: antigravityAspectRatioFor(request.size) }
-            : {}),
+          ...(request.aspectRatio ? { aspectRatio: request.aspectRatio } : {}),
         });
 
         let response: Response | undefined;

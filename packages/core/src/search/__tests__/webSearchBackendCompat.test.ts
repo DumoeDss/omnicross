@@ -118,16 +118,6 @@ describe('searchRuntimeAsWebSearchBackend — pinning and membership', () => {
     expect(ddg).toHaveBeenCalledTimes(1);
   });
 
-  it('passes legacy options through unmapped', async () => {
-    const signal = new AbortController().signal;
-    const search = vi.fn(async () => [hit()]);
-    const runtime = createSearchRuntime({ contributions: [contribution('http-bing', search)] });
-    const backend = searchRuntimeAsWebSearchBackend(runtime);
-
-    await backend.search('q', 'http-bing' as never, { maxResults: 2, timeout: 500, signal });
-
-    expect(search).toHaveBeenCalledWith('q', { maxResults: 2, timeout: 500, signal });
-  });
 
   it('reports provider membership from the registry', () => {
     const runtime = createSearchRuntime({

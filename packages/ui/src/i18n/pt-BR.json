@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Modo de autenticação",
+      "public": "Público (limitado, sem chave)",
+      "api": "API (requer chave)",
+      "description": "O acesso público é limitado e pode estar indisponível. O modo API exige uma chave e nunca recorre ao público.",
+      "missingKey": "O modo API exige uma chave: {{providers}}",
+      "enableHint": "Ative o modo público ou selecione API e introduza uma chave."
+    },
+    "providerDescription": {
+      "keyed": "API oficial com chave; disponibilidade, faturação e limites dependem da conta do fornecedor.",
+      "keyRequired": "Requer uma chave API.",
+      "publicApi": "Acesso público limitado ou API com chave; não há garantia de quota gratuita.",
+      "ollama": "A API de pesquisa Ollama exige uma chave; um host personalizado não implica pesquisa local sem chave."
+    },
+    "http": {
+      "aggregateDescription": "Agrega motores HTTP públicos ativados e permitidos. Requer ativação explícita; resultados não garantidos."
+    },
     "title": "Provedores de pesquisa",
     "description": "Configuração do runtime de pesquisa na web: credenciais dos provedores, política de fallback, saída de rede e modos de execução por frontend.",
     "unsupportedDaemon": "Esta versão do daemon não oferece suporte à seção de configuração de pesquisa.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Provedores",
       "tavily": {
-        "description": "API de pesquisa com cota gratuita generosa; requer chave."
+        "description": "API de pesquisa; requer chave. Quotas e faturação dependem do fornecedor."
       },
       "jina": {
         "description": "Pesquisa utilizável sem chave; uma chave aumenta os limites."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Motor sem chave, sempre disponível. Não requer configuração."
+      "description": "Pesquisa HTTP pública sem chave; pode sofrer bloqueios, limites ou indisponibilidade."
     },
     "status": {
       "ready": "Pronto",
@@ -943,6 +960,9 @@
       "deepseek": "Insira uma chave, reutilize a chave de um provedor DeepSeek ou configure uma em Provedores."
     },
     "field": {
+      "enabled": "Ativado",
+      "model": "Modelo",
+      "modelPlaceholder": "Opcional; vazio usa o padrão do fornecedor",
       "apiKey": "Chave de API",
       "apiKeyPlaceholder": "Em branco mantém a chave armazenada",
       "apiKeyNew": "Informe a chave de API",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Mensal",
       "codexRefreshConfirmTitle": "Usar o Luna para atualizar esta cota?",
       "codexRefreshConfirmDescription": "Uma solicitação real será enviada ao gpt-5.6-luna com esta conta do Codex para obter a cota mais recente. Isso consumirá uma pequena parte da cota da assinatura. Continuar?",

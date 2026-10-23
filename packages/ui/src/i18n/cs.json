@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Režim ověření",
+      "public": "Veřejný (omezený, bez klíče)",
+      "api": "API (vyžaduje klíč)",
+      "description": "Veřejný přístup je omezený a nemusí být dostupný. Režim API vyžaduje klíč a nikdy nepřejde na veřejný.",
+      "missingKey": "Režim API vyžaduje klíč: {{providers}}",
+      "enableHint": "Zapněte veřejný režim nebo vyberte API a zadejte klíč."
+    },
+    "providerDescription": {
+      "keyed": "Oficiální API s klíčem; dostupnost, účtování a limity závisí na účtu poskytovatele.",
+      "keyRequired": "Vyžaduje klíč API.",
+      "publicApi": "Omezený veřejný přístup nebo API s klíčem; bezplatná kvóta není zaručena.",
+      "ollama": "Vyhledávací API Ollama vyžaduje klíč; vlastní hostitel neznamená místní hledání bez klíče."
+    },
+    "http": {
+      "aggregateDescription": "Sdružuje zapnuté a povolené veřejné HTTP vyhledávače. Vyžaduje výslovné zapnutí; výsledky nejsou zaručeny."
+    },
     "title": "Poskytovatelé vyhledávání",
     "description": "Konfigurace běhového prostředí webového vyhledávání: přihlašovací údaje poskytovatelů, zásada fallbacku, síťový výstupní provoz a režimy provádění pro jednotlivá frontendy.",
     "unsupportedDaemon": "Tato verze démona nepodporuje sekci nastavení vyhledávání.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Poskytovatelé",
       "tavily": {
-        "description": "Vyhledávací API s velkorysým bezplatným limitem; vyžaduje klíč."
+        "description": "Vyhledávací API; vyžaduje klíč. Kvóty a účtování určuje poskytovatel."
       },
       "jina": {
         "description": "Vyhledávání funguje i bez klíče; klíč zvyšuje limity."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Engine bez klíče, vždy dostupný. Nevyžaduje konfiguraci."
+      "description": "Veřejné HTTP hledání bez klíče; může být blokované, omezené nebo nedostupné."
     },
     "status": {
       "ready": "Připraven",
@@ -943,6 +960,9 @@
       "deepseek": "Zadejte klíč, použijte klíč poskytovatele DeepSeek nebo jej nejprve nastavte v nastavení poskytovatelů."
     },
     "field": {
+      "enabled": "Zapnuto",
+      "model": "Model",
+      "modelPlaceholder": "Volitelné; prázdné použije výchozí model",
       "apiKey": "API klíč",
       "apiKeyPlaceholder": "Prázdné ponechá uložený klíč",
       "apiKeyNew": "Zadejte API klíč",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Měsíčně",
       "codexRefreshConfirmTitle": "Použít Lunu k aktualizaci tohoto limitu?",
       "codexRefreshConfirmDescription": "Pomocí tohoto účtu Codex bude na gpt-5.6-luna odeslán skutečný požadavek, aby se načetly nejnovější údaje o limitu. Tím se spotřebuje malá část předplacené kvóty. Pokračovat?",

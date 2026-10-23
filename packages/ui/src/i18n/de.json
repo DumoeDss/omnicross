@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Authentifizierungsmodus",
+      "public": "Öffentlich (begrenzt, ohne Schlüssel)",
+      "api": "API (Schlüssel erforderlich)",
+      "description": "Öffentlicher Zugriff ist begrenzt und eventuell nicht verfügbar. Der API-Modus erfordert einen Schlüssel und fällt nie auf öffentlich zurück.",
+      "missingKey": "API-Modus erfordert einen Schlüssel: {{providers}}",
+      "enableHint": "Öffentlichen Modus aktivieren oder API wählen und einen Schlüssel eingeben."
+    },
+    "providerDescription": {
+      "keyed": "Offizielle API mit Schlüssel; Verfügbarkeit, Abrechnung und Limits hängen vom Anbieterkonto ab.",
+      "keyRequired": "Ein API-Schlüssel ist erforderlich.",
+      "publicApi": "Begrenzter öffentlicher Zugriff oder API mit Schlüssel; kein kostenloses Kontingent garantiert.",
+      "ollama": "Ollama-Suche erfordert einen Schlüssel; ein eigener Host bedeutet keine schlüssellose lokale Suchmaschine."
+    },
+    "http": {
+      "aggregateDescription": "Bündelt aktivierte, laut Richtlinie erlaubte öffentliche HTTP-Engines. Explizite Aktivierung nötig; keine Ergebnisgarantie."
+    },
     "title": "Suchanbieter",
     "description": "Konfiguration der Websuche-Laufzeit: Anbieter-Zugangsdaten, Fallback-Richtlinie, Netzwerk-Egress und Ausführungsmodi pro Frontend.",
     "unsupportedDaemon": "Diese Daemon-Version unterstützt den Suchkonfigurationsabschnitt nicht.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Anbieter",
       "tavily": {
-        "description": "Such-API mit großzügigem Gratis-Kontingent; Schlüssel erforderlich."
+        "description": "Such-API; Schlüssel erforderlich. Kontingente und Abrechnung hängen vom Anbieter ab."
       },
       "jina": {
         "description": "Suche ohne Schlüssel möglich; ein Schlüssel erhöht die Ratenlimits."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Schlüssellose Engine, immer verfügbar. Keine Konfiguration nötig."
+      "description": "Öffentliche HTTP-Suche ohne Schlüssel; Sperren, Ratenlimits oder Ausfälle sind möglich."
     },
     "status": {
       "ready": "Bereit",
@@ -943,6 +960,9 @@
       "deepseek": "Geben Sie einen Schlüssel ein, verwenden Sie den Schlüssel eines DeepSeek-Anbieters wieder, oder konfigurieren Sie einen unter Anbieter."
     },
     "field": {
+      "enabled": "Aktiviert",
+      "model": "Modell",
+      "modelPlaceholder": "Optional; leer verwendet den Anbieterstandard",
       "apiKey": "API-Schlüssel",
       "apiKeyPlaceholder": "Leer lässt den gespeicherten Schlüssel",
       "apiKeyNew": "API-Schlüssel eingeben",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Monatlich",
       "codexRefreshConfirmTitle": "Luna verwenden, um dieses Kontingent zu aktualisieren?",
       "codexRefreshConfirmDescription": "Mit diesem Codex-Konto wird eine echte Anfrage an gpt-5.6-luna gesendet, um das aktuelle Kontingent abzurufen. Dabei wird ein kleiner Teil des Abonnementkontingents verbraucht. Fortfahren?",

@@ -146,11 +146,18 @@ export class SearchOrchestrator {
     }
 
     let lastError: SearchProviderError | undefined;
+    const executionContext = policy.allowed === undefined
+      ? undefined
+      : { allowedProviderIds: policy.allowed };
 
     for (const candidate of plan.candidates) {
       const attemptStartedAt = Date.now();
       try {
-        const produced = await candidate.provider.search(request.query, request.options);
+        const produced = await candidate.provider.search(
+          request.query,
+          request.options,
+          executionContext,
+        );
         const durationMs = Date.now() - attemptStartedAt;
         // The PROVIDER's answer decides the walk; normalization only filters
         // what that answer contains. See normalize.ts on why filtering can

@@ -5,16 +5,16 @@
  * the Google-unsupported JSON Schema keywords removed — `$schema` /
  * `additionalProperties` and friends trigger an upstream 400).
  *
- * Mirrors the reference cleaner's semantics (`geminiSchemaCleaner` in the
- * relay-service reference): a WIDENING projection — everything the output
- * accepts is a subset of the input's acceptance:
- *   - `$ref` / `$id` / `$defs` / `definitions` / `format` and other unsupported
- *     keywords are dropped (a `$ref` degrades to a description hint),
- *   - `anyOf` / `oneOf` collapse to the most-structured alternative with a
- *     type hint in the description,
+ * Projects JSON Schema onto the legacy wire subset. Constraints without a wire
+ * representation remain description hints; resolvable local references are
+ * expanded before projection, and unresolved/cyclic references fail explicitly:
+ *   - `$id` / `$defs` / `definitions` / `format` and other unsupported
+ *     keywords are dropped after local references have been resolved,
+ *   - nullable unions use `nullable`; general `anyOf` / `oneOf` keep the
+ *     most-structured branch and retain the alternatives as prompt constraints,
  *   - `allOf` merges properties/required,
- *   - `const` folds into `enum`, array `type` flattens to its primary with a
- *     hint, boolean `additionalProperties` is dropped (noted as a hint),
+ *   - `const` folds into `enum`, type arrays use a primary type plus hints,
+ *     boolean `additionalProperties` is dropped (noted as a hint),
  *   - constraint keywords that have no legacy representation
  *     (`pattern`/`minLength`/…) move into the description.
  */
@@ -33,11 +33,6 @@ function appendHint(description: string | undefined, hint: string | undefined): 
   if (!hint) return description ?? '';
   if (!description) return hint;
   return `${description} (${hint})`;
-}
-
-function refHint(refValue: string): string {
-  const name = refValue.slice(refValue.lastIndexOf('/') + 1);
-  return name ? `See: ${name}` : '';
 }
 
 /** Constraint keywords with no legacy-schema representation → description hints. */
@@ -67,81 +62,124 @@ function normalizeType(typeValue: unknown): { type: string; hint: string } {
 function schemaScore(schema: unknown): number {
   if (!schema || typeof schema !== 'object') return 0;
   const s = schema as Record<string, unknown>;
-  const t = typeof s['type'] === 'string' ? (s['type'] as string) : '';
-  if (t === 'object' || (s['properties'] && typeof s['properties'] === 'object')) return 3;
-  if (t === 'array' || s['items']) return 2;
-  if (t && t !== 'null') return 1;
-  return 0;
+  const type = typeof s['type'] === 'string' ? s['type'] : '';
+  if (type === 'object' || (s['properties'] && typeof s['properties'] === 'object')) return 3;
+  if (type === 'array' || s['items']) return 2;
+  return type && type !== 'null' ? 1 : 0;
 }
 
 /**
- * Clean one JSON Schema node into the legacy-compatible subset. Pure; never
- * throws (an unrecognizable node degrades to `{type:'object', properties:{}}`).
+ * Clean one JSON Schema node into the legacy-compatible subset. Local references
+ * must resolve without cycles; otherwise sending an empty schema would lose the
+ * tool's argument contract.
  */
 export function cleanSchemaForCcaLegacyParameters(schema: unknown): Record<string, unknown> {
+  return clean(schema, schema, new Set<string>());
+}
+
+function clean(schema: unknown, root: unknown, references: Set<string>): Record<string, unknown> {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return { type: 'object', properties: {} };
   }
   const s = schema as Record<string, unknown>;
 
-  // `$ref` has no legacy representation — degrade to a description hint.
   const ref = s['$ref'];
   if (typeof ref === 'string' && ref) {
-    return {
-      type: 'object',
-      description: appendHint(
-        typeof s['description'] === 'string' ? s['description'] : undefined,
-        refHint(ref),
-      ),
-      properties: {},
-    };
+    if (!ref.startsWith('#/') || references.has(ref)) {
+      throw new Error(`CCA tool schema cannot represent reference: ${ref}`);
+    }
+    let target: unknown = root;
+    for (const token of ref.slice(2).split('/')) {
+      const key = decodeURIComponent(token).replace(/~1/g, '/').replace(/~0/g, '~');
+      if (!target || typeof target !== 'object' || !Object.prototype.hasOwnProperty.call(target, key)) {
+        throw new Error(`CCA tool schema reference not found: ${ref}`);
+      }
+      target = (target as Record<string, unknown>)[key];
+    }
+    references.add(ref);
+    try {
+      const { $ref: _ref, ...siblings } = s;
+      return clean({ allOf: [target, siblings] }, root, references);
+    } finally {
+      references.delete(ref);
+    }
   }
 
-  // `anyOf` / `oneOf` → the most-structured alternative + a type hint.
+  // General unions remain the existing legacy prompt-constrained projection,
+  // not an equivalent JSON Schema validator. Preserve every alternative in the
+  // description rather than keeping only its type name.
   const alternatives = Array.isArray(s['anyOf'])
     ? (s['anyOf'] as unknown[])
     : Array.isArray(s['oneOf'])
       ? (s['oneOf'] as unknown[])
       : null;
   if (alternatives && alternatives.length > 0) {
-    let best = alternatives[0];
-    let bestScore = -1;
-    const types: string[] = [];
+    let best = alternatives.find((alternative) => alternative &&
+      typeof alternative === 'object' && (alternative as Record<string, unknown>)['type'] !== 'null') ?? alternatives[0];
+    let bestScore = schemaScore(best);
     for (const alternative of alternatives) {
       const score = schemaScore(alternative);
-      const normalized = normalizeType((alternative as Record<string, unknown>)?.['type']);
-      if (normalized.type) types.push(normalized.type);
       if (score > bestScore) {
-        bestScore = score;
         best = alternative;
+        bestScore = score;
       }
     }
-    const cleaned = cleanSchemaForCcaLegacyParameters(best) as CleanedSchema;
-    const typeHint = types.length > 1 ? `Accepts: ${[...new Set(types)].join(' || ')}` : '';
-    return {
-      ...cleaned,
-      description: appendHint(
-        appendHint(cleaned.description, typeof s['description'] === 'string' ? s['description'] : undefined),
-        typeHint,
-      ),
-    };
+    const hasNull = alternatives.some((alternative) => alternative &&
+      typeof alternative === 'object' && (alternative as Record<string, unknown>)['type'] === 'null');
+    const { anyOf: _anyOf, oneOf: _oneOf, ...siblings } = s;
+    const projected = clean({ allOf: [best, siblings] }, root, references) as CleanedSchema;
+    if (hasNull) projected.nullable = true;
+    if (alternatives.length > (hasNull ? 2 : 1)) {
+      projected.description = appendHint(projected.description,
+        `${Array.isArray(s['oneOf']) ? 'Exactly one' : 'At least one'} schema must match: ${JSON.stringify(alternatives)}`);
+    }
+    return projected;
   }
 
   // `allOf` → merge properties/required/items/enum across branches.
   if (Array.isArray(s['allOf']) && (s['allOf'] as unknown[]).length > 0) {
     const merged: CleanedSchema = {};
-    let mergedDescription: string | undefined =
-      typeof s['description'] === 'string' ? s['description'] : undefined;
+    let mergedDescription: string | undefined;
     const required = new Set<string>();
     const properties: Record<string, unknown> = {};
-    for (const branch of s['allOf'] as unknown[]) {
-      const cleaned = cleanSchemaForCcaLegacyParameters(branch) as CleanedSchema;
+    const { allOf, ...siblings } = s;
+    for (const branch of [siblings, ...(allOf as unknown[])]) {
+      const cleaned = clean(branch, root, references) as CleanedSchema;
       if (cleaned.description) mergedDescription = appendHint(mergedDescription, cleaned.description);
       for (const key of cleaned.required ?? []) required.add(key);
-      Object.assign(properties, cleaned.properties ?? {});
-      if (cleaned.type && !merged.type) merged.type = cleaned.type;
-      if (cleaned.items && !merged.items) merged.items = cleaned.items;
-      if (cleaned.enum && !merged.enum) merged.enum = cleaned.enum;
+      const branchRequired = branch && typeof branch === 'object'
+        ? (branch as Record<string, unknown>)['required'] : undefined;
+      if (Array.isArray(branchRequired)) {
+        for (const key of branchRequired) if (typeof key === 'string') required.add(key);
+      }
+      for (const [name, property] of Object.entries(cleaned.properties ?? {})) {
+        properties[name] = Object.prototype.hasOwnProperty.call(properties, name)
+          ? clean({ allOf: [properties[name], property] }, root, references)
+          : property;
+      }
+      if (cleaned.type && branch && typeof branch === 'object' &&
+          ['type', 'properties', 'items', 'enum', 'const', '$ref', 'anyOf', 'oneOf', 'allOf']
+            .some((key) => key in branch)) {
+        if (merged.type && merged.type !== cleaned.type) {
+          if ([merged.type, cleaned.type].every((type) => type === 'number' || type === 'integer')) {
+            merged.type = 'integer';
+          } else {
+            throw new Error('CCA tool schema cannot represent conflicting allOf types');
+          }
+        } else {
+          merged.type = cleaned.type;
+        }
+      }
+      if (cleaned.items) {
+        merged.items = merged.items
+          ? clean({ allOf: [merged.items, cleaned.items] }, root, references)
+          : cleaned.items;
+      }
+      if (cleaned.enum) {
+        merged.enum = merged.enum ? merged.enum.filter((value) => cleaned.enum!.includes(value)) : cleaned.enum;
+        if (merged.enum.length === 0) throw new Error('CCA tool schema has an empty allOf enum intersection');
+      }
+      if (cleaned.nullable === true) merged.nullable = true;
     }
     if (Object.keys(properties).length > 0) {
       merged.type = merged.type ?? 'object';
@@ -150,7 +188,7 @@ export function cleanSchemaForCcaLegacyParameters(schema: unknown): Record<strin
       if (validRequired.length > 0) merged.required = validRequired;
     }
     if (mergedDescription) merged.description = mergedDescription;
-    return cleanSchemaForCcaLegacyParameters(merged);
+    return clean(merged, root, references);
   }
 
   const result: CleanedSchema = {};
@@ -184,6 +222,15 @@ export function cleanSchemaForCcaLegacyParameters(schema: unknown): Record<strin
 
   const { type: normalizedType, hint: typeHint } = normalizeType(s['type']);
   if (normalizedType) result.type = normalizedType;
+  if (s['nullable'] === true || (Array.isArray(s['type']) && s['type'].includes('null'))) {
+    result.nullable = true;
+  }
+  if (!result.type && result.enum?.length) {
+    const valueType = typeof result.enum[0];
+    if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+      result.type = valueType;
+    }
+  }
   if (typeHint) result.description = appendHint(result.description, typeHint);
 
   if (constraintHints.length > 0) {
@@ -199,7 +246,7 @@ export function cleanSchemaForCcaLegacyParameters(schema: unknown): Record<strin
   if (s['properties'] && typeof s['properties'] === 'object' && !Array.isArray(s['properties'])) {
     const properties: Record<string, unknown> = {};
     for (const [name, property] of Object.entries(s['properties'] as Record<string, unknown>)) {
-      properties[name] = cleanSchemaForCcaLegacyParameters(property);
+      properties[name] = clean(property, root, references);
     }
     result.type = result.type ?? 'object';
     result.properties = properties;
@@ -207,7 +254,7 @@ export function cleanSchemaForCcaLegacyParameters(schema: unknown): Record<strin
 
   if (s['items'] !== undefined) {
     result.type = result.type ?? 'array';
-    result.items = cleanSchemaForCcaLegacyParameters(s['items']);
+    result.items = clean(s['items'], root, references);
   }
 
   if (Array.isArray(s['required']) && result.properties) {

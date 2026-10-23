@@ -176,6 +176,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
         if (started) throw new ImageGenerationError('invalid_image_request');
         started = true;
         if (!capabilities.available) throw new ImageGenerationError('unsupported_capability');
+        if (request.history?.length) throw new ImageGenerationError('unsupported_capability', { param: 'history' });
         const unsupportedAction = request.action === 'generate'
           ? !capabilities.generate
           : !capabilities.edit || request.images.length === 0 ||

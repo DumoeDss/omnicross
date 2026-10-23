@@ -95,6 +95,33 @@ export interface DeepseekProviderConfig {
   apiHost?: string;
 }
 
+/** Official public entrypoints and keyed APIs have separate billing identities. */
+export interface KeylessSearchProviderConfig {
+  apiKey?: string;
+  apiHost?: string;
+  /** Omitted legacy values use API mode only when an explicit key exists. */
+  authMode?: 'public' | 'api';
+}
+
+export interface KeyedSearchProviderConfig {
+  apiKey: string;
+  apiHost?: string;
+  model?: string;
+}
+
+export type ExaProviderConfig = KeylessSearchProviderConfig;
+export type ParallelProviderConfig = KeylessSearchProviderConfig;
+export type FirecrawlProviderConfig = KeylessSearchProviderConfig;
+export type BraveProviderConfig = KeyedSearchProviderConfig;
+export type KagiProviderConfig = KeyedSearchProviderConfig;
+export type KimiProviderConfig = KeyedSearchProviderConfig;
+export type SyntheticProviderConfig = KeyedSearchProviderConfig;
+export type OllamaProviderConfig = KeyedSearchProviderConfig;
+export type TinyfishProviderConfig = KeyedSearchProviderConfig;
+export type PerplexityProviderConfig = KeyedSearchProviderConfig;
+export type BochaProviderConfig = KeyedSearchProviderConfig;
+export type ClaudeProviderConfig = KeyedSearchProviderConfig;
+
 /**
  * Per-provider configuration, keyed by provider id.
  *
@@ -109,6 +136,18 @@ export interface SearchApiProviderConfigs {
   zhipu?: ZhipuProviderConfig;
   'z.ai'?: ZhipuProviderConfig;
   deepseek?: DeepseekProviderConfig;
+  exa?: ExaProviderConfig;
+  parallel?: ParallelProviderConfig;
+  firecrawl?: FirecrawlProviderConfig;
+  brave?: BraveProviderConfig;
+  kagi?: KagiProviderConfig;
+  kimi?: KimiProviderConfig;
+  synthetic?: SyntheticProviderConfig;
+  ollama?: OllamaProviderConfig;
+  tinyfish?: TinyfishProviderConfig;
+  perplexity?: PerplexityProviderConfig;
+  bocha?: BochaProviderConfig;
+  claude?: ClaudeProviderConfig;
 }
 
 /**
@@ -128,6 +167,8 @@ export interface SearchApiRequest {
   headers?: Record<string, string>;
   /** Body to serialize as JSON. Omit for GET. */
   jsonBody?: unknown;
+  /** MCP accepts JSON or SSE; text still uses the shared bounded response reader. */
+  responseMode?: 'json' | 'text';
   /** Stamped onto every thrown error. */
   providerId: SearchProviderId;
   /** Human-readable provider name for failure messages (never the query). */
@@ -141,7 +182,7 @@ export interface SearchApiRequest {
 }
 
 /**
- * The seam every adapter calls: a request in, parsed JSON out.
+ * The seam every adapter calls: a request in, parsed JSON (or opted-in text) out.
  *
  * Deliberately `unknown` rather than generic. The transport cannot know an
  * API's shape, and a generic here would be a promise it cannot keep — each

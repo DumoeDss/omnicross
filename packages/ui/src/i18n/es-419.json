@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Modo de autenticación",
+      "public": "Público (limitado, sin clave)",
+      "api": "API (requiere clave)",
+      "description": "El acceso público es limitado y puede no estar disponible. El modo API requiere clave y nunca recurre al público.",
+      "missingKey": "El modo API requiere una clave: {{providers}}",
+      "enableHint": "Activa el modo público o selecciona API e introduce una clave."
+    },
+    "providerDescription": {
+      "keyed": "API oficial con clave; disponibilidad, facturación y límites dependen de la cuenta del proveedor.",
+      "keyRequired": "Requiere una clave API.",
+      "publicApi": "Acceso público limitado o API con clave; no se garantiza cuota gratuita.",
+      "ollama": "La API de búsqueda de Ollama requiere clave; un host personalizado no implica un motor local sin clave."
+    },
+    "http": {
+      "aggregateDescription": "Agrupa motores HTTP públicos activados y permitidos. Requiere activación explícita; resultados no garantizados."
+    },
     "title": "Proveedores de búsqueda",
     "description": "Configuración del motor de búsqueda web: credenciales de proveedores, política de respaldo, salida de red y modos de ejecución por frontend.",
     "unsupportedDaemon": "Esta versión del demonio no admite la sección de configuración de búsqueda.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Proveedores",
       "tavily": {
-        "description": "API de búsqueda con cuota gratuita generosa; requiere clave."
+        "description": "API de búsqueda; requiere clave. Las cuotas y la facturación dependen del proveedor."
       },
       "jina": {
         "description": "Búsqueda utilizable sin clave; una clave aumenta los límites."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Motor sin clave, siempre disponible. No requiere configuración."
+      "description": "Búsqueda HTTP pública sin clave; puede sufrir bloqueos, límites o indisponibilidad."
     },
     "status": {
       "ready": "Listo",
@@ -943,6 +960,9 @@
       "deepseek": "Introduce una clave, reutiliza la clave de un proveedor de DeepSeek o configura una en Proveedores."
     },
     "field": {
+      "enabled": "Activado",
+      "model": "Modelo",
+      "modelPlaceholder": "Opcional; si está vacío, se usa el predeterminado",
       "apiKey": "Clave de API",
       "apiKeyPlaceholder": "Vacío conserva la clave guardada",
       "apiKeyNew": "Introducir clave de API",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Mensual",
       "codexRefreshConfirmTitle": "¿Usar Luna para actualizar este límite?",
       "codexRefreshConfirmDescription": "Se enviará una solicitud real a gpt-5.6-luna con esta cuenta de Codex para obtener el límite más reciente. Esto consumirá una pequeña cantidad de la cuota de suscripción. ¿Deseas continuar?",

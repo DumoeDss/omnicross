@@ -124,7 +124,9 @@ describe('SearchTestPanel — the interactive query', () => {
       onQuery: async (): Promise<SearchQueryOutcome> => ({
         ok: true,
         result: {
-          diagnostic: { providerId: 'tavily', status: 'healthy' },
+          diagnostic: { providerId: 'firecrawl', status: 'healthy' },
+          providerUsed: 'firecrawl',
+          fallbackCount: 2,
           resultCount: 1,
           results: [
             {
@@ -149,7 +151,9 @@ describe('SearchTestPanel — the interactive query', () => {
     expect(container!.querySelector('img')).toBeNull();
     expect(container!.querySelector('script')).toBeNull();
     // The provider-used + count status is visible.
-    expect(container!.textContent).toContain('search.test.providerUsed:Tavily');
+    expect(container!.textContent).toContain('search.test.providerUsed:firecrawl');
+    expect(container!.textContent).not.toContain('search.test.providerUsed:Tavily');
+    expect(container!.textContent).toContain('search.policy.fallbackEnabled: 2');
     expect(container!.textContent).toContain('search.testOutcome.count:1');
     // http(s) URLs linkify.
     const anchor = container!.querySelector<HTMLAnchorElement>(

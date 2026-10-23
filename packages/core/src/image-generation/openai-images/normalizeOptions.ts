@@ -134,7 +134,7 @@ export function normalizeImageOptions(
   const aspectRatio = record.aspect_ratio === undefined ? undefined : scalar(record.aspect_ratio, multipart);
   const resolution = record.resolution === undefined ? undefined : scalar(record.resolution, multipart);
   if (aspectRatio !== undefined && (typeof aspectRatio !== 'string' || !/^\d{1,2}:\d{1,2}$/u.test(aspectRatio))) invalid('aspect_ratio');
-  if (resolution !== undefined && (typeof resolution !== 'string' || !['512', '1K', '2K', '4K'].includes(resolution))) invalid('resolution');
+  if (resolution !== undefined && (typeof resolution !== 'string' || !['512', '1K', '1.5K', '2K', '4K'].includes(resolution))) invalid('resolution');
   const background = enumValue<ImageBackground>(record.background, 'auto', ['auto', 'opaque', 'transparent'], 'background', multipart);
   const outputFormat = enumValue<ImageOutputFormat>(record.output_format, 'png', ['png', 'jpeg', 'webp'], 'output_format', multipart);
   const outputCompression = record.output_compression === undefined

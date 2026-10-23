@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Mode d’authentification",
+      "public": "Public (limité, sans clé)",
+      "api": "API (clé requise)",
+      "description": "L’accès public est limité et peut être indisponible. Le mode API exige une clé, sans repli vers le public.",
+      "missingKey": "Une clé est requise en mode API : {{providers}}",
+      "enableHint": "Activez le mode public ou choisissez API et saisissez une clé."
+    },
+    "providerDescription": {
+      "keyed": "API officielle avec clé ; disponibilité, facturation et limites dépendent du compte fournisseur.",
+      "keyRequired": "Une clé API est requise.",
+      "publicApi": "Accès public limité ou API avec clé ; aucun quota gratuit n’est garanti.",
+      "ollama": "L’API de recherche Ollama exige une clé ; un hôte personnalisé n’implique pas un moteur local sans clé."
+    },
+    "http": {
+      "aggregateDescription": "Agrège les moteurs HTTP publics activés et autorisés. Activation explicite requise ; résultats non garantis."
+    },
     "title": "Fournisseurs de recherche",
     "description": "Configuration du moteur de recherche web : identifiants des fournisseurs, politique de repli, sortie réseau et modes d'exécution par frontend.",
     "unsupportedDaemon": "Cette version du démon ne prend pas en charge la section de configuration de recherche.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Fournisseurs",
       "tavily": {
-        "description": "API de recherche avec un quota gratuit généreux ; clé requise."
+        "description": "API de recherche ; clé requise. Quotas et facturation dépendent du fournisseur."
       },
       "jina": {
         "description": "Recherche utilisable sans clé ; une clé augmente les limites."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Moteur sans clé, toujours disponible. Aucune configuration requise."
+      "description": "Recherche HTTP publique sans clé ; blocages, limitations ou indisponibilité possibles."
     },
     "status": {
       "ready": "Prêt",
@@ -943,6 +960,9 @@
       "deepseek": "Saisissez une clé, réutilisez la clé d'un fournisseur DeepSeek ou configurez-en une dans Fournisseurs."
     },
     "field": {
+      "enabled": "Activé",
+      "model": "Modèle",
+      "modelPlaceholder": "Facultatif ; valeur du fournisseur si vide",
       "apiKey": "Clé d'API",
       "apiKeyPlaceholder": "Vide conserve la clé enregistrée",
       "apiKeyNew": "Saisir la clé d'API",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Mensuel",
       "codexRefreshConfirmTitle": "Utiliser Luna pour actualiser ce quota ?",
       "codexRefreshConfirmDescription": "Une requête réelle sera envoyée à gpt-5.6-luna avec ce compte Codex afin de récupérer le quota le plus récent. Cela consommera une petite partie du quota de l’abonnement. Continuer ?",

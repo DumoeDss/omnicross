@@ -89,23 +89,36 @@ export interface SearchRequest {
 }
 
 /**
- * The provider ids Omnicross itself ships in Phase 1.
+ * Provider identifiers shipped by Omnicross.
  *
- * This list is NOT the set of valid ids — see {@link SearchProviderId}. Ids
- * absent from it are absent by decision, not by oversight: `local-*` providers
- * remain host (Elftia) contributions because they need a browser runtime, and
- * `grok` / `claude` / `exa` / `bocha` are deliberately not registered in
- * Phase 1.
+ * Browser-backed `local-*` providers remain host contributions. The id space
+ * remains open for custom integrations; this list only drives discovery.
  */
 export type KnownSearchProviderId =
   | 'http-bing'
   | 'http-duckduckgo'
+  | 'http-startpage'
+  | 'http-ecosia'
+  | 'http-mojeek'
+  | 'public'
   | 'tavily'
   | 'jina'
   | 'searxng'
   | 'zhipu'
   | 'z.ai'
-  | 'deepseek';
+  | 'deepseek'
+  | 'exa'
+  | 'parallel'
+  | 'firecrawl'
+  | 'brave'
+  | 'kagi'
+  | 'kimi'
+  | 'synthetic'
+  | 'ollama'
+  | 'tinyfish'
+  | 'perplexity'
+  | 'bocha'
+  | 'claude';
 
 /**
  * A provider identifier — open by construction.
@@ -120,12 +133,28 @@ export type SearchProviderId = KnownSearchProviderId | (string & {});
 const KNOWN_SEARCH_PROVIDER_IDS: ReadonlySet<string> = new Set<KnownSearchProviderId>([
   'http-bing',
   'http-duckduckgo',
+  'http-startpage',
+  'http-ecosia',
+  'http-mojeek',
+  'public',
   'tavily',
   'jina',
   'searxng',
   'zhipu',
   'z.ai',
   'deepseek',
+  'exa',
+  'parallel',
+  'firecrawl',
+  'brave',
+  'kagi',
+  'kimi',
+  'synthetic',
+  'ollama',
+  'tinyfish',
+  'perplexity',
+  'bocha',
+  'claude',
 ]);
 
 /**
@@ -172,6 +201,12 @@ export interface SearchUrlReadResult {
   content?: string;
 }
 
+/** Trusted runtime policy passed separately from caller-controlled search options. */
+export interface SearchExecutionContext {
+  /** Aggregates must intersect their configured children with this allow-list. */
+  allowedProviderIds?: readonly SearchProviderId[];
+}
+
 /**
  * A search provider.
  *
@@ -184,7 +219,11 @@ export interface SearchProvider {
   /** Stable provider identifier, matching its contribution's `id`. */
   readonly id: SearchProviderId;
   /** Run a search. Throws {@link SearchProviderError} on failure. */
-  search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
+  search(
+    query: string,
+    options?: SearchOptions,
+    context?: SearchExecutionContext,
+  ): Promise<SearchResult[]>;
   /** Read one URL, when `capabilities.supportsUrlRead` is true. */
   readUrl?(url: string, options?: SearchOptions): Promise<SearchUrlReadResult>;
   /** Report health without performing a real search. */

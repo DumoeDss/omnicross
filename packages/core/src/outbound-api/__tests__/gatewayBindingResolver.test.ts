@@ -60,6 +60,26 @@ describe('gateway binding resolution', () => {
     expect(result.binding?.id).toBe('serving');
   });
 
+  it('keeps a Flash-only binding eligible for retired names before trying a fallback', () => {
+    const routes = [
+      binding({
+        id: 'flash', endpoint: 'chat', target: { kind: 'provider', providerId: 'deepseek' },
+        modelMap: undefined, models: ['deepseek-flash'], priority: 1, fallback: 'next',
+      }),
+      binding({
+        id: 'other', endpoint: 'chat', target: { kind: 'provider', providerId: 'other' },
+        modelMap: undefined, models: ['other-model'], priority: 2,
+      }),
+    ];
+    for (const model of ['deepseek-chat', 'deepseek-reasoner']) {
+      const result = resolveGatewayBinding({
+        bindings: routes, apiKeyId: 'client-a', endpoint: 'chat', requestedModel: model,
+      });
+      expect(result.binding?.id).toBe('flash');
+      expect(result.config.models).toEqual(['deepseek,deepseek-flash']);
+    }
+  });
+
   it('keeps the sole candidate selected when nothing can serve, so its own route error surfaces', () => {
     const result = resolveGatewayBinding({
       bindings: [binding({ id: 'empty', fallback: 'next', modelMap: {} })],

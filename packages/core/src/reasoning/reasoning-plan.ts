@@ -2,11 +2,12 @@ import {
   applyAlias,
   normalizeModelId,
   resolveModelCapabilities,
-  type ResolvedModelCapabilities,
 } from '@omnicross/contracts/canonical-models';
+import type { ResolvedModelCapabilities } from '@omnicross/contracts/canonical-models';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { ModelConfig } from '@omnicross/contracts/llm-config';
 import {
+  canDisableThinking,
   EFFORT_RATIO,
   findLegacyTokenLimit,
 } from '@omnicross/contracts/thinking-config';
@@ -131,9 +132,8 @@ function findModelOverride(
 ): Partial<ModelConfig> | undefined {
   if (!modelConfigs) return undefined;
   const targetId = canonicalModelId(targetModel);
-  return modelConfigs.find((config) =>
-    config.id === targetModel || canonicalModelId(config.id) === targetId
-  );
+  return modelConfigs.find((config) => config.id === targetModel)
+    ?? modelConfigs.find((config) => canonicalModelId(config.id) === targetId);
 }
 
 /** Merge canonical metadata with the matching provider-row override. */
@@ -143,6 +143,18 @@ export function resolveTargetModelCapabilities(
 ): ResolvedModelCapabilities {
   const rowOverride = findModelOverride(targetModel, provider?.modelConfigs);
   return resolveModelCapabilities(targetModel, undefined, rowOverride);
+}
+
+function nearestSupportedEffort(requested: ThinkLevel, candidates: ThinkLevel[]): ThinkLevel {
+  const requestedRatio = EFFORT_RATIO[requested];
+  return candidates.reduce((best, candidate) => {
+    const distance = Math.abs(EFFORT_RATIO[candidate] - requestedRatio);
+    const bestDistance = Math.abs(EFFORT_RATIO[best] - requestedRatio);
+    if (distance < bestDistance - Number.EPSILON) return candidate;
+    if (Math.abs(distance - bestDistance) <= Number.EPSILON
+      && EFFORT_RATIO[candidate] < EFFORT_RATIO[best]) return candidate;
+    return best;
+  });
 }
 
 /** Resolve an enabled effort to the nearest level supported by the target. */
@@ -162,19 +174,7 @@ export function resolveReasoningEffort(
   if (capabilities.thinkingLevels?.length && candidates.length === 0) return 'none';
   if (candidates.length === 0) return requested;
 
-  const requestedRatio = EFFORT_RATIO[requested];
-  return candidates.reduce((best, candidate) => {
-    const distance = Math.abs(EFFORT_RATIO[candidate] - requestedRatio);
-    const bestDistance = Math.abs(EFFORT_RATIO[best] - requestedRatio);
-    if (distance < bestDistance - Number.EPSILON) return candidate;
-    if (
-      Math.abs(distance - bestDistance) <= Number.EPSILON &&
-      EFFORT_RATIO[candidate] < EFFORT_RATIO[best]
-    ) {
-      return candidate;
-    }
-    return best;
-  });
+  return nearestSupportedEffort(requested, candidates);
 }
 
 function protocolFallback(model: string, target: ReasoningTarget): TokenLimit | undefined {
@@ -238,12 +238,12 @@ function clampBudget(
 
   if (isPositiveFinite(requestMaxTokens)) {
     const requestCeiling = target === 'anthropic'
-      ? explicitBudget
-        ? Math.floor(requestMaxTokens) - 1
-        : Math.max(
-          min,
-          Math.floor(requestMaxTokens * Math.min(EFFORT_RATIO[effort], 0.75)),
-        )
+      ? Math.min(
+        Math.floor(requestMaxTokens) - 1,
+        explicitBudget
+          ? Math.floor(requestMaxTokens) - 1
+          : Math.max(min, Math.floor(requestMaxTokens * Math.min(EFFORT_RATIO[effort], 0.75))),
+      )
       : Math.floor(requestMaxTokens);
     if (requestCeiling < min) return undefined;
     max = Math.min(max, requestCeiling);
@@ -297,13 +297,30 @@ export function resolveReasoningPlan(
   const nativeEffort = normalizedIntent.effort;
   // Gemini 2.x effort presets still require numeric thinkingBudget on the
   // native wire; their presence does not imply support for thinkingLevel.
-  const usesNativeLevels = !!capabilities.thinkingLevels?.length && (
-    input.target !== 'gemini' || !/^gemini-2(?:[.-]|$)/.test(canonicalModelId(input.model))
+  const modelId = canonicalModelId(input.model);
+  const minimaxAdaptive = /^minimax-m(?:2(?:[.-]|$)|3$)/.test(modelId);
+  const usesNativeLevels = input.target === 'anthropic' && minimaxAdaptive || (
+    !!capabilities.thinkingLevels?.length && (
+      input.target === 'anthropic'
+        ? modelId.startsWith('claude-')
+        : input.target !== 'gemini' || !/^gemini-2(?:[.-]|$)/.test(modelId)
+    )
   );
 
+  if (nativeEffort !== 'none' && capabilities.reasoning === false) {
+    throw new Error(`Thinking is not supported by ${input.model}`);
+  }
   if (nativeEffort === 'none') {
-    // Semantic off support on a native Chat dialect does not establish a
-    // Responses effort:none control. Keep unsupported/unverified defaults.
+    if (!(capabilities.thinkingLevels?.length
+      ? capabilities.thinkingLevels.includes('none')
+      : canDisableThinking(modelId))) {
+      throw new Error(`Thinking cannot be disabled for ${input.model}`);
+    }
+    if (input.target === 'gemini' && usesNativeLevels) {
+      throw new Error(`Thinking cannot be disabled for ${input.model}; choose a supported thinking level`);
+    }
+
+    // Native Chat off support does not establish a Responses effort:none control.
     if (input.target === 'openai-responses' && (
       /kimi|moonshot|mimo|grok/i.test(input.provider?.name ?? '') ||
       /kimi|moonshot|xiaomimimo|api\.x\.ai/i.test(
@@ -313,20 +330,15 @@ export function resolveReasoningPlan(
       return { kind: 'off' };
     }
     const targetsOpenAI = input.target === 'openai-chat' || input.target === 'openai-responses';
-    // Disable-only OpenAI declarations mean no effort parameter, not a wire "none".
-    if (
-      targetsOpenAI &&
-      capabilities.thinkingLevels?.length &&
-      capabilities.thinkingLevels.every((level) => level === 'none')
-    ) {
+    // Disable-only declarations mark omission rather than a wire effort:none.
+    if (targetsOpenAI && capabilities.thinkingLevels?.length
+      && capabilities.thinkingLevels.every((level) => level === 'none')) {
       return { kind: 'off' };
     }
-    const preserveNativeOpenAI = input.preserveNativeEffort && targetsOpenAI;
-    if (
-      preserveNativeOpenAI ||
-      (capabilities.thinkingLevels?.includes('none') &&
-        (input.target !== 'gemini' || usesNativeLevels))
-    ) {
+    if ((targetsOpenAI && capabilities.reasoning !== false
+      && (input.preserveNativeEffort || !capabilities.thinkingLevels?.length))
+      || (capabilities.thinkingLevels?.includes('none')
+        && (targetsOpenAI || (input.target === 'anthropic' && usesNativeLevels)))) {
       return { kind: 'level', effort: 'none', enabled: false };
     }
 
@@ -344,7 +356,19 @@ export function resolveReasoningPlan(
         return { kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 };
       }
     }
+    if (input.target === 'gemini' && capabilities.reasoning === true) {
+      throw new Error(`Thinking cannot be disabled for ${input.model}`);
+    }
     return { kind: 'off' };
+  }
+
+  // Pro Image thinks automatically, but Google documents no adjustable effort
+  // or budget. Do not fabricate a numeric budget from the generic Pro fallback.
+  // Provider rows may explicitly declare controls for a different serving API.
+  if (input.target === 'gemini'
+    && /^gemini-3-pro-image(?:-preview)?$/.test(modelId)
+    && !capabilities.thinkingLevels?.length && !capabilities.thinkingTokenLimit) {
+    throw new Error(`Thinking effort controls are not supported by ${input.model}; use automatic thinking`);
   }
 
   if (
@@ -354,9 +378,29 @@ export function resolveReasoningPlan(
     return { kind: 'off' };
   }
 
+  // DeepSeek documents a discrete mapping rather than nearest-ratio effort.
+  // Keep it scoped to the official host; aggregators may expose other controls.
+  let requestedEffort = nativeEffort;
+  const baseUrl = input.provider?.baseUrl ?? input.provider?.api_base_url;
+  if (!input.preserveNativeEffort && baseUrl
+    && (input.target === 'openai-chat' || input.target === 'openai-responses')
+    && /^(?:deepseek-flash|deepseek-v4-flash|deepseek-v4-pro)$/.test(modelId)) {
+    let officialHost = false;
+    try {
+      officialHost = new URL(baseUrl).hostname === 'api.deepseek.com';
+    } catch {
+      // An unrecognized endpoint must not opt into vendor-specific semantics.
+    }
+    if (officialHost) {
+      requestedEffort = nativeEffort === 'minimal' || nativeEffort === 'low'
+        ? 'low'
+        : nativeEffort === 'max' ? 'max' : 'high';
+    }
+  }
+
   const effort = input.preserveNativeEffort
     ? nativeEffort
-    : resolveReasoningEffort(nativeEffort, input.model, input.provider);
+    : resolveReasoningEffort(requestedEffort, input.model, input.provider);
 
   if (effort === 'none') return { kind: 'off' };
 
@@ -365,7 +409,18 @@ export function resolveReasoningPlan(
   }
 
   if (usesNativeLevels) {
-    return { kind: 'level', effort, enabled: true };
+    if (input.target === 'anthropic' && minimaxAdaptive) return { kind: 'level', effort, enabled: true };
+    // Model effort presets can originate on another wire (e.g. Claude via
+    // Google's CCA envelope). Intersect them with this wire's legal enum.
+    const candidates = capabilities.thinkingLevels?.filter((level) =>
+      input.target === 'gemini'
+        ? level === 'minimal' || level === 'low' || level === 'medium' || level === 'high'
+        : level !== 'none' && level !== 'minimal'
+    ) ?? [];
+    if (candidates.length === 0) {
+      throw new Error(`Thinking levels are not supported by ${input.target} for ${input.model}`);
+    }
+    return { kind: 'level', effort: nearestSupportedEffort(effort, candidates), enabled: true };
   }
 
   const budgetTokens = resolveBudget(
@@ -376,7 +431,9 @@ export function resolveReasoningPlan(
     input.target,
     input.requestMaxTokens,
   );
-  if (budgetTokens === undefined) return { kind: 'off' };
+  if (budgetTokens === undefined) {
+    throw new Error(`Cannot enable thinking for ${input.model}: max_tokens must leave room for the minimum thinking budget`);
+  }
   return { kind: 'budget', effort, enabled: true, budgetTokens };
 }
 

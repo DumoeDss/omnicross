@@ -8,6 +8,8 @@ import { InMemoryImageAsset } from '../../ports';
 import { apiImageCapabilities, createApiImageProvider } from '../ApiImageProvider';
 import { buildApiImageRequest } from '../protocols';
 import { createApiImageAsset } from '../transport';
+import { normalizeGenerateRequest } from '../../openai-images/normalizeOptions';
+import { DEFAULT_IMAGE_API_LIMITS } from '../../openai-images/types';
 import type { ApiImageProviderOptions } from '../types';
 
 const request: ImageProviderRequest = {
@@ -87,6 +89,26 @@ describe('API image providers', () => {
     expect(apiImageCapabilities(opts, true, 'public-image').resolutions).not.toContain('512');
   });
 
+  it.each([
+    'https://generativelanguage.googleapis.com',
+    'https://generativelanguage.googleapis.com/v1',
+    'https://generativelanguage.googleapis.com/v1beta',
+    'https://generativelanguage.googleapis.com/v1beta/models',
+  ])('executes Interactions without duplicating the API version for %s', async (baseUrl) => {
+    const bytes = await png();
+    const fetch = vi.fn(async (url: URL | RequestInfo) => {
+      if (String(url) !== 'https://generativelanguage.googleapis.com/v1beta/interactions') {
+        return new Response('', { status: 404 });
+      }
+      return Response.json({ outputs: [{ type: 'image', data: bytes.toString('base64') }] });
+    });
+    const events = await collect({
+      ...options(fetch, 'gemini-interactions'), models: { 'public-image': 'gemini-nano-banana-2.1' },
+      resolveCredentials: async () => ({ ...credentials, baseUrl }),
+    });
+    expect(events.at(-1)?.type).toBe('completed');
+  });
+
   it('never repeats a paid WaveSpeed submission while retrying result polling', async () => {
     const bytes = await png();
     let polls = 0;
@@ -101,6 +123,27 @@ describe('API image providers', () => {
     expect(fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
     expect(fetch.mock.calls.every(([url]) => String(url).startsWith('https://images.example/'))).toBe(true);
     expect(polls).toBe(2);
+  });
+
+  it.each([
+    ['google/nano-banana-2/text-to-image', '512', '0.5k'],
+    ['bytedance/seedream-v5.0-pro', '1.5K', '1.5k'],
+  ])('executes the advertised %s resolution from Images ingress', async (model, resolution, wireResolution) => {
+    const bytes = await png();
+    const fetch = vi.fn(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      if (JSON.parse(String(init?.body)).resolution !== wireResolution) return new Response('', { status: 400 });
+      return Response.json({ data: { id: 'job-resolution', status: 'completed', outputs: ['https://cdn.example/image.png'] } });
+    });
+    const normalized = normalizeGenerateRequest({
+      model: 'public-image', prompt: 'A small landscape', resolution,
+    }, {
+      tenantId: 'tenant', providerId: 'image-api', defaultModel: 'public-image',
+      modelAliases: new Map(), modelRoutes: new Map(), limits: DEFAULT_IMAGE_API_LIMITS,
+    });
+    const events = await collect({
+      ...options(fetch, 'wavespeed'), models: { 'public-image': model }, downloadOutput: async () => bytes,
+    }, normalized);
+    expect(events.at(-1)).toMatchObject({ type: 'completed', images: [{ artifact: { width: 16, height: 16 } }] });
   });
 
   it('routes WaveSpeed GPT Image 2.5 edits to the dedicated edit endpoint with an image array', async () => {
@@ -165,5 +208,68 @@ describe('API image providers', () => {
     const history = Array.from({ length: 101 }, () => ({ role: 'user' as const, images: [image] }));
     await expect(collect(options(fetch), { ...request, history })).rejects.toMatchObject({ code: 'image_too_large' });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['openai-images', 'gpt-image-2'],
+    ['xai', 'grok-imagine-image'],
+    ['wavespeed', 'google/nano-banana-2.1/text-to-image'],
+    ['gemini', 'imagen-4.0-generate-001'],
+    ['vertex', 'imagen-4.0-generate-001'],
+  ] as const)('does not silently drop conversation history for %s / %s', async (protocol, model) => {
+    const fetch = vi.fn();
+    await expect(collect({ ...options(fetch, protocol), models: { 'public-image': model } }, {
+      ...request, history: [{ role: 'user', text: 'Keep the previous blue background.' }],
+    })).rejects.toMatchObject({ code: 'unsupported_capability', param: 'history' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['openai-images', 'gpt-image-2', true],
+    ['xai', 'grok-imagine-image', true],
+    ['gemini', 'gemini-2.5-flash-image', false],
+    ['vertex', 'gemini-2.5-flash-image', false],
+    ['gemini', 'imagen-4.0-generate-001', true],
+    ['vertex', 'imagen-4.0-generate-001', true],
+    ['gemini-interactions', 'gemini-nano-banana-2.1', false],
+    ['openrouter', 'google/gemini-2.5-flash-image', false],
+    ['wavespeed', 'google/nano-banana-2.1/text-to-image', false],
+  ] as const)('returns two complete JPEG images for %s / %s', async (protocol, model, batch) => {
+    const bytes = await png();
+    const base64 = bytes.toString('base64');
+    const fetch = vi.fn(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.stream === true) return new Response('', { status: 400 });
+      if (protocol === 'openai-images' || protocol === 'xai') {
+        if (body.n !== 2) return new Response('', { status: 400 });
+        return Response.json({ data: [{ b64_json: base64 }, { b64_json: base64 }] });
+      }
+      if (model.startsWith('imagen-')) {
+        if (body.parameters.sampleCount !== 2) return new Response('', { status: 400 });
+        return Response.json({ predictions: [{ bytesBase64Encoded: base64 }, { bytesBase64Encoded: base64 }] });
+      }
+      if (protocol === 'openrouter') {
+        return Response.json({ choices: [{ message: { images: [{ image_url: { url: `data:image/png;base64,${base64}` } }] } }] });
+      }
+      if (protocol === 'gemini-interactions') {
+        return Response.json({ outputs: [{ type: 'image', data: base64 }] });
+      }
+      if (protocol === 'wavespeed') {
+        return Response.json({ data: { id: 'job-batch', status: 'completed', outputs: ['https://cdn.example/image.png'] } });
+      }
+      return Response.json({ candidates: [{ content: { parts: [
+        { thought: true, inlineData: { mimeType: 'image/png', data: 'private-preview' } },
+        { inlineData: { mimeType: 'image/png', data: base64 } },
+      ] } }] });
+    });
+    const events = await collect({
+      ...options(fetch, protocol), models: { 'public-image': model }, downloadOutput: async () => bytes,
+    }, { ...request, n: 2, stream: true, outputFormat: 'jpeg' });
+    expect(fetch).toHaveBeenCalledTimes(batch ? 1 : 2);
+    expect(events.map((event) => event.type)).toEqual(['accepted', 'completed']);
+    expect(events.at(-1)).toMatchObject({ images: [
+      { artifact: { mimeType: 'image/jpeg', width: 16, height: 16 } },
+      { artifact: { mimeType: 'image/jpeg', width: 16, height: 16 } },
+    ] });
   });
 });

@@ -4,10 +4,7 @@
  *
  * Three jobs, all no-React and table-testable:
  *
- * 1. The CLOSED provider catalog — exactly the eight built-in ids, with display
- *    metadata. No `local-*`, no grok/claude/exa/bocha: those are Elftia-host
- *    concepts or declared-but-dead ids, and the section must not advertise
- *    them.
+ * 1. The built-in API and HTTP provider catalog, with display metadata.
  * 2. Masked-read → editable draft → PUT payload. The daemon never sends secret
  *    values, so the draft carries WRITE-ONLY inputs: blank keeps the stored
  *    value, a typed string sets it, and an explicit clear is `null` for
@@ -54,6 +51,10 @@ export interface SearchProviderCatalogEntry {
    * be enabled without typing a secret.
    */
   reusesProviderKey: boolean;
+  supportsAuthMode?: boolean;
+  supportsModel?: boolean;
+  descriptionKey?: string;
+  unconfiguredReasonKey?: string;
 }
 
 const HTTP_ENTRY: Omit<SearchProviderCatalogEntry, 'id' | 'i18nSlug' | 'name' | 'website'> = {
@@ -72,40 +73,70 @@ const KEYED_ENTRY: Omit<SearchProviderCatalogEntry, 'id' | 'i18nSlug' | 'name' |
   supportsHostOverride: true,
 };
 
-/**
- * The complete catalog — EXACTLY the eight built-ins. `http-bing` and
- * `http-duckduckgo` are keyless and always available (no config fields, no
- * fake enable toggle); the six keyed ids configure-by-entry. DeepSeek is the
- * one whose key may be left blank, in which case the official key from a
- * DeepSeek provider row is reused.
- */
+/** API order is stable; newly added providers remain opt-in. */
 export const SEARCH_PROVIDER_CATALOG: readonly SearchProviderCatalogEntry[] = Object.freeze([
   Object.freeze({ id: 'http-bing', i18nSlug: 'httpBing', name: 'Bing (HTTP)', website: 'https://www.bing.com', ...HTTP_ENTRY }),
   Object.freeze({ id: 'http-duckduckgo', i18nSlug: 'httpDuckduckgo', name: 'DuckDuckGo (HTTP)', website: 'https://duckduckgo.com', ...HTTP_ENTRY }),
+  Object.freeze({ id: 'http-startpage', i18nSlug: 'httpStartpage', name: 'Startpage (HTTP)', website: 'https://www.startpage.com', ...HTTP_ENTRY }),
+  Object.freeze({ id: 'http-ecosia', i18nSlug: 'httpEcosia', name: 'Ecosia (HTTP)', website: 'https://www.ecosia.org', ...HTTP_ENTRY }),
+  Object.freeze({ id: 'http-mojeek', i18nSlug: 'httpMojeek', name: 'Mojeek (HTTP)', website: 'https://www.mojeek.com', ...HTTP_ENTRY }),
+  Object.freeze({ id: 'public', i18nSlug: 'public', name: 'Public (HTTP aggregate)', website: 'https://www.bing.com', ...HTTP_ENTRY }),
   Object.freeze({ id: 'tavily', i18nSlug: 'tavily', name: 'Tavily', website: 'https://tavily.com', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
   Object.freeze({ id: 'jina', i18nSlug: 'jina', name: 'Jina', website: 'https://jina.ai', ...KEYED_ENTRY, keyOptional: true, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
   Object.freeze({ id: 'searxng', i18nSlug: 'searxng', name: 'SearXNG', website: 'https://docs.searxng.org', kind: 'api', requiresApiKey: false, keyOptional: false, requiresHost: true, supportsHostOverride: false, usesBasicAuth: true, reusesProviderKey: false }),
   Object.freeze({ id: 'zhipu', i18nSlug: 'zhipu', name: 'Zhipu', website: 'https://open.bigmodel.cn', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
   Object.freeze({ id: 'z.ai', i18nSlug: 'zai', name: 'Z.AI', website: 'https://z.ai', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
   Object.freeze({ id: 'deepseek', i18nSlug: 'deepseek', name: 'DeepSeek', website: 'https://api-docs.deepseek.com', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: true }),
+  ...[
+    ['exa', 'Exa', 'https://exa.ai'],
+    ['parallel', 'Parallel', 'https://parallel.ai'],
+    ['firecrawl', 'Firecrawl', 'https://www.firecrawl.dev'],
+  ].map(([id, name, website]) => Object.freeze({
+    ...KEYED_ENTRY, id: id!, i18nSlug: id!, name: name!, website: website!,
+    keyOptional: true, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false,
+    supportsAuthMode: true,
+  })),
+  ...[
+    ['brave', 'Brave', 'https://brave.com/search/api/'],
+    ['kagi', 'Kagi', 'https://kagi.com'],
+    ['kimi', 'Kimi', 'https://platform.moonshot.ai'],
+    ['synthetic', 'Synthetic', 'https://synthetic.new'],
+    ['ollama', 'Ollama', 'https://ollama.com'],
+    ['tinyfish', 'TinyFish', 'https://tinyfish.ai'],
+    ['perplexity', 'Perplexity', 'https://docs.perplexity.ai'],
+    ['bocha', 'Bocha', 'https://open.bochaai.com'],
+    ['claude', 'Claude', 'https://docs.anthropic.com'],
+  ].map(([id, name, website]) => Object.freeze({
+    ...KEYED_ENTRY, id: id!, i18nSlug: id!, name: name!, website: website!,
+    keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false,
+    supportsModel: id === 'claude',
+    descriptionKey: id === 'ollama' ? 'search.providerDescription.ollama' : 'search.providerDescription.keyed',
+    unconfiguredReasonKey: 'search.providerDescription.keyRequired',
+  })),
 ]);
 
-const CATALOG_IDS: ReadonlySet<string> = new Set(SEARCH_PROVIDER_CATALOG.map((entry) => entry.id));
+const CATALOG_IDS: Readonly<Record<string, true>> = Object.fromEntries(
+  SEARCH_PROVIDER_CATALOG.map((entry) => [entry.id, true]),
+);
 
-/** Whether an id is one of the eight built-ins (guards unknown ids at the edges). */
+/** Whether an id is supported by this settings surface. */
 export function isCatalogProviderId(id: string): boolean {
-  return CATALOG_IDS.has(id);
+  return CATALOG_IDS[id] === true;
 }
 
-/** The two keyless ids — always available, never configured away. */
+/** Existing HTTP engines retain their enabled-by-default behavior. */
 export const KEYLESS_HTTP_PROVIDER_IDS: readonly string[] = Object.freeze(['http-bing', 'http-duckduckgo']);
 
 // ── Draft ─────────────────────────────────────────────────────────────────────
 
-/** One keyed provider's editable state. Secret inputs are WRITE-ONLY. */
+/** One provider's editable state. Secret inputs are WRITE-ONLY. */
 export interface SearchProviderDraft {
   /** Write-only key input. Blank keeps the stored value (daemon preserves). */
   apiKeyInput: string;
+  enabled: boolean;
+  initialEnabled: boolean;
+  authMode: 'public' | 'api';
+  model: string;
   /** Explicit clear of an OPTIONAL key → payload `null`. Required keys clear by entry removal. */
   clearApiKey: boolean;
   /**
@@ -136,7 +167,7 @@ export interface SearchProviderDraft {
 /** The whole section's editable state. */
 export interface SearchSettingsDraft {
   modes: SearchFrontendModes;
-  /** Keyed providers only (the http pair has nothing to edit). */
+  /** All catalog providers, including explicit HTTP enablement. */
   providers: Record<string, SearchProviderDraft>;
   allowedPrivateHosts: string[];
   policy: {
@@ -153,6 +184,10 @@ export interface SearchSettingsDraft {
 function emptyProviderDraft(persistedConfigured: boolean): SearchProviderDraft {
   return {
     apiKeyInput: '',
+    enabled: false,
+    initialEnabled: false,
+    authMode: 'public',
+    model: '',
     clearApiKey: false,
     hasStoredApiKey: false,
     reuseLlmProviderKey: false,
@@ -169,13 +204,20 @@ function emptyProviderDraft(persistedConfigured: boolean): SearchProviderDraft {
 export function createSearchSettingsDraft(masked: SearchServerConfig | undefined): SearchSettingsDraft {
   const providers: Record<string, SearchProviderDraft> = {};
   for (const entry of SEARCH_PROVIDER_CATALOG) {
-    if (entry.kind !== 'api') continue;
     const stored = masked?.providers[entry.id as keyof SearchServerConfig['providers']];
     const draft = emptyProviderDraft(stored !== undefined);
+    draft.enabled = entry.kind === 'http'
+      ? (stored && 'enabled' in stored ? stored.enabled : undefined) ??
+        (stored !== undefined || KEYLESS_HTTP_PROVIDER_IDS.includes(entry.id) || masked?.policy.allowed?.includes(entry.id) === true)
+      : stored !== undefined;
+    draft.initialEnabled = draft.enabled;
     if (stored) {
-      draft.apiHost = stored.apiHost ?? '';
-      draft.basicAuthUsername = (stored as { basicAuthUsername?: string }).basicAuthUsername ?? '';
-      draft.hasStoredApiKey = (stored as { apiKeyConfigured?: boolean }).apiKeyConfigured === true;
+      draft.apiHost = 'apiHost' in stored ? stored.apiHost ?? '' : '';
+      draft.basicAuthUsername = 'basicAuthUsername' in stored ? stored.basicAuthUsername ?? '' : '';
+      draft.hasStoredApiKey = 'apiKeyConfigured' in stored && stored.apiKeyConfigured === true;
+      draft.authMode = ('authMode' in stored ? stored.authMode : undefined) ??
+        (draft.hasStoredApiKey ? 'api' : 'public');
+      draft.model = 'model' in stored ? stored.model ?? '' : '';
       // A persisted entry with NO key exists precisely because it reuses the
       // provider-catalog key — seed the switch so the card reads honestly.
       draft.reuseLlmProviderKey = entry.reusesProviderKey && !draft.hasStoredApiKey;
@@ -240,15 +282,25 @@ type ProviderPayload = Record<string, unknown>;
  * - an explicit clear of an OPTIONAL secret sends JSON `null`.
  */
 export function searchDraftToPayload(draft: SearchSettingsDraft): SearchServerConfig {
+  const invalid = invalidSearchAuthProviderIds(draft);
+  if (invalid.length > 0) throw new Error(`API mode requires a key: ${invalid.join(', ')}`);
   const providers: Record<string, ProviderPayload> = {};
   for (const entry of SEARCH_PROVIDER_CATALOG) {
-    if (entry.kind !== 'api') continue;
     const provider = draft.providers[entry.id];
+    if (entry.kind === 'http') {
+      const implicitEnabled = KEYLESS_HTTP_PROVIDER_IDS.includes(entry.id) || draft.policy.allowed.includes(entry.id);
+      if (provider && (provider.persistedConfigured || provider.enabled !== implicitEnabled)) {
+        providers[entry.id] = { enabled: provider.enabled };
+      }
+      continue;
+    }
     if (!provider || provider.removed) continue;
     if (!draftProviderConfigured(entry, provider)) continue;
 
     const host = provider.apiHost.trim();
     const payload: ProviderPayload = {};
+    if (entry.supportsAuthMode) payload.authMode = provider.authMode;
+    if (entry.supportsModel && provider.model.trim()) payload.model = provider.model.trim();
     if (entry.supportsHostOverride && isUsableHostString(host)) payload.apiHost = host;
     if (entry.requiresHost) payload.apiHost = host;
 
@@ -276,13 +328,13 @@ export function searchDraftToPayload(draft: SearchSettingsDraft): SearchServerCo
   }
 
   const maxAttempts = clampMaxAttemptsInput(draft.policy.maxAttempts);
-  const allowed = draft.policy.allowed.filter((id) => CATALOG_IDS.has(id));
+  const allowed = draft.policy.allowed.filter(isCatalogProviderId);
   return {
     modes: draft.modes,
     providers: providers as SearchServerConfig['providers'],
     egress: { allowedPrivateHosts: draft.allowedPrivateHosts.filter(isUsableHostString).slice(0, 64) },
     policy: {
-      ...(draft.policy.preferred && CATALOG_IDS.has(draft.policy.preferred)
+      ...(draft.policy.preferred && isCatalogProviderId(draft.policy.preferred)
         ? { preferred: draft.policy.preferred }
         : {}),
       ...(allowed.length > 0 ? { allowed } : {}),
@@ -305,8 +357,10 @@ export function pendingRestartProviderIds(
   diagnostics: SearchDiagnosticsSnapshot | null,
 ): string[] {
   if (!persisted || !diagnostics) return [];
+  const draft = createSearchSettingsDraft(persisted);
   const persistedIds = new Set(
-    Object.keys(persisted.providers ?? {}).filter((id) => CATALOG_IDS.has(id)),
+    SEARCH_PROVIDER_CATALOG.filter((entry) => draftProviderConfigured(entry, draft.providers[entry.id]!))
+      .map((entry) => entry.id),
   );
   // Rows WITHOUT the `unconfigured` status are the providers the RUNNING
   // runtime actually registered — an unconfigured row names a provider the
@@ -315,7 +369,7 @@ export function pendingRestartProviderIds(
     diagnostics.rows
       .filter((row) => row.status !== 'unconfigured')
       .map((row) => row.providerId)
-      .filter((id) => CATALOG_IDS.has(id) && !id.startsWith('http-')),
+      .filter(isCatalogProviderId),
   );
   const diverged = new Set<string>();
   for (const id of persistedIds) if (!runningIds.has(id)) diverged.add(id);
@@ -327,8 +381,12 @@ export function pendingRestartProviderIds(
 
 /** Whether the draft's provider entry would exist in the next PUT payload. */
 export function draftProviderConfigured(entry: SearchProviderCatalogEntry, draft: SearchProviderDraft): boolean {
-  if (entry.kind !== 'api') return true; // the http pair is always available
+  if (entry.kind === 'http') return draft.enabled;
   if (draft.removed) return false;
+  if (entry.supportsAuthMode) {
+    return draft.enabled && (draft.authMode === 'public' ||
+      (!draft.clearApiKey && draft.hasStoredApiKey) || draft.apiKeyInput.trim().length > 0);
+  }
   if (entry.requiresHost) return isUsableHostString(draft.apiHost.trim());
   const typedKey = draft.apiKeyInput.trim().length > 0;
   const storedKey = draft.hasStoredApiKey && !draft.clearApiKey;
@@ -339,6 +397,16 @@ export function draftProviderConfigured(entry: SearchProviderCatalogEntry, draft
   }
   // DeepSeek may be enabled WITHOUT a typed secret by reusing a provider key.
   return storedKey || typedKey || (entry.reusesProviderKey && draft.reuseLlmProviderKey);
+}
+
+/** Invalid explicit API mode must never quietly downgrade to public or disappear. */
+export function invalidSearchAuthProviderIds(draft: SearchSettingsDraft): string[] {
+  return SEARCH_PROVIDER_CATALOG.filter((entry) => {
+    const provider = draft.providers[entry.id];
+    return entry.supportsAuthMode && provider && !provider.removed && provider.enabled &&
+      provider.authMode === 'api' && !provider.apiKeyInput.trim() &&
+      !(provider.hasStoredApiKey && !provider.clearApiKey);
+  }).map((entry) => entry.id);
 }
 
 /** Status a card should badge with, given the diagnostics row (if any). */

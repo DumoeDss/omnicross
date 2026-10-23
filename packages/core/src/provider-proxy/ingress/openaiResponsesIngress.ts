@@ -12,6 +12,7 @@
 
 import type http from 'node:http';
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
 import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
 import { imageRouteTenantId, routeAllowsHostedImages } from '../../image-generation/imageRouteIdentity';
@@ -33,6 +34,7 @@ import {
   type SessionRequestHeaders,
 } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
+import { buildSubscriptionRequestSummary } from './anthropicSubscriptionPlan';
 import { recordResponsesNonStreamUsage, recordResponsesStreamUsage } from '../usage/recordResponsesUsage';
 
 import {
@@ -315,10 +317,26 @@ export async function handleResponsesOperation(
     endpoint: 'responses',
     fallbackKey: route.apiKeyId ?? route.sessionId ?? undefined,
   });
-  const resolvedModel = route.model;
+  const mapped = route.authMode === 'subscription'
+    ? route.subscriptionProfile?.modelMapper?.(
+        route.model,
+        buildSubscriptionRequestSummary({
+          ...responsesBody,
+          system: responsesBody.instructions,
+          messages: typeof responsesBody.input === 'string'
+            ? [{ role: 'user', content: responsesBody.input }] : responsesBody.input,
+        }),
+        route.subscriptionConfig as never,
+      )
+    : undefined;
+  const configuredModel = mapped?.resolvedModel ?? route.model;
+  const resolvedModel = resolveModelRedirect(configuredModel);
   responsesBody.model = resolvedModel;
 
-  const resolved = await resolveResponsesRouteProfile(route, deps, resolvedModel);
+  const resolved = {
+    ...await resolveResponsesRouteProfile(route, deps, resolvedModel),
+    modelDefaults: mapped,
+  };
   if (operation === 'compact' && resolved.profile !== 'native') {
     throw unsupportedResponsesCapability('$', 'requires a native Responses provider');
   }
@@ -354,7 +372,7 @@ export async function handleResponsesOperation(
       route,
       deps,
       resolved,
-      resolvedModel,
+      configuredModel,
       isStream,
       derivedSession.key,
       derivedSession.source,

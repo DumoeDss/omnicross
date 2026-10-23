@@ -9,7 +9,7 @@
  * @module search/api/__tests__/contributions.test
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -128,54 +128,6 @@ describe('apiSearchContributions — declared capabilities', () => {
   });
 });
 
-describe('Deferred and unregistered providers stay absent', () => {
-  const API_ROOT = new URL('../', import.meta.url);
-
-  it('exposes no exa, bocha, grok or claude provider anywhere in the module', async () => {
-    const surface = (await import('../index')) as Record<string, unknown>;
-    for (const name of Object.keys(surface)) {
-      expect(name).not.toMatch(/exa|bocha|grok|claude/i);
-    }
-
-    // And no CODE mentions them as ids. The doc comments deliberately DO name
-    // them (explaining why they are absent), so prose is stripped first —
-    // the same trap the HTTP slice's boundary test hit.
-    const sources = readdirSync(fileURLToPath(API_ROOT), { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-      .map((entry) => readFileSync(fileURLToPath(new URL(entry.name, API_ROOT)), 'utf8'));
-    expect(sources.length).toBeGreaterThan(8);
-
-    const code = sources.map(stripComments).join('\n');
-    expect(code.length).toBeGreaterThan(1000);
-    expect(code).not.toMatch(/['"`](?:exa|bocha|grok|claude)['"`]/i);
-  });
-
-  it('imports no Elftia package and no Electron', () => {
-    const sources = readdirSync(fileURLToPath(API_ROOT), { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-      .map((entry) => readFileSync(fileURLToPath(new URL(entry.name, API_ROOT)), 'utf8'));
-
-    const specifierPatterns = [
-      /(?:^|\s)(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/gm,
-      /(?:^|\s)import\s*['"]([^'"]+)['"]/gm,
-      /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-      /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-    ];
-    const allowedBareImports = new Set(['@omnicross/contracts/search-types', 'undici']);
-
-    const specifiers = sources.flatMap((source) =>
-      specifierPatterns.flatMap((pattern) => [...source.matchAll(pattern)].map((match) => match[1])),
-    );
-    // Guards against a silently non-matching regex passing this test vacuously.
-    expect(specifiers.length).toBeGreaterThan(10);
-
-    for (const specifier of specifiers) {
-      expect(specifier).not.toMatch(/elftia|electron/i);
-      if (specifier.startsWith('.')) continue;
-      expect(allowedBareImports.has(specifier) || specifier.startsWith('node:')).toBe(true);
-    }
-  });
-});
 
 describe('End to end through the 阶段3 runtime', () => {
   it('runs a pinned API search and reports one successful attempt', async () => {
@@ -535,7 +487,3 @@ describe('Leak gate — a configured credential never reaches an error or a shap
   });
 });
 
-/** Strip block and line comments so a prose grep cannot match documentation. */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-}

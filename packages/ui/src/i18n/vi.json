@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Chế độ xác thực",
+      "public": "Công khai (giới hạn, không cần khóa)",
+      "api": "API (cần khóa)",
+      "description": "Truy cập công khai bị giới hạn và có thể không khả dụng. Chế độ API cần khóa và không chuyển về công khai.",
+      "missingKey": "Chế độ API cần khóa: {{providers}}",
+      "enableHint": "Bật chế độ công khai hoặc chọn API và nhập khóa."
+    },
+    "providerDescription": {
+      "keyed": "API chính thức dùng khóa; tính khả dụng, thanh toán và giới hạn tùy thuộc tài khoản nhà cung cấp.",
+      "keyRequired": "Cần khóa API.",
+      "publicApi": "Truy cập công khai giới hạn hoặc API dùng khóa; không đảm bảo hạn mức miễn phí.",
+      "ollama": "API tìm kiếm Ollama cần khóa; máy chủ tùy chỉnh không có nghĩa là tìm kiếm cục bộ không cần khóa."
+    },
+    "http": {
+      "aggregateDescription": "Tổng hợp các công cụ HTTP công khai đã bật và được chính sách cho phép. Cần bật rõ ràng; không đảm bảo kết quả."
+    },
     "title": "Nhà cung cấp tìm kiếm",
     "description": "Cấu hình thời gian chạy tìm kiếm web: thông tin xác thực của nhà cung cấp, chính sách dự phòng, lưu lượng mạng đi và chế độ thực thi cho từng frontend.",
     "unsupportedDaemon": "Phiên bản daemon này không hỗ trợ phần cấu hình tìm kiếm.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Nhà cung cấp",
       "tavily": {
-        "description": "API tìm kiếm với hạn mức miễn phí hào phóng; cần khóa."
+        "description": "API tìm kiếm; cần khóa. Hạn mức và thanh toán tùy thuộc nhà cung cấp."
       },
       "jina": {
         "description": "Tìm kiếm chạy được không cần khóa; khóa tăng giới hạn tốc độ."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Engine không cần khóa, luôn sẵn sàng. Không cần cấu hình."
+      "description": "Tìm kiếm HTTP công khai không cần khóa; có thể bị chặn, giới hạn hoặc không khả dụng."
     },
     "status": {
       "ready": "Sẵn sàng",
@@ -943,6 +960,9 @@
       "deepseek": "Nhập khóa, dùng lại khóa của nhà cung cấp DeepSeek hoặc định cấu hình trong Nhà cung cấp."
     },
     "field": {
+      "enabled": "Bật",
+      "model": "Mô hình",
+      "modelPlaceholder": "Tùy chọn; để trống dùng mặc định của nhà cung cấp",
       "apiKey": "Khóa API",
       "apiKeyPlaceholder": "Để trống giữ khóa đã lưu",
       "apiKeyNew": "Nhập khóa API",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Hàng tháng",
       "codexRefreshConfirmTitle": "Dùng Luna để làm mới hạn mức này?",
       "codexRefreshConfirmDescription": "Một yêu cầu thực sẽ được gửi đến gpt-5.6-luna bằng tài khoản Codex này để lấy hạn mức mới nhất. Thao tác này sẽ sử dụng một phần nhỏ hạn mức gói đăng ký. Tiếp tục?",

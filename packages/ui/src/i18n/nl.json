@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Authenticatiemodus",
+      "public": "Openbaar (beperkt, zonder sleutel)",
+      "api": "API (sleutel vereist)",
+      "description": "Openbare toegang is beperkt en mogelijk niet beschikbaar. API-modus vereist een sleutel en valt nooit terug op openbaar.",
+      "missingKey": "API-modus vereist een sleutel: {{providers}}",
+      "enableHint": "Schakel openbaar in of kies API en voer een sleutel in."
+    },
+    "providerDescription": {
+      "keyed": "Officiële API met sleutel; beschikbaarheid, facturering en limieten hangen af van het provideraccount.",
+      "keyRequired": "Een API-sleutel is vereist.",
+      "publicApi": "Beperkte openbare toegang of API met sleutel; geen gratis quotum gegarandeerd.",
+      "ollama": "Ollama-zoek-API vereist een sleutel; een eigen host betekent geen lokale zoekmachine zonder sleutel."
+    },
+    "http": {
+      "aggregateDescription": "Bundelt ingeschakelde en toegestane openbare HTTP-engines. Expliciet inschakelen vereist; geen resultaatgarantie."
+    },
     "title": "Zoekproviders",
     "description": "Configuratie van de webzoek-runtime: inloggegevens van providers, fallbackbeleid, uitgaand netwerkverkeer en uitvoeringsmodi per frontend.",
     "unsupportedDaemon": "Deze daemon-versie ondersteunt de zoekconfiguratiesectie niet.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Providers",
       "tavily": {
-        "description": "Zoek-API met ruim gratis quotum; sleutel vereist."
+        "description": "Zoek-API; sleutel vereist. Quota en facturering hangen af van de provider."
       },
       "jina": {
         "description": "Zoeken kan zonder sleutel; een sleutel verhoogt de limieten."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Sleutelloze engine, altijd beschikbaar. Geen configuratie nodig."
+      "description": "Openbaar HTTP-zoeken zonder sleutel; blokkades, limieten of uitval zijn mogelijk."
     },
     "status": {
       "ready": "Gereed",
@@ -943,6 +960,9 @@
       "deepseek": "Voer een sleutel in, hergebruik een DeepSeek-providerseutel of configureer er een onder Providers."
     },
     "field": {
+      "enabled": "Ingeschakeld",
+      "model": "Model",
+      "modelPlaceholder": "Optioneel; leeg gebruikt de providerstandaard",
       "apiKey": "API-sleutel",
       "apiKeyPlaceholder": "Leeg houdt de opgeslagen sleutel",
       "apiKeyNew": "Voer API-sleutel in",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Maandelijks",
       "codexRefreshConfirmTitle": "Luna gebruiken om dit quotum te vernieuwen?",
       "codexRefreshConfirmDescription": "Er wordt met dit Codex-account een echte aanvraag naar gpt-5.6-luna verzonden om het meest recente quotum op te halen. Dit verbruikt een klein deel van het abonnementsquotum. Doorgaan?",

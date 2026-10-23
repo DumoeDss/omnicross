@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Autentiseringsläge",
+      "public": "Offentligt (begränsat, utan nyckel)",
+      "api": "API (nyckel krävs)",
+      "description": "Offentlig åtkomst är begränsad och kan saknas. API-läget kräver en nyckel och växlar aldrig till offentligt.",
+      "missingKey": "API-läget kräver en nyckel: {{providers}}",
+      "enableHint": "Aktivera offentligt läge eller välj API och ange en nyckel."
+    },
+    "providerDescription": {
+      "keyed": "Officiellt API med nyckel; tillgänglighet, fakturering och gränser beror på leverantörskontot.",
+      "keyRequired": "En API-nyckel krävs.",
+      "publicApi": "Begränsad offentlig åtkomst eller API med nyckel; ingen gratis kvot garanteras.",
+      "ollama": "Ollamas sök-API kräver en nyckel; en egen värd innebär inte lokal sökning utan nyckel."
+    },
+    "http": {
+      "aggregateDescription": "Samlar aktiverade och tillåtna offentliga HTTP-motorer. Kräver uttrycklig aktivering; resultat garanteras inte."
+    },
     "title": "Sökleverantörer",
     "description": "Konfiguration av webbsökningskörningen: leverantörsuppgifter, fallback-princip, utgående nätverkstrafik och körningslägen per frontend.",
     "unsupportedDaemon": "Denna daemonversion stöder inte sökkonfigurationssektionen.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Leverantörer",
       "tavily": {
-        "description": "Sök-API med generös gratisnivå; nyckel krävs."
+        "description": "Sök-API; nyckel krävs. Kvoter och fakturering beror på leverantören."
       },
       "jina": {
         "description": "Sökning fungerar utan nyckel; en nyckel höjer gränserna."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Nyckelfri motor, alltid tillgänglig. Kräver ingen konfiguration."
+      "description": "Offentlig HTTP-sökning utan nyckel; kan blockeras, begränsas eller vara otillgänglig."
     },
     "status": {
       "ready": "Redo",
@@ -943,6 +960,9 @@
       "deepseek": "Ange en nyckel, återanvänd en DeepSeek-leverantörsnyckel eller konfigurera en under Leverantörer."
     },
     "field": {
+      "enabled": "Aktiverad",
+      "model": "Modell",
+      "modelPlaceholder": "Valfritt; tomt använder leverantörens standard",
       "apiKey": "API-nyckel",
       "apiKeyPlaceholder": "Tomt behåller den lagrade nyckeln",
       "apiKeyNew": "Ange API-nyckel",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Månadsvis",
       "codexRefreshConfirmTitle": "Använd Luna för att uppdatera den här kvoten?",
       "codexRefreshConfirmDescription": "En riktig begäran skickas till gpt-5.6-luna med det här Codex-kontot för att hämta den senaste kvoten. Detta förbrukar en liten del av abonnemangskvoten. Vill du fortsätta?",

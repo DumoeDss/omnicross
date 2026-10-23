@@ -8,10 +8,8 @@
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import {
-  buildAnthropicThinking,
   calculateThinkingBudget,
   DEFAULT_MAX_TOKENS,
-  getClaudeMaxTokens,
   isReasoningModel,
 } from '@omnicross/contracts/thinking-config';
 
@@ -19,6 +17,7 @@ import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 
 import { resolveApiFormat } from './';
+import { buildAnthropicReasoningWire, type AnthropicReasoningWire } from './ReasoningRequestBuilder';
 
 /**
  * Resolve effective max_tokens value with priority:
@@ -98,11 +97,18 @@ export async function getRequiredMaxTokens(
   return DEFAULT_MAX_TOKENS;
 }
 
+export interface ResolvedThinkingBudget {
+  adjustedMaxTokens: number;
+  thinkingBudget: number | undefined;
+  thinkingConfig: AnthropicReasoningWire['thinking'];
+  outputConfig?: AnthropicReasoningWire['outputConfig'];
+}
+
 /**
  * Calculate thinking budget and adjust max_tokens for the provider
  *
- * For Claude/Anthropic: thinking budget is subtracted from max_tokens
- * For other providers: thinking budget is calculated but max_tokens is not adjusted
+ * Anthropic max_tokens already includes thinking; preserve the caller's total.
+ * Other providers also keep the caller's output bound unchanged.
  *
  * @param getProvider - Function to get provider by ID
  * @param logger - Logger service instance
@@ -119,18 +125,9 @@ export async function resolveThinkingBudget(
   modelId: string,
   maxTokens: number,
   thinkLevel: ThinkLevel
-): Promise<{
-  adjustedMaxTokens: number;
-  thinkingBudget: number | undefined;
-  thinkingConfig: {
-    type?: 'enabled' | 'disabled';
-    budget_tokens?: number;
-  } | undefined;
-}> {
-  // This exported compatibility API predates target-aware discrete plans. Keep
-  // its historical recognition and budget behavior; request builders use the
-  // shared ReasoningPlan resolver directly.
-  if (thinkLevel === 'none' || !isReasoningModel(modelId)) {
+): Promise<ResolvedThinkingBudget> {
+  // Keep the public compatibility facade on the same wire decisions as requests.
+  if (!isReasoningModel(modelId)) {
     return {
       adjustedMaxTokens: maxTokens,
       thinkingBudget: undefined,
@@ -138,26 +135,20 @@ export async function resolveThinkingBudget(
     };
   }
 
-  const thinkingBudget = calculateThinkingBudget(modelId, thinkLevel, maxTokens);
-
   const provider = await getProvider(providerId);
-  const providerName = provider?.name?.toLowerCase() || '';
+  const thinkingBudget = calculateThinkingBudget(modelId, thinkLevel, maxTokens);
   const apiFormat = provider ? resolveApiFormat(provider) : 'openai';
 
-  // For Anthropic/Claude: adjust max_tokens by subtracting thinking budget
-  if (apiFormat === 'anthropic' || providerName === 'anthropic' || providerName.includes('claude')) {
-    const thinkingConfig = buildAnthropicThinking(modelId, thinkLevel, maxTokens);
-    const adjustedMaxTokens = getClaudeMaxTokens(maxTokens, thinkingBudget) || maxTokens;
-
-    logger.debug('Claude model thinking budget', {
-      thinkingBudget,
-      adjustedMaxTokens
+  // Anthropic's total output bound includes the thinking budget.
+  if (provider && apiFormat === 'anthropic') {
+    const wire = buildAnthropicReasoningWire(provider, {
+      model: modelId, thinkLevel, maxTokens,
     });
-
     return {
-      adjustedMaxTokens,
-      thinkingBudget,
-      thinkingConfig
+      adjustedMaxTokens: wire.effectiveMaxTokens,
+      thinkingBudget: wire.thinking?.budget_tokens,
+      thinkingConfig: wire.thinking,
+      ...(wire.outputConfig ? { outputConfig: wire.outputConfig } : {}),
     };
   }
 

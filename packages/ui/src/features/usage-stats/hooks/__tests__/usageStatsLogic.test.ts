@@ -17,7 +17,6 @@ import {
   coldCacheRequestRate,
   computeCustomRange,
   computePresetRange,
-  formatAxisUsd,
   formatCompactNumber,
   formatCompactUsd,
   formatTableUsd,
@@ -202,11 +201,6 @@ describe('compact dashboard formatting', () => {
     expect(formatCompactUsd(37_935.7236, 'en-US')).toBe('$37.9K');
     expect(formatCompactUsd(37_935.7236, 'zh-CN')).toBe('US$3.8万');
     expect(formatCompactUsd(5.6107, 'en-US')).toBe('$5.6107');
-  });
-
-  it('uses short currency values on chart axes regardless of precision', () => {
-    expect(formatAxisUsd(4_000, 'en-US')).toBe('$4K');
-    expect(formatAxisUsd(0, 'en-US')).toBe('$0');
   });
 });
 

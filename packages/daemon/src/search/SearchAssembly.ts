@@ -21,7 +21,7 @@ import type {
   SearchProviderContribution,
   SearchRuntimeEvent,
 } from '@omnicross/contracts/search-types';
-import type { SearchServerConfig } from '@omnicross/core/outbound-api/types';
+import type { HttpSearchProviderId, SearchServerConfig } from '@omnicross/core/outbound-api/types';
 import { resolveUpstreamDispatcher } from '@omnicross/core/pipeline/upstreamFetch';
 import { createSearchRuntime, type SearchRuntime } from '@omnicross/core/search';
 import { apiSearchContributions } from '@omnicross/core/search/api';
@@ -29,6 +29,8 @@ import type { SearchEgressPolicy } from '@omnicross/core/search';
 import {
   builtinHttpSearchContributions,
   createSearchHttpTransport,
+  type HttpPublicChildId,
+  type SearchHttpTransport,
 } from '@omnicross/core/search/http';
 
 import type { Logger } from '@omnicross/core';
@@ -41,7 +43,7 @@ export interface SearchAssemblyOptions {
   readonly logger?: Pick<Logger, 'debug' | 'warn'> | null;
   /**
    * Override the contribution set entirely (tests). Production leaves this
-   * unset so the builtin HTTP pair plus the configured API providers are used.
+   * unset so the enabled HTTP engines and configured API providers are used.
    */
   readonly contributions?: SearchProviderContribution[];
   /**
@@ -68,6 +70,31 @@ export function searchPolicyFrom(config: SearchServerConfig): SearchPolicy {
     fallbackEnabled,
     ...(maxAttempts !== undefined ? { maxAttempts } : {}),
   };
+}
+
+const HTTP_CHILD_IDS: readonly HttpPublicChildId[] = [
+  'http-bing', 'http-duckduckgo', 'http-startpage', 'http-ecosia', 'http-mojeek',
+];
+export const HTTP_SEARCH_PROVIDER_IDS: readonly HttpSearchProviderId[] = [...HTTP_CHILD_IDS, 'public'];
+
+/** New HTTP engines require a config entry or an explicit policy allowlist opt-in. */
+export function isHttpSearchProviderEnabled(config: SearchServerConfig, id: HttpSearchProviderId): boolean {
+  const entry = config.providers[id];
+  if (entry !== undefined) return entry.enabled !== false;
+  return id === 'http-bing' || id === 'http-duckduckgo' || config.policy.allowed?.includes(id) === true;
+}
+
+/** One eligibility boundary for daemon searches and persisted admin probes. */
+export function httpSearchContributionsFrom(
+  config: SearchServerConfig,
+  transport?: SearchHttpTransport,
+): SearchProviderContribution[] {
+  const allowed = config.policy.allowed;
+  const allowedChildIds = HTTP_CHILD_IDS.filter((id) =>
+    isHttpSearchProviderEnabled(config, id) && (allowed === undefined || allowed.includes(id)));
+  return builtinHttpSearchContributions(transport, { allowedChildIds })
+    .filter((contribution) =>
+      isHttpSearchProviderEnabled(config, contribution.id as HttpSearchProviderId));
 }
 
 /**
@@ -98,10 +125,11 @@ export function resolveSearchUpstreamProxyConfig(
 }
 
 /**
- * Every contribution the config asks for: the two keyless HTTP engines, plus
- * exactly the API providers that are configured.
+ * Enabled HTTP contributions (the original pair by default) and exactly the
+ * configured API providers. New HTTP engines and the public aggregate require
+ * explicit opt-in; aggregate children additionally obey the policy allowlist.
  *
- * Configured-only gating is preserved verbatim from 阶段4 — an unconfigured
+ * Configured-only gating preserves the existing API behavior: an unconfigured
  * provider produces no contribution, so discovery never advertises something
  * that cannot run, and the fallback walk never burns an attempt finding out.
  */
@@ -110,9 +138,11 @@ export function searchContributionsFrom(
   options: Pick<SearchAssemblyOptions, 'resolveDeepseekApiKey'> = {},
 ): SearchProviderContribution[] {
   return [
-    ...builtinHttpSearchContributions(
+    ...httpSearchContributionsFrom(
+      config,
       createSearchHttpTransport({
         resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
+        egressPolicy: searchEgressPolicyFrom(config),
         resolveProxyConfig: resolveSearchUpstreamProxyConfig,
       }),
     ),

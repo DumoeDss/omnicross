@@ -32,7 +32,7 @@ export interface UseSearchSettingsResult {
   error: string | null;
   /** Persist the full search segment (layer-replaced; secrets write-only). */
   updateSearchConfig: (search: SearchServerConfig) => Promise<void>;
-  /** Run the operator's query through one provider (non-mutating, direct). */
+  /** Run the operator's query with a provider preference and the active fallback policy. */
   runSearchQuery: (providerId: string, query: string) => Promise<SearchQueryOutcome>;
   /** Re-read the config + diagnostics (exposed for a manual refresh). */
   refresh: () => Promise<void>;

@@ -233,7 +233,7 @@ describe('transformRequestOut (Gemini request → unified)', () => {
     expect((parts[2].image_url as { url: string }).url).toBe('https://x/y.jpg');
   });
 
-  it('maps functionDeclarations to unified tools (preferring parameters over parametersJsonSchema)', () => {
+  it('maps functionDeclarations with either schema representation to unified tools', () => {
     const geminiReq = {
       model: 'gemini-2.5-pro',
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
@@ -330,7 +330,7 @@ describe('transformRequestOut (Gemini request → unified)', () => {
     const asst = decoded.messages.find((m) => m.role === 'assistant');
     expect(asst).toBeDefined();
     expect(asst!.content).toBe('Here is my answer');
-    expect((asst!.thinking as { signature?: string })?.signature).toBe('sig_1');
+    expect(buildRequestBody(decoded).contents[0].parts).toEqual([{ text: 'Here is my answer', thoughtSignature: 'sig_1' }]);
   });
 
   it('regression: parallel same-name tool calls pair results to the correct ids (by order)', () => {
@@ -405,12 +405,13 @@ describe('buildRequestBody (unified → Gemini request) tool handling', () => {
     expect(toolContent.role).toBe('user');
     const toolParts = toolContent.parts as Array<Record<string, unknown>>;
     expect(toolParts[0].functionResponse).toEqual({
+      id: 'call_7',
       name: 'search',
       response: { result: '32 cats' },
     });
   });
 
-  it('encodes negotiated discrete levels and native disablement', () => {
+  it('encodes negotiated levels and rejects unsupported disablement', () => {
     const discrete = buildRequestBody(baseRequest({
       model: 'gemini-3-flash',
       reasoning: { effort: 'xhigh', enabled: true },
@@ -419,14 +420,10 @@ describe('buildRequestBody (unified → Gemini request) tool handling', () => {
       includeThoughts: true,
       thinkingLevel: 'high',
     });
-    const disabled = buildRequestBody(baseRequest({
+    expect(() => buildRequestBody(baseRequest({
       model: 'gemini-3-flash',
       reasoning: { effort: 'none', enabled: false },
-    }));
-    expect(disabled.generationConfig?.thinkingConfig).toEqual({
-      includeThoughts: false,
-      thinkingLevel: 'none',
-    });
+    }))).toThrow('Thinking cannot be disabled');
   });
 
   it.each([
@@ -450,7 +447,6 @@ describe('buildRequestBody (unified → Gemini request) tool handling', () => {
       });
       const roundTrip = buildRequestBody(unified, undefined, true);
       expect(roundTrip.generationConfig?.thinkingConfig).toEqual({
-        includeThoughts: budget > 0,
         thinkingBudget: budget,
       });
     }
@@ -584,10 +580,7 @@ describe('transformResponseOut (Gemini SSE → OpenAI SSE) tool-call deltas', ()
     expect(opened.function.arguments).toBe(JSON.stringify({ q: 'cats' }));
   });
 
-  it('still emits tool_calls when text content was buffered (Gemini 3.x pre-signature)', async () => {
-    // Scenario: a Gemini 3 model already streamed thinking content, then sends
-    // a chunk with BOTH pre-signature text AND a functionCall. The pre-signature
-    // text must be buffered, but the tool call MUST still be emitted.
+  it('emits text and tool calls even when Gemini 3 never returns a signature', async () => {
     const frames = [
       // Thinking delta first.
       `data: ${JSON.stringify({
@@ -633,6 +626,9 @@ describe('transformResponseOut (Gemini SSE → OpenAI SSE) tool-call deltas', ()
     // The bug previously dropped these tool_calls due to an early return.
     expect(toolDeltas.length).toBeGreaterThan(0);
     expect(toolDeltas.some((tc) => tc.id === 'call_y')).toBe(true);
+    expect(events.map((event) => event.choices?.[0]?.delta?.content ?? '').join('')).toBe('calling tool now');
+    expect(events.flatMap((event) => event.choices ?? []).every((choice) => choice.index === 0)).toBe(true);
+    expect(events.map((event) => event.choices?.[0]?.delta?.thinking?.signature).filter(Boolean)).toEqual([]);
   });
 });
 
@@ -727,5 +723,229 @@ describe('convertOpenAIStreamToGemini (OpenAI SSE → Gemini SSE)', () => {
     const fcPart = allParts.find((p) => p.functionCall);
     expect(fcPart).toBeDefined();
     expect(fcPart.functionCall.name).toBe('run');
+  });
+});
+
+describe('Gemini protocol fidelity', () => {
+  it('keeps system priority, sampling, native dynamic thinking and schema constraints', () => {
+    const native = {
+      model: 'gemini-2.5-flash',
+      systemInstruction: { parts: [{ text: 'System policy' }] },
+      contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+      generationConfig: {
+        temperature: 0, topP: 0.8, topK: 9, stopSequences: ['END'],
+        thinkingConfig: { thinkingBudget: -1, includeThoughts: false },
+        responseMimeType: 'application/json',
+        responseJsonSchema: { type: 'object', additionalProperties: false, properties: { answer: { type: 'string' } } },
+      },
+    };
+    const unified = transformRequestOut(native);
+    expect(unified.messages[0]).toMatchObject({ role: 'system', content: 'System policy' });
+    expect(unified.reasoning).toEqual({ enabled: true });
+    const encoded = buildRequestBody(unified);
+    expect(encoded.systemInstruction).toEqual(native.systemInstruction);
+    expect(encoded.contents).toEqual(native.contents);
+    expect(encoded.generationConfig).toEqual(native.generationConfig);
+  });
+
+  it('preserves the MIME and ordering of interleaved images and text', () => {
+    const decoded = transformRequestOut({
+      model: 'gemini-2.5-flash',
+      contents: [{ role: 'user', parts: [
+        { inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } },
+        { text: 'first image' },
+        { fileData: { mimeType: 'image/webp', fileUri: 'gs://bucket/image.webp' } },
+      ] }],
+    });
+    expect(decoded.messages[0].content).toEqual([
+      { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' }, media_type: 'image/jpeg' },
+      { type: 'text', text: 'first image' },
+      { type: 'image_url', image_url: { url: 'gs://bucket/image.webp' }, media_type: 'image/webp' },
+    ]);
+    const encoded = buildRequestBody(baseRequest({ messages: [{
+      role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } }],
+    }] }));
+    expect(encoded.contents[0].parts).toEqual([{ inlineData: { mime_type: 'image/jpeg', data: 'AAAA' } }]);
+  });
+
+  it('matches reversed parallel same-name results by ID and never invents missing results', () => {
+    const decoded = transformRequestOut({
+      model: 'gemini-3-flash', contents: [
+        { role: 'model', parts: [
+          { functionCall: { id: 'a', name: 'lookup', args: { key: 1 } }, thoughtSignature: 'opaque-a' },
+          { functionCall: { id: 'b', name: 'lookup', args: { key: 2 } }, thoughtSignature: 'opaque-b' },
+        ] },
+        { role: 'user', parts: [
+          { functionResponse: { id: 'b', name: 'lookup', response: { error: 'failed' } } },
+          { functionResponse: { id: 'a', name: 'lookup', response: { result: 'ok' } } },
+        ] },
+      ],
+    });
+    expect(decoded.messages.filter((message) => message.role === 'tool').map((message) => message.tool_call_id)).toEqual(['b', 'a']);
+    const encoded = buildRequestBody(decoded);
+    expect(encoded.contents[0].parts.map((part) => 'thoughtSignature' in part ? part.thoughtSignature : undefined)).toEqual(['opaque-a', 'opaque-b']);
+    expect(encoded.contents[1].parts[0]).toMatchObject({ functionResponse: { response: { error: 'failed' } } });
+    const unfinished = buildRequestBody(baseRequest({ messages: [decoded.messages[0]] }));
+    expect(unfinished.contents).toHaveLength(1);
+  });
+
+  it('keeps unsigned thinking in JSON and does not copy another vendor signature', async () => {
+    const decoded = await transformResponseOut(new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ thought: true, text: 'reasoning' }, { text: 'answer' }] }, finishReason: 'MAX_TOKENS' }],
+      usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 2, thoughtsTokenCount: 3, totalTokenCount: 10 },
+    }), { headers: { 'Content-Type': 'application/json' } }), 'gemini');
+    const chat = await decoded.json();
+    expect(chat.choices[0].message.thinking).toEqual({ content: 'reasoning' });
+    expect(chat.choices[0].finish_reason).toBe('length');
+    expect(chat.usage.completion_tokens).toBe(5);
+    expect(convertOpenAIResponseToGemini(chat).usageMetadata).toMatchObject({ candidatesTokenCount: 2, thoughtsTokenCount: 3 });
+    const crossVendor = convertOpenAIResponseToGemini({ choices: [{ message: {
+      content: 'answer', thinking: { content: 'reasoning', signature: 'claude-only' },
+    } }] });
+    expect(crossVendor.candidates[0].content.parts).toEqual([{ text: 'reasoning', thought: true }, { text: 'answer' }]);
+  });
+
+  it('round-trips every signed native part without moving or duplicating signatures', async () => {
+    const parts = [
+      { text: 'reason', thought: true, thoughtSignature: 'opaque-1' },
+      { functionCall: { id: 'one', name: 'lookup', args: {} }, thoughtSignature: 'opaque-2' },
+      { functionCall: { id: 'two', name: 'lookup', args: {} }, thoughtSignature: 'opaque-3' },
+    ];
+    const decoded = await transformResponseOut(new Response(JSON.stringify({
+      candidates: [{ content: { parts }, finishReason: 'STOP' }],
+    }), { headers: { 'Content-Type': 'application/json' } }), 'gemini');
+    expect(convertOpenAIResponseToGemini(await decoded.json()).candidates[0].content.parts).toEqual(parts);
+  });
+
+  it('decodes fragmented multiline CRLF SSE and preserves final usage-only events', async () => {
+    const wire = 'data:{"candidates":[{"index":0,"content":{"parts":[{"text":"你好","thought":true}]}}],\r\n'
+      + 'data:"modelVersion":"gemini-2.5-flash"}\r\n\r\n'
+      + 'data:{"candidates":[{"index":0,"finishReason":"STOP"}]}\r\n\r\n'
+      + 'data:{"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2,"thoughtsTokenCount":3,"totalTokenCount":9}}';
+    const bytes = new TextEncoder().encode(wire);
+    const upstream = new Response(new ReadableStream({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
+        controller.close();
+      },
+    }), { headers: { 'Content-Type': 'text/event-stream' } });
+    const output = await drainSseEvents(await transformResponseOut(upstream, 'gemini'));
+    expect(output[0].choices[0].delta.thinking.content).toBe('你好');
+    expect(output[1].choices[0].finish_reason).toBe('stop');
+    expect(output[2].usage).toMatchObject({ completion_tokens: 5, total_tokens: 9 });
+  });
+
+  it('converts interleaved duplicate-name tool deltas and usage after finish', async () => {
+    const chunks = [
+      { choices: [{ index: 0, delta: { reasoning_content: 'plan', tool_calls: [
+        { index: 0, id: 'a', function: { name: 'lookup', arguments: '{"n":' } },
+        { index: 1, id: 'b', function: { name: 'lookup', arguments: '{"n":' } },
+      ] } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [
+        { index: 1, function: { arguments: '2}' } }, { index: 0, function: { arguments: '1}' } },
+      ] }, finish_reason: 'tool_calls' }] },
+      { choices: [], usage: { prompt_tokens: 4, completion_tokens: 5, total_tokens: 9, completion_tokens_details: { reasoning_tokens: 3 } } },
+    ];
+    const output = await drainSseEvents(await transformResponseIn(sseResponse(chunks.map((chunk) => `data:${JSON.stringify(chunk)}\r\n\r\n`))));
+    const parts = output.flatMap((chunk) => chunk.candidates?.[0]?.content.parts ?? []);
+    expect(parts[0]).toEqual({ text: 'plan', thought: true });
+    expect(parts.filter((part) => part.functionCall).map((part) => part.functionCall)).toEqual([
+      { id: 'a', name: 'lookup', args: { n: 1 } }, { id: 'b', name: 'lookup', args: { n: 2 } },
+    ]);
+    expect(output.at(-1)?.usageMetadata).toMatchObject({ candidatesTokenCount: 2, thoughtsTokenCount: 3, totalTokenCount: 9 });
+  });
+
+  it('preserves provider errors and safety blocks instead of reporting success', async () => {
+    const error = { error: { code: 429, message: 'quota' } };
+    const failed = new Response(JSON.stringify(error), { status: 429, headers: { 'Content-Type': 'application/json' } });
+    const output = await transformResponseOut(failed, 'gemini');
+    expect(output.status).toBe(429);
+    expect(await output.json()).toEqual(error);
+    const events = await drainSseEvents(await transformResponseOut(sseResponse([`data:${JSON.stringify(error)}\n\n`]), 'gemini'));
+    expect(events).toEqual([error]);
+    const blocked = await transformResponseOut(new Response(JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } }), {
+      headers: { 'Content-Type': 'application/json' },
+    }), 'gemini');
+    expect((await blocked.json()).choices[0].finish_reason).toBe('content_filter');
+    expect(() => convertOpenAIResponseToGemini({ choices: [{ message: {
+      tool_calls: [{ id: 'bad', function: { name: 'run', arguments: '{"broken":' } }],
+    } }] })).toThrow();
+  });
+});
+
+describe('Gemini tools and schemas', () => {
+  it('keeps custom web_search callable and preserves ANY allowlists across protocols', () => {
+    const decoded = transformRequestOut({
+      model: 'gemini-2.5-flash',
+      contents: [{ parts: [{ text: 'search' }] }],
+      toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: ['web_search', 'lookup'] } },
+      tools: [{ functionDeclarations: [
+        { name: 'web_search', parameters: { type: 'OBJECT', properties: { query: { type: 'STRING', nullable: true } } } },
+        { name: 'lookup', parametersJsonSchema: { type: 'object', additionalProperties: false, properties: {} } },
+        { name: 'forbidden', parameters: { type: 'OBJECT' } },
+      ] }],
+    });
+    expect(decoded.messages[0]).toMatchObject({ role: 'user', content: 'search' });
+    expect(decoded.tool_choice).toBe('required');
+    expect(decoded.tools?.map((tool) => tool.function.name)).toEqual(['web_search', 'lookup']);
+    expect(decoded.tools?.[0].function.parameters.properties.query).toEqual({ type: ['string', 'null'] });
+    const crossProtocol = buildRequestBody(baseRequest({ tools: decoded.tools, tool_choice: 'required' }));
+    expect(crossProtocol.toolConfig).toEqual({ functionCallingConfig: { mode: 'ANY' } });
+    expect(crossProtocol.tools?.[0].functionDeclarations?.map((tool) => tool.name)).toEqual(['web_search', 'lookup']);
+    expect(crossProtocol.tools?.[0].functionDeclarations?.[1].parametersJsonSchema).toMatchObject({ additionalProperties: false });
+  });
+
+  it('keeps tool failure status and image output inside functionResponse parts', () => {
+    const body = buildRequestBody(baseRequest({
+      messages: [
+        { role: 'assistant', content: null, tool_calls: [{ id: 'c', type: 'function', function: { name: 'inspect', arguments: '{}' } }] },
+        { role: 'tool', tool_call_id: 'c', is_error: true, content: [
+          { type: 'text', text: 'partial result' },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } },
+        ] },
+      ],
+    }));
+    expect(body.contents[1].parts).toEqual([{
+      functionResponse: {
+        id: 'c', name: 'inspect', response: { error: 'partial result' },
+        parts: [{ inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } }],
+      },
+    }]);
+    const decoded = transformRequestOut({ model: 'gemini-3-flash', contents: body.contents });
+    expect(decoded.messages[1]).toMatchObject({
+      role: 'tool', is_error: true,
+      content: [{ type: 'text', text: '{"error":"partial result"}' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAAA' } }],
+    });
+  });
+
+  it('keeps independent candidates and image output in the reverse JSON direction', async () => {
+    const upstream = new Response(JSON.stringify({ candidates: [
+      { index: 0, content: { parts: [{ text: 'first' }] }, finishReason: 'STOP' },
+      { index: 1, content: { parts: [{ inlineData: { mimeType: 'image/webp', data: 'AAAA' } }] }, finishReason: 'MAX_TOKENS' },
+    ] }), { headers: { 'Content-Type': 'application/json' } });
+    const result = await transformResponseIn(await transformResponseOut(upstream, 'gemini'));
+    const parsed = await result.json();
+    expect(parsed.candidates.map((candidate: { index: number }) => candidate.index)).toEqual([0, 1]);
+    expect(parsed.candidates[1]).toMatchObject({
+      finishReason: 'MAX_TOKENS', content: { parts: [{ inlineData: { mimeType: 'image/webp', data: 'AAAA' } }] },
+    });
+  });
+});
+
+describe('Gemini terminal failures', () => {
+  it('reports malformed upstream tool calls as stream errors, not completed turns', async () => {
+    const output = await transformResponseOut(sseResponse([
+      'data:{"responseId":"r","modelVersion":"gemini-3-flash","candidates":[{"finishReason":"MALFORMED_FUNCTION_CALL"}]}\n\n',
+    ]), 'gemini');
+    const wire = await output.text();
+    expect(wire).toContain('"type":"upstream_generation_error"');
+    expect(wire).toContain('MALFORMED_FUNCTION_CALL');
+    expect(wire).not.toContain('[DONE]');
+    expect(wire).not.toContain('"finish_reason":"stop"');
+  });
+
+  it('propagates malformed SSE payloads instead of silently dropping a tool call', async () => {
+    const output = await transformResponseIn(sseResponse(['data:{"choices":\n\n']));
+    await expect(output.text()).rejects.toThrow('Invalid upstream SSE JSON');
   });
 });

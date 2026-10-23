@@ -38,7 +38,7 @@ describe('output-token wire semantics', () => {
     const gemini = buildGeminiRequestBody(request);
 
     expect(request).not.toHaveProperty('max_tokens');
-    expect(gemini.generationConfig).toBeUndefined();
+    expect(gemini.generationConfig?.maxOutputTokens).toBeUndefined();
   });
 
   it('preserves an explicit cap through unified and Gemini request conversion', () => {
@@ -55,7 +55,7 @@ describe('output-token wire semantics', () => {
     const gemini = buildToolRequest('google', messages, 'model-a', makeToolOptions(), provider);
 
     expect(openai.requestBody).not.toHaveProperty('max_tokens');
-    expect(gemini.requestBody).not.toHaveProperty('generationConfig');
+    expect(gemini.requestBody).not.toHaveProperty('generationConfig.maxOutputTokens');
   });
 
   it('supplies a fallback only for the native Anthropic tool protocol', () => {

@@ -5,8 +5,8 @@
  * are stated, never derived from an id's spelling, and each adapter's
  * capabilities are explicit down to the options it does NOT honor.
  *
- * Five adapters under six ids: `tavily`, `jina`, `searxng`, `zhipu`, `z.ai`
- * and `deepseek`.
+ * API providers share the bounded transport; public-capable services remain
+ * opt-in entries and expose their selected authentication mode.
  *
  * The gating rule is the important one: a provider absent from `configs`
  * produces NO contribution. It is unconfigured, not broken. A runtime that
@@ -30,6 +30,7 @@ import type {
 import type { Dispatcher } from 'undici';
 
 import type { SearchEgressPolicy } from '../egress';
+import { appendAdditionalApiContributions } from './additionalContributions';
 import {
   DEEPSEEK_MAX_RESULTS_LIMIT,
   DeepseekSearchProvider,
@@ -213,6 +214,8 @@ export function apiSearchContributions(
       capabilities: { ...DEEPSEEK_CAPABILITIES },
     });
   }
+
+  appendAdditionalApiContributions(contributions, configs, transport);
 
   return contributions;
 }

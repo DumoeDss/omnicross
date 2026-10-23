@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import sharp from 'sharp';
 
 import type {
   ImageCapabilityEvidenceLayer,
@@ -180,6 +181,20 @@ afterEach(() => {
 });
 
 describe('CodexSubscriptionImageProvider negative paths', () => {
+  it('rejects conversation history rather than generating without its context', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(), evidenceSource: evidence, now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    expect(() => lease.start({
+      ...request, history: [{ role: 'user', text: 'Keep the previous background.' }],
+    })).toThrowError(expect.objectContaining({ code: 'unsupported_capability', param: 'history' }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    await lease.release();
+  });
+
   it('fails acquisition without an eligible subscription credential and makes no request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -272,7 +287,10 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
       })}`,
       `data: ${JSON.stringify({
         type: 'response.completed',
-        response: { usage: { total_tokens: 7 } },
+        response: {
+          output: [{ type: 'image_generation_call', status: 'completed', result: VALID_PNG }],
+          usage: { total_tokens: 7 },
+        },
       })}`,
       'data: [DONE]',
       '',
@@ -376,8 +394,38 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
       model,
       quality: 'auto',
       size: 'auto',
+      output_format: 'png',
     });
     await lease.release();
+  });
+
+  it('completes an evidenced JPEG edit without dropping compression or moderation', async () => {
+    const reference = new InMemoryImageAsset(Buffer.from(VALID_PNG, 'base64'), {
+      mimeType: 'image/png', width: 2, height: 1,
+    });
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.output_format !== 'jpeg' || body.output_compression !== 75 || body.moderation !== 'low') {
+        return new Response('', { status: 400 });
+      }
+      const bytes = await sharp(Buffer.from(VALID_PNG, 'base64')).jpeg({ quality: 75 }).toBuffer();
+      return Response.json({ data: [{ b64_json: bytes.toString('base64') }] });
+    }));
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(),
+      evidenceSource: evidenceFor({ ...supported, edit: true, maxInputImages: 1 }),
+      now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    const events = await collectEvents(lease.start({
+      ...request, action: 'edit', images: [reference], outputFormat: 'jpeg',
+      outputCompression: 75, moderation: 'low',
+    }).events);
+    expect(events.at(-1)).toMatchObject({
+      type: 'completed', images: [{ artifact: { mimeType: 'image/jpeg', width: 2, height: 1 } }],
+    });
+    await lease.release();
+    reference.dispose();
   });
 
   it('rejects an unsupported reference image type before egress', async () => {

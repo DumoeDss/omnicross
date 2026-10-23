@@ -12,6 +12,7 @@
  *  - passphrase IN-only: the passphrase is absent from the response + logs.
  *  - wrong / empty passphrase: a clean auth/strength error with NO partial write.
  *  - weak passphrase rejected (below the minimum length).
+ *  - viewing-password authorization: missing/wrong credentials cannot export.
  *  - deny-by-default import: an unknown provider/token field is dropped.
  *  - at-rest re-encryption on the target: imported secrets land `enc:` on disk.
  *  - merge-by-provider additive + idempotent: a re-import skips existing ids.
@@ -33,6 +34,7 @@ const SENTINEL_PROVIDER_KEY = 'sk-provider-SENTINEL-migration-export-7777';
 const SENTINEL_POOL_KEY = 'sk-pool-SENTINEL-migration-export-8888';
 const SENTINEL_TOKEN = 'access-SENTINEL-migration-token-9999';
 const PASSPHRASE = 'correct-horse-battery-staple';
+const VIEWING_PASSWORD = 'view7777';
 
 // ── Admin fetch helper ──────────────────────────────────────────────────────────
 
@@ -188,7 +190,7 @@ describe('migration pack export/import (app-parity child 6)', () => {
     ]);
     await seedClaudeToken(SENTINEL_TOKEN);
 
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
     expect(exp.status).toBe(200);
     const { pack, version } = exp.json as { pack: string; version: number };
     expect(version).toBe(1);
@@ -248,7 +250,16 @@ describe('migration pack export/import (app-parity child 6)', () => {
     await seedClaudeToken(SENTINEL_TOKEN);
     capturedLogs.length = 0; // ignore boot/seed logs; focus on the export call
 
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const denied = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    expect(denied.status).toBe(403);
+    expect(denied.text).toContain('view-password-not-set');
+    expect(denied.text).not.toContain(SENTINEL_PROVIDER_KEY);
+    expect(denied.text).not.toContain(SENTINEL_POOL_KEY);
+    expect(denied.text).not.toContain(SENTINEL_TOKEN);
+    expect(denied.text).not.toContain(PASSPHRASE);
+    expect(denied.json).not.toHaveProperty('pack');
+
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
     expect(exp.status).toBe(200);
 
     // The response body NEVER contains a plaintext secret or the passphrase.
@@ -256,6 +267,17 @@ describe('migration pack export/import (app-parity child 6)', () => {
     expect(exp.text).not.toContain(SENTINEL_POOL_KEY);
     expect(exp.text).not.toContain(SENTINEL_TOKEN);
     expect(exp.text).not.toContain(PASSPHRASE);
+    expect(exp.text).not.toContain(VIEWING_PASSWORD);
+
+    const wrong = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: 'wrong777' });
+    expect(wrong.status).toBe(403);
+    expect(wrong.text).toContain('view-password-invalid');
+    expect(wrong.text).not.toContain(SENTINEL_PROVIDER_KEY);
+    expect(wrong.text).not.toContain(SENTINEL_POOL_KEY);
+    expect(wrong.text).not.toContain(SENTINEL_TOKEN);
+    expect(wrong.text).not.toContain(PASSPHRASE);
+    expect(wrong.text).not.toContain('wrong777');
+    expect(wrong.json).not.toHaveProperty('pack');
 
     // No captured log line carries a plaintext secret or the passphrase.
     const allLogs = capturedLogs.join('\n');
@@ -263,6 +285,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
     expect(allLogs).not.toContain(SENTINEL_POOL_KEY);
     expect(allLogs).not.toContain(SENTINEL_TOKEN);
     expect(allLogs).not.toContain(PASSPHRASE);
+    expect(allLogs).not.toContain(VIEWING_PASSWORD);
+    expect(allLogs).not.toContain('wrong777');
 
     // The pack DOES round-trip the secret (recoverable only with the passphrase),
     // so its plaintext is genuinely absent from the response (not just unseeded).
@@ -273,10 +297,10 @@ describe('migration pack export/import (app-parity child 6)', () => {
 
   it('a weak/empty passphrase is rejected on export with no pack produced', async () => {
     await bootDaemon([{ id: 'src', apiFormat: 'openai', baseUrl: 'https://x/v1', apiKey: SENTINEL_PROVIDER_KEY }]);
-    const empty = await adminFetch('POST', '/admin/api/export', { passphrase: '' });
+    const empty = await adminFetch('POST', '/admin/api/export', { passphrase: '', viewingPassword: VIEWING_PASSWORD });
     expect(empty.status).toBe(400);
     expect(empty.text).not.toContain('pack');
-    const weak = await adminFetch('POST', '/admin/api/export', { passphrase: 'short' });
+    const weak = await adminFetch('POST', '/admin/api/export', { passphrase: 'short', viewingPassword: VIEWING_PASSWORD });
     expect(weak.status).toBe(400);
   });
 
@@ -284,7 +308,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
     await bootDaemon([
       { id: 'src', apiFormat: 'openai', baseUrl: 'https://x/v1', apiKey: SENTINEL_PROVIDER_KEY },
     ]);
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
+    expect(exp.status).toBe(200);
     const { pack } = exp.json as { pack: string };
 
     // Fresh blank target.
@@ -313,7 +338,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
       { id: 'src', apiFormat: 'openai', baseUrl: 'https://x/v1', apiKey: SENTINEL_PROVIDER_KEY },
     ]);
     await seedClaudeToken(SENTINEL_TOKEN);
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
+    expect(exp.status).toBe(200);
     const { pack } = exp.json as { pack: string };
 
     await daemon.adminServer.stop();
@@ -354,7 +380,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
         ...({ maliciousField: 'EVIL-INJECTED-VALUE' } as Record<string, unknown>),
       },
     ]);
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
+    expect(exp.status).toBe(200);
     const { pack } = exp.json as { pack: string };
 
     await daemon.adminServer.stop();
@@ -365,7 +392,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
     const srcDir = tmpDir;
     await bootDaemon([]);
 
-    await adminFetch('POST', '/admin/api/import', { blob: pack, passphrase: PASSPHRASE });
+    const imp = await adminFetch('POST', '/admin/api/import', { blob: pack, passphrase: PASSPHRASE });
+    expect(imp.status).toBe(200);
     const rawConfig = readFileSync(configPath, 'utf8');
     expect(rawConfig).not.toContain('EVIL-INJECTED-VALUE');
     expect(rawConfig).not.toContain('maliciousField');
@@ -377,7 +405,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
     await bootDaemon([
       { id: 'src', apiFormat: 'openai', baseUrl: 'https://x/v1', apiKey: SENTINEL_PROVIDER_KEY },
     ]);
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
+    expect(exp.status).toBe(200);
     const { pack } = exp.json as { pack: string };
 
     await daemon.adminServer.stop();
@@ -390,6 +419,7 @@ describe('migration pack export/import (app-parity child 6)', () => {
     await bootDaemon([{ id: 'keep', apiFormat: 'openai', baseUrl: 'https://y/v1', apiKey: 'sk-keep' }]);
 
     const first = await adminFetch('POST', '/admin/api/import', { blob: pack, passphrase: PASSPHRASE });
+    expect(first.status).toBe(200);
     expect((first.json as { providerKeys: number }).providerKeys).toBe(1);
     expect((first.json as { skipped: string[] }).skipped).toEqual([]);
 
@@ -399,6 +429,7 @@ describe('migration pack export/import (app-parity child 6)', () => {
 
     // Re-import = idempotent: the existing id is skipped, nothing new added.
     const second = await adminFetch('POST', '/admin/api/import', { blob: pack, passphrase: PASSPHRASE });
+    expect(second.status).toBe(200);
     expect((second.json as { providerKeys: number }).providerKeys).toBe(0);
     expect((second.json as { skipped: string[] }).skipped).toEqual(['src']);
     cfg = loadConfig(configPath);
@@ -413,7 +444,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
     const sourceServer = (sourceGet.json as { server: OutboundApiServerConfig }).server;
     const enabledImages = { ...sourceServer.images!, enabled: true };
     expect((await adminFetch('PUT', '/admin/api/server', { images: enabledImages })).status).toBe(200);
-    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE, viewingPassword: VIEWING_PASSWORD });
+    expect(exp.status).toBe(200);
     const { pack } = exp.json as { pack: string };
 
     await daemon.adminServer.stop();

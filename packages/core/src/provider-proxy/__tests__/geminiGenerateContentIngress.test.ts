@@ -1,20 +1,23 @@
 /**
- * Unit tests for the Gemini `generateContent` ingress parser's pure
- * route-match / stream-detection / model-extraction helpers
- * (`provider-proxy-transformer-matrix` slice 2). The full route → pipeline
- * behavior (endpoint transformer + runResponseChain + x-goog-api-key auth) is
- * covered in `ProviderProxy.ingress.test.ts`; this file pins the path parsing.
+ * Gemini ingress path parsing and real HTTP capability-rejection regressions.
+ * Native-only contracts must return a structured client error before dispatch,
+ * for both generateContent and streamGenerateContent routes.
  *
  * @module provider-proxy/__tests__/geminiGenerateContentIngress.test
  */
 
 import { describe, expect, it } from 'vitest';
+import { runGeminiCapabilityRejections } from './geminiCapabilityFixtures';
 
 import {
   extractGeminiModelFromPath,
   isGeminiGenerateContentRequest,
   isGeminiStreamRequest,
 } from '../ingress/geminiGenerateContentIngress';
+
+it('returns structured 400 for native-only cross-wire capabilities without contacting upstream', async () => {
+  await runGeminiCapabilityRejections();
+}, 60_000);
 
 describe('isGeminiGenerateContentRequest', () => {
   it('matches POST :generateContent and :streamGenerateContent', () => {

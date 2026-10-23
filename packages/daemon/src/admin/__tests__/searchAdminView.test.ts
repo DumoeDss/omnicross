@@ -72,6 +72,33 @@ describe('redactSearchServerConfig', () => {
       basicAuthPasswordConfigured: false,
     });
   });
+
+  it('round-trips every new provider secret and nonsecret metadata through a masked unrelated edit', () => {
+    const config = plantedConfig();
+    const keyed = ['brave', 'kagi', 'kimi', 'synthetic', 'ollama', 'tinyfish', 'perplexity', 'bocha', 'claude'] as const;
+    for (const id of keyed) config.providers[id] = { apiKey: KEY_SENTINEL, model: 'search-model' };
+    for (const id of ['exa', 'parallel', 'firecrawl'] as const) {
+      config.providers[id] = { authMode: 'api', apiKey: KEY_SENTINEL };
+    }
+    config.providers['http-startpage'] = { enabled: true };
+    config.providers.public = { enabled: false };
+    const view = redactSearchServerConfig(config);
+    expect(JSON.stringify(view)).not.toContain(KEY_SENTINEL);
+    expect(view.providers.exa).toEqual({ authMode: 'api', apiKeyConfigured: true });
+    expect(view.providers.claude).toEqual({ model: 'search-model', apiKeyConfigured: true });
+    expect(view.providers.public).toEqual({ enabled: false });
+    const restored = preserveSearchSecrets({ ...view, policy: { fallbackEnabled: false } }, config);
+    expect(validateSearchServerConfig(restored)).toEqual([]);
+    expect(restored).toMatchObject({ providers: config.providers });
+    const cleared = preserveSearchSecrets({
+      providers: { exa: { authMode: 'api', apiKey: null } },
+    }, config);
+    expect(validateSearchServerConfig(cleared)).toContain('$.search.providers.exa.apiKey: missing or unusable');
+    const publicMode = preserveSearchSecrets({
+      providers: { exa: { authMode: 'public', apiKey: null } },
+    }, config);
+    expect(validateSearchServerConfig(publicMode)).toEqual([]);
+  });
 });
 
 describe('preserveSearchSecrets', () => {

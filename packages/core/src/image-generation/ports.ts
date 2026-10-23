@@ -37,7 +37,7 @@ export class InMemoryImageAsset implements ImageAsset {
     },
   ) {
     if (bytes.byteLength === 0) throw new TypeError('Image asset bytes must not be empty.');
-    this.#bytes = bytes.slice();
+    this.#bytes = new Uint8Array(bytes);
     this.artifactId = metadata.artifactId ?? (randomUUID() as ImageArtifactId);
     this.mimeType = metadata.mimeType;
     this.byteLength = bytes.byteLength;

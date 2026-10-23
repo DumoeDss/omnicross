@@ -375,7 +375,7 @@ Idempotency-Key: rasen:run-123:ship:1
     "kind": "provider",
     "providerId": "deepseek-api"
   },
-  "model": "deepseek-chat",
+  "model": "deepseek-flash",
   "execution": {
     "runId": "run-123",
     "stageId": "ship",
@@ -399,7 +399,7 @@ Idempotency-Key: rasen:run-123:ship:1
     "kind": "provider",
     "providerId": "deepseek-api"
   },
-  "model": "deepseek-chat",
+  "model": "deepseek-flash",
   "launch": {
     "env": {
       "OMNICROSS_CODEX_ROUTE_TOKEN": "<ephemeral-secret>"

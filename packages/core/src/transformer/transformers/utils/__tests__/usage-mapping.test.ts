@@ -152,4 +152,17 @@ describe('end-to-end billable math (the property the ingress reader relies on)',
     expect(cacheReadTokens).toBe(7040); // cache no longer dropped
     expect(billableInput).toBe(52); // the 52 fresh tokens survive, not 0
   });
+
+  it.each([0, 18])('keeps reasoning=%i as an output subset without double-counting usage', (reasoningTokens) => {
+    const roundTrip = responsesUsageToChatUsage(chatUsageToResponsesUsage({
+      prompt_tokens: 20, completion_tokens: 30, total_tokens: 50,
+      prompt_tokens_details: { cached_tokens: 4 },
+      completion_tokens_details: { reasoning_tokens: reasoningTokens },
+    }))!;
+    const outputDetails = roundTrip.completion_tokens_details as Record<string, unknown>;
+    const inputDetails = roundTrip.prompt_tokens_details as Record<string, unknown>;
+    expect(Number(roundTrip.prompt_tokens) - Number(inputDetails.cached_tokens)).toBe(16);
+    expect(Number(roundTrip.completion_tokens) - Number(outputDetails.reasoning_tokens)).toBe(30 - reasoningTokens);
+    expect(roundTrip.total_tokens).toBe(50);
+  });
 });

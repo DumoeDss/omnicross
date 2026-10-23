@@ -5,23 +5,12 @@
  * e.g. `/v1/chat/completions`). The qwen / copilot / opencode CLIs all speak the
  * OpenAI Chat Completions wire when redirected at the resident proxy.
  *
- * KEY SEAM CHOICE: the unified pipeline's `UnifiedChatRequest` IS the OpenAI Chat
- * Completions shape (`messages` / `model` / `tools` / `tool_choice` / …, see
- * `transformer/types.ts`). So the ingress decode is IDENTITY — there is NO
- * endpoint transformer here. The parsed wire body is passed straight into
- * `executeProviderCall` as the `request`, and the provider transformer chain
- * (BYO: `resolveProviderChain`; subscription: `resolveSubscriptionChain`) encodes
- * Unified → target wire on the request side and decodes target → Unified (≡ OpenAI
- * Chat Completions) on the response side. This is the same `omit the endpoint
- * transformer` contract the unified ingresses (Adapter / Handler) use: design D7
- * (reuse the pipeline SSOT, no proxy-local converter).
+ * OpenAI Chat is close to Unified, but native `reasoning_content` and internal
+ * `thinking` are not interchangeable. The Chat endpoint transformer bridges
+ * those fields for cross-format calls; a same-format provider bypasses the
+ * conversion and retains native fields.
  *
- * PARITY with `openaiResponsesIngress.ts`: same per-run `RouteContext` shape,
- * same BYO + subscription call-plan structure, same relay + usage tap. The ONLY
- * structural differences are (a) no endpoint transformer (identity decode), (b)
- * the BYO URL is the provider's chat-completions URL (`buildProviderApiUrl`
- * default `openai` format), and (c) the subscription plan scopes to the CLAUDE
- * target (openai-chat-bridge, §D1/OQ1).
+ * BYO and subscription routes share the same request/response pipeline.
  *
  * openai-chat-bridge (#11): the `authMode: 'subscription'` branch is no longer a
  * hard 502. It mirrors the Responses ingress's subscription plan
@@ -41,10 +30,12 @@
  * @module provider-proxy/ingress/openaiChatIngress
  */
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type http from 'node:http';
 
 import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
+import { OpenAIOperationError, writeOpenAIOperationError } from '../../openai-operation';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
 
 import { serializeError } from '@omnicross/core/serializeError';
@@ -53,9 +44,9 @@ import { buildProviderApiUrl } from '../../completion';
 import type { AuthSource } from '../../pipeline/AuthSource';
 import { executeProviderCall } from '../../pipeline/executeProviderCall';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
-import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
+import { resolveProviderChain, resolveRedirectedModelConfigs } from '../../pipeline/resolveProviderChain';
 import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChain';
-import { SubscriptionAuthSource } from '../../pipeline/SubscriptionAuthSource';
+import { SubscriptionAuthSource, applyModelSelection } from '../../pipeline/SubscriptionAuthSource';
 import type {
   LLMProvider as TransformerLLMProvider,
   RequestConfig,
@@ -68,17 +59,21 @@ import {
   recordChatCompletionsStreamUsage,
 } from '../usage/recordChatCompletionsUsage';
 
-import { buildSubscriptionRequestSummary } from './anthropicSubscriptionPlan';
+import {
+  buildSubscriptionRequestSummary,
+  subscriptionModelDefaults,
+  withSubscriptionDefaults,
+  type SubscriptionModelDefaults,
+} from './anthropicSubscriptionPlan';
 import { fillMissingCodexCliIdentity } from '../identity/codexCliHeaders';
 import { deriveSubscriptionSessionKey } from '../matchText';
-import {
-  resolveAntigravityProjectThreaded,
-  resolveGeminiProjectForChatBridge,
-} from '../responses/responsesDriver';
+import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
+import { getGeminiCodeAssistResolver } from '../../ports/gemini-code-assist-resolver';
 import {
   type ByoRouteActivityMeta,
   aggregateOpenAIChatChunksToJsonBody,
   buildByoRouteActivityMeta,
+  getChatEndpointTransformer,
   getSharedExecutor,
   relayResponse,
   providerForWire,
@@ -135,15 +130,6 @@ const CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set<string>(
   'antigravity',
 ]);
 
-/**
- * Identity endpoint fallback for `resolveSubscriptionChain`. The chat ingress
- * runs NO endpoint transformer (Unified ≡ OpenAI Chat Completions), so this
- * no-op transformer is only ever reached when a profile declares no
- * `providerTransformerNames` — in which case the SAME Unified body is forwarded
- * verbatim (correct for an OpenAI-chat-wire upstream). The claude profile
- * declares `['anthropic']`, so this fallback is inert for the shipped target.
- */
-const IDENTITY_ENDPOINT_TRANSFORMER: Transformer = { name: 'identity-openai-chat' };
 
 /** The auth-mode-resolved inputs for one `executeProviderCall`. */
 interface ChatCallPlan {
@@ -183,6 +169,9 @@ interface ChatCallPlan {
    *  forwarded verbatim when a BYO provider row points at opencode.ai;
    *  absent ⇒ the plan's derived session key stands in. */
   readonly callerOpenCodeSession?: string;
+  readonly modelDefaults?: SubscriptionModelDefaults;
+  readonly resolveModelUrl?: (model: string) => string | undefined;
+  readonly rebuildForModel?: (model: string) => Promise<ChatCallPlan | null>;
 }
 
 /** Optional inputs threaded from the ingress router (which holds the raw `req`). */
@@ -268,7 +257,7 @@ export async function handleOpenAIChatRequest(
     const usageAttribution = {
       sessionId: route.sessionId,
       providerId: route.providerId ?? 'openai',
-      model: resolvedModel,
+      model: plan.resolvedModel,
       apiKeyId: route.apiKeyId ?? null,
       routeLease: route.routeLease,
       // request-audit-log: correlate this request's tokens/cost to its audit record.
@@ -299,6 +288,10 @@ export async function handleOpenAIChatRequest(
       recordChatCompletionsNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
+    if (err instanceof OpenAIOperationError) {
+      writeOpenAIOperationError(res, err);
+      return;
+    }
     if (isBoundAccountSelectionError(err)) {
       writeBoundAccountError(res, err);
       return;
@@ -362,14 +355,21 @@ async function buildByoPlan(
       sessionId: route.sessionId,
     });
 
-  const { chain } = await resolveProviderChain(deps.llmConfig, providerId, resolvedModel);
+  const { chain } = await resolveProviderChain(
+    deps.llmConfig,
+    providerId,
+    resolvedModel,
+    provider === storedProvider ? undefined : getChatEndpointTransformer(),
+  );
+  const configuredModel = resolvedModel;
+  resolvedModel = resolveModelRedirect(resolvedModel);
 
   const transformerProvider: TransformerLLMProvider = {
     name: provider.name,
     baseUrl: provider.api_base_url,
     apiKey,
     models: provider.models || [],
-    modelConfigs: provider.modelConfigs,
+    modelConfigs: resolveRedirectedModelConfigs(provider.modelConfigs, configuredModel),
   };
 
   const byoUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
@@ -393,14 +393,9 @@ async function buildByoPlan(
 }
 
 /**
- * Subscription plan (openai-chat-bridge #11) — mirrors the Responses ingress's
- * `buildSubscriptionPlan`, minus the endpoint transformer (the chat wire is
- * Unified, so decode is identity). `SubscriptionAuthSource` over the route's
- * profile; URL via the profile's `resolveUpstreamUrl` (threaded with the opaque
- * per-account `route.subscriptionConfig` so opencodego `baseUrl`/`zenBaseUrl`
- * overrides apply); provider chain built from the profile's
- * `chatBridgeTransformerNames` (opencodego shape-aware) or its static
- * `providerTransformerNames` (claude/kimi/grok) via `resolveSubscriptionChain`.
+ * Subscription plan — resolves the provider wire independently of the Chat
+ * endpoint transformer. URL and chain selection honor the account's endpoint
+ * overrides and the profile's per-model wire declaration.
  *
  * For an ANTHROPIC-wire target (claude, kimi, opencodego's anthropic shape) the
  * `['anthropic']` names resolve to the `AnthropicTransformer` provider chain —
@@ -408,9 +403,7 @@ async function buildByoPlan(
  * Anthropic → Unified(OpenAI-chat) on the response (streaming + tools by reuse).
  * The opencodego profile's `modelMapper` (scenario routing) is applied BEFORE
  * URL/chain resolution, exactly like the `/v1/messages` plan builder, so the
- * resolved model picks the right half + shape. Codex / gemini subscriptions
- * remain DEFERRED with a clear per-request 501; the client should use the
- * /v1/responses endpoint or a BYO provider for those instead.
+ * resolved model picks the right half + shape.
  */
 async function buildSubscriptionPlan(
   res: http.ServerResponse,
@@ -419,6 +412,7 @@ async function buildSubscriptionPlan(
   chatBody: Record<string, unknown>,
   resolvedModel: string,
   isStream: boolean,
+  selectedModel?: string,
 ): Promise<ChatCallPlan | null> {
   const profile = route.subscriptionProfile;
   if (!profile) {
@@ -449,12 +443,15 @@ async function buildSubscriptionPlan(
   // `/v1/messages` plan builder. The summary builder is wire-agnostic for an
   // OpenAI-chat body (roles + `.text` content parts flatten identically), so
   // both ingress paths bucket the same request into the same scenario.
-  let mappedModel = resolvedModel;
-  if (profile.modelMapper) {
+  let mappedModel = selectedModel ?? resolvedModel;
+  let modelDefaults = subscriptionModelDefaults(route.subscriptionConfig, mappedModel);
+  if (selectedModel === undefined && profile.modelMapper) {
     const summary = buildSubscriptionRequestSummary(chatBody);
     const mapped = profile.modelMapper(resolvedModel, summary, route.subscriptionConfig as never);
     mappedModel = mapped.resolvedModel;
+    modelDefaults = mapped;
   }
+  mappedModel = resolveModelRedirect(mappedModel);
 
   // D1 parity: thread the opaque per-account config so opencodego honors a user
   // `baseUrl`/`zenBaseUrl` override + the per-model go/zen half.
@@ -465,11 +462,8 @@ async function buildSubscriptionPlan(
   }
 
   const auth = route.auth ?? new SubscriptionAuthSource(profile);
-  // NO endpoint transformer (identity): the chat wire IS Unified. The identity
-  // fallback stays inert for every bridged provider (claude/kimi declare
-  // `['anthropic']`, grok `['openai-response']`, and opencodego's seam below
-  // always names a FORMAT transformer for a Unified caller). Chain-name
-  // resolution for a Unified caller, in order: opencodego's chat-specific seam
+  // Resolve the target wire independently of the Chat endpoint decoder:
+  // opencodego's chat-specific seam first
   // (its anthropic shape needs the `['anthropic']` ENCODER — the messages
   // path's same-shape `[]` means "caller already speaks Anthropic"), then any
   // shape-aware per-wire names (copilot — whose anthropic wire ALREADY names
@@ -480,7 +474,7 @@ async function buildSubscriptionPlan(
   const chain: ResolvedTransformerChain = resolveSubscriptionChain(
     profile,
     deps.llmConfig.getTransformerService(),
-    IDENTITY_ENDPOINT_TRANSFORMER,
+    getChatEndpointTransformer(),
     chatChainNames,
   );
 
@@ -489,33 +483,9 @@ async function buildSubscriptionPlan(
     baseUrl: upstreamUrl,
     apiKey: '',
     models: [mappedModel],
+    responsesDialect: providerId === 'codex' ? 'codex' : undefined,
   };
-  // GEMINI / ANTIGRAVITY: resolve the Code-Assist project for the
-  // (sticky-selected) account BEFORE the call, mirroring the Responses driver
-  // — the `gemini-code-assist` chain wraps the request in its project/session
-  // envelope off `provider.geminiProject`; antigravity's handshake is REQUIRED
-  // (its own dialect resolver, a failure propagates rather than half-routing).
   const sessionKey = deriveSubscriptionSessionKey(chatBody);
-  if (providerId === 'gemini') {
-    transformerProvider.geminiProject = await resolveGeminiProjectForChatBridge(profile, {
-      sessionKey,
-      preferredAccountId: route.preferredAccountId,
-      preferredAccountGroup: route.preferredAccountGroup,
-      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
-    });
-  } else if (providerId === 'antigravity') {
-    transformerProvider.geminiProject = await resolveAntigravityProjectThreaded(profile, {
-      resolvedModel: mappedModel,
-      reportSelection: () => {},
-      sessionKey,
-      preferredAccountId: route.preferredAccountId,
-      preferredAccountGroup: route.preferredAccountGroup,
-      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
-    });
-  }
-  // The scenario-mapped model is what goes on the wire (`modelMapper` may have
-  // rewritten the binding-mapped id) — keep the request body in lockstep.
-  chatBody.model = mappedModel;
 
   // The PROFILE's URL is authoritative on the subscription plan — the
   // transformer's `config.url` is host-root-absolute by design (it REPLACES
@@ -551,51 +521,56 @@ async function buildSubscriptionPlan(
     isSubscription: true,
     contentSessionKey: sessionKey,
     routeSessionId: route.sessionId ?? null,
+    modelDefaults,
+    resolveModelUrl: (model) => profile.resolveUpstreamUrl?.(model, route.subscriptionConfig as never),
+    rebuildForModel: (model) => buildSubscriptionPlan(res, { ...route, auth }, deps, chatBody, resolvedModel, isStream, model),
   };
 }
 
 /**
- * Run the shared core ONCE. NO endpoint transformer (the OpenAI Chat Completions
- * wire ≡ `UnifiedChatRequest`, so decode is identity); the resolved provider
- * chain encodes Unified → target on the request side and target → Unified on the
- * response side. `runResponseChain: true` so the relay receives a chat-completions
- * (Unified-shaped) response regardless of the target provider's wire format.
- * `rawStatus` captures the RAW upstream HTTP status so the subscription 401-retry
- * wrapper can read it.
+ * Run one request through the Chat endpoint and selected provider wire.
+ * Native Chat-to-Chat bypasses the conversion; translated responses normalize
+ * reasoning back to `reasoning_content`. Keep the raw status for auth handling.
  */
 async function runPipeline(
   chatBody: Record<string, unknown>,
   plan: ChatCallPlan,
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const executor = getSharedExecutor();
-  const { auth, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
-
-  // Pre-resolve auth headers (applyHeaders MAY be async for OAuth refresh while
-  // buildHeaders is sync). Auth wins — chain headers never clobber a key the
-  // AuthSource set. Capture the selected pooled account so a per-account proxy
-  // resolves (no-op for BYO — LlmConfigProviderAuth never reports a selection).
-  let proxyAccountId: string | undefined;
-  const authHeaders: Record<string, string> = {};
-  await auth.applyHeaders(authHeaders, {
-    upstreamUrl,
-    model: resolvedModel,
+  const selected = await applyModelSelection(plan.auth, {
+    upstreamUrl: plan.upstreamUrl,
+    model: plan.resolvedModel,
     sessionKey: plan.contentSessionKey,
     callerOpenCodeSession: plan.callerOpenCodeSession,
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
-    reportSelection: (accountId) => {
-      proxyAccountId = accountId;
-    },
-  });
+  }, plan.resolveModelUrl);
+  if ((selected.model !== plan.resolvedModel || selected.configuredModel !== plan.resolvedModel) && plan.rebuildForModel) {
+    const rebuilt = await plan.rebuildForModel(selected.configuredModel);
+    if (!rebuilt) throw new Error('Subscription profile is missing resolveUpstreamUrl');
+    plan = rebuilt;
+  }
+  const { chain, transformerProvider, resolvedModel, isStream, resolveUrl } = plan;
+  const { headers: authHeaders, accountId: proxyAccountId } = selected;
+  const requestBody = withSubscriptionDefaults(chatBody, selected.model, plan.modelDefaults, 'max_tokens');
+  const bearer = (authHeaders.Authorization ?? authHeaders.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (plan.proxyProviderId === 'gemini') {
+    transformerProvider.geminiProject = bearer
+      ? await getGeminiCodeAssistResolver()?.resolveProject(bearer) : undefined;
+  } else if (plan.proxyProviderId === 'antigravity') {
+    transformerProvider.geminiProject = bearer
+      ? await getAntigravityProjectResolver().resolveProject(bearer) : undefined;
+  }
 
   let rawStatus: number | null = null;
 
   const { response } = await executeProviderCall({
     executor,
-    request: chatBody,
+    request: requestBody,
     provider: transformerProvider,
     chain,
+    endpointTransformer: getChatEndpointTransformer(),
     resolveUrl,
     buildHeaders: (config) => {
       const headers: Record<string, string> = { ...authHeaders };
@@ -650,6 +625,7 @@ async function runPipeline(
       });
     },
     runResponseChain: true,
+    preserveEndpointRequestForResponseChain: true,
   });
 
   return { response, rawStatus };
@@ -695,7 +671,7 @@ async function runPipelineWithSubscriptionRetry(
   const first = await runPipeline(chatBody, plan);
   if (first.rawStatus !== 401) return first;
 
-  const refreshed = await plan.auth.onUnauthorized?.();
+  const refreshed = await plan.auth.onUnauthorized?.(plan.contentSessionKey);
   if (!refreshed) {
     console.warn('[ProviderProxy:chat] 401 not recoverable (onUnauthorized returned false)');
     return first;

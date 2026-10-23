@@ -63,16 +63,26 @@ for (const format of ['chat', 'responses'] as const) {
       }
     });
 
-    it.each(['o3', 'gpt-5.3-codex', 'gpt-4o', 'unknown-model'])(
-      'does not invent disabling support for %s',
+    it.each(['o3', 'gpt-5.3-codex'])(
+      'rejects unsupported explicit off for %s before producing a wire body',
       async (model) => {
-        const body = await wireBody(encoder, request({
+        await expect(wireBody(encoder, request({
           model,
           reasoning: { effort: 'none', enabled: false },
-        }));
-        expect(body).not.toHaveProperty(format === 'chat' ? 'reasoning_effort' : 'reasoning');
+        }))).rejects.toThrow();
       },
     );
+
+    it('omits reasoning controls for a non-reasoning target', async () => {
+      const body = await wireBody(encoder, request({
+        model: 'gpt-4o',
+        reasoning: { effort: 'none', enabled: false },
+      }), {
+        ...provider,
+        modelConfigs: [{ id: 'gpt-4o', reasoning: false }],
+      });
+      expect(body).not.toHaveProperty(format === 'chat' ? 'reasoning_effort' : 'reasoning');
+    });
 
     it('uses provider-row support for an otherwise unknown model', async () => {
       const body = await wireBody(encoder, request({
@@ -86,13 +96,12 @@ for (const format of ['chat', 'responses'] as const) {
     });
 
     it('honors a row that removes canonical disabling support', async () => {
-      const body = await wireBody(encoder, request({
+      await expect(wireBody(encoder, request({
         reasoning: { effort: 'none', enabled: false },
       }), {
         ...provider,
         modelConfigs: [{ id: 'gpt-5.1', thinkingLevels: ['low', 'medium', 'high'] }],
-      });
-      expect(effortOf(body)).toBeUndefined();
+      })).rejects.toThrow();
     });
 
     it('omits effort for canonical and overridden no-effort targets', async () => {
@@ -141,13 +150,12 @@ describe('OpenAI native intent and cross-format conversion', () => {
     expect(body.reasoning_effort).toBe('none');
   });
 
-  it('does not leave native Chat high behind when an off override is unsupported', async () => {
-    const body = await wireBody(new OpenAITransformer(), request({
+  it('rejects an unsupported unified off override instead of forwarding native Chat high', async () => {
+    await expect(wireBody(new OpenAITransformer(), request({
       model: 'o3',
       reasoning_effort: 'high',
       reasoning: { enabled: false },
-    }));
-    expect(body).not.toHaveProperty('reasoning_effort');
+    }))).rejects.toThrow();
   });
 
   it('converts native Chat none into supported Responses none', async () => {
@@ -166,13 +174,12 @@ describe('OpenAI native intent and cross-format conversion', () => {
     expect(body).not.toHaveProperty('reasoning');
   });
 
-  it('does not carry Responses none into an unsupported Chat target', async () => {
-    const body = await wireBody(new OpenAITransformer(), {
+  it('rejects decoded Responses none for an unsupported Chat target', async () => {
+    await expect(wireBody(new OpenAITransformer(), {
       model: 'o3',
       input: [{ role: 'user', content: 'Answer briefly.' }],
       reasoning: { effort: 'none' },
-    }, provider, new OpenAIResponseTransformer());
-    expect(body).not.toHaveProperty('reasoning_effort');
+    }, provider, new OpenAIResponseTransformer())).rejects.toThrow();
   });
 
   it.each(['none', 'xhigh'])('preserves native Responses %s and summary on a same-format round trip', async (effort) => {
@@ -188,18 +195,40 @@ describe('OpenAI native intent and cross-format conversion', () => {
     expect(body.reasoning).toEqual({ effort, summary: 'concise' });
   });
 
-  it('lets a unified off override replace decoded Responses high', async () => {
+  it('replaces decoded Responses high without rebuilding opaque native input', async () => {
+    const transformer = new OpenAIResponseTransformer();
+    const context = {};
+    const incoming = {
+      model: 'gpt-5.1',
+      input: [
+        { type: 'reasoning', id: 'rs_1', encrypted_content: 'opaque-reasoning', summary: [] },
+        { role: 'user', content: [
+          { type: 'input_text', text: 'Answer briefly.' },
+          { type: 'input_image', image_url: 'https://example.com/image.png', detail: 'high' },
+        ] },
+      ],
+      reasoning: { effort: 'high', summary: 'concise' },
+      include: ['reasoning.encrypted_content'],
+      tools: [{ type: 'web_search_preview', search_context_size: 'low' }],
+      max_output_tokens: 4096,
+    };
+    const unified = await transformer.transformRequestOut(incoming, context);
+    unified.reasoning = { enabled: false };
+    const result = await transformer.transformRequestIn(unified, provider, context);
+    const body = JSON.parse(JSON.stringify(result.body));
+    expect(body).toEqual({ ...incoming, reasoning: { effort: 'none', summary: 'concise' } });
+  });
+
+  it('rejects an unsupported override without taking the native Responses bypass', async () => {
     const transformer = new OpenAIResponseTransformer();
     const context = {};
     const unified = await transformer.transformRequestOut({
-      model: 'gpt-5.1',
+      model: 'o3',
       input: [{ role: 'user', content: 'Answer briefly.' }],
       reasoning: { effort: 'high', summary: 'concise' },
     }, context);
     unified.reasoning = { enabled: false };
-    const result = await transformer.transformRequestIn(unified, provider, context);
-    const body = JSON.parse(JSON.stringify(result.body));
-    expect(body.reasoning).toEqual({ effort: 'none', summary: 'concise' });
+    await expect(transformer.transformRequestIn(unified, provider, context)).rejects.toThrow();
   });
 });
 
@@ -241,7 +270,7 @@ describe('DeepSeek Chat Completions serialized reasoning policy', () => {
       const input = request({ model, reasoning: { effort, enabled: true } });
       const chat = await wireBody(new OpenAITransformer(), input, deepseek);
       expect(chat.reasoning_effort).toBe(effort);
-      expect(chat).not.toHaveProperty('thinking');
+      expect(chat.thinking).toEqual({ type: 'enabled' });
       const responses = await wireBody(new OpenAIResponseTransformer(), input, deepseek);
       expect(responses.reasoning.effort).toBe(effort);
       expect(responses).not.toHaveProperty('thinking');
@@ -255,7 +284,7 @@ describe('DeepSeek Chat Completions serialized reasoning policy', () => {
       const target: LLMProvider = policy === 'unsupported-off'
         ? { ...deepseek, modelConfigs: [{ id: model, thinkingLevels: ['high', 'max'] }] }
         : deepseek;
-      const body = await wireBody(new OpenAITransformer(), {
+      const bodyPromise = wireBody(new OpenAITransformer(), {
         model,
         ...(policy === 'default' ? {} : { reasoning: { effort: 'none' } }),
         input: [
@@ -265,6 +294,11 @@ describe('DeepSeek Chat Completions serialized reasoning policy', () => {
           { type: 'function_call_output', call_id: 'call_1', output: 'a.txt' },
         ],
       }, target, new OpenAIResponseTransformer());
+      if (policy === 'unsupported-off') {
+        await expect(bodyPromise).rejects.toThrow();
+        return;
+      }
+      const body = await bodyPromise;
 
       expect(body).not.toHaveProperty('reasoning_effort');
       const assistant = body.messages.find((message: { role: string }) => message.role === 'assistant');
@@ -293,7 +327,7 @@ describe('Native Chat off-encoding boundaries', () => {
     ['xiaomi-mimo', 'mimo-v2.5-pro'],
     ['xiaomi-mimo', 'mimo-v2-pro'],
     ['xiaomi-mimo', 'mimo-v2.6-pro'],
-  ])('omits unsupported or unverified %s / %s off controls', async (presetId, model) => {
+  ])('preserves native %s / %s off-encoding boundaries', async (presetId, model) => {
     const preset = getPresetById(presetId)!;
     const native: LLMProvider = {
       name: preset.name,
@@ -302,29 +336,35 @@ describe('Native Chat off-encoding boundaries', () => {
       models: preset.models,
       modelConfigs: preset.modelConfigs,
     };
+    const defaultBody = await wireBody(new OpenAITransformer(), request({ model }), native);
+    expect(defaultBody).not.toHaveProperty('reasoning_effort');
+    expect(defaultBody).not.toHaveProperty('thinking');
     for (const policy of [
       { reasoning: { effort: 'none' as const, enabled: false } },
       { reasoning_effort: 'none' as const },
     ]) {
-      const body = await wireBody(new OpenAITransformer(), request({ model, ...policy }), native);
+      const bodyPromise = wireBody(new OpenAITransformer(), request({ model, ...policy }), native);
+      if (presetId === 'grok') {
+        await expect(bodyPromise).rejects.toThrow();
+        continue;
+      }
+      const body = await bodyPromise;
       expect(body).not.toHaveProperty('reasoning_effort');
       expect(body).not.toHaveProperty('thinking');
     }
   });
 
-  it('does not infer an off encoding for Copilot-native Gemini Chat', async () => {
+  it('rejects unsupported off for Copilot-native Gemini Chat', async () => {
     const copilot: LLMProvider = {
       name: 'GitHub Copilot',
       baseUrl: 'https://api.githubcopilot.com',
       apiKey: 'test-key',
       models: ['gemini-3.5-flash'],
     };
-    const body = await wireBody(new OpenAITransformer(), request({
+    await expect(wireBody(new OpenAITransformer(), request({
       model: 'gemini-3.5-flash',
       reasoning: { effort: 'none', enabled: false },
-    }), copilot);
-    expect(body).not.toHaveProperty('reasoning_effort');
-    expect(body).not.toHaveProperty('thinking');
+    }), copilot)).rejects.toThrow();
   });
 });
 
@@ -342,11 +382,18 @@ describe('Native Responses off-encoding boundaries', () => {
       models: preset.models,
       modelConfigs: preset.modelConfigs,
     };
+    const defaultBody = await wireBody(new OpenAIResponseTransformer(), request({ model }), native);
+    expect(defaultBody).not.toHaveProperty('reasoning');
     for (const policy of [
       { reasoning: { effort: 'none' as const, enabled: false } },
       { reasoning_effort: 'none' as const },
     ]) {
-      const body = await wireBody(new OpenAIResponseTransformer(), request({ model, ...policy }), native);
+      const bodyPromise = wireBody(new OpenAIResponseTransformer(), request({ model, ...policy }), native);
+      if (presetId === 'grok') {
+        await expect(bodyPromise).rejects.toThrow();
+        continue;
+      }
+      const body = await bodyPromise;
       expect(body).not.toHaveProperty('reasoning');
       expect(body).not.toHaveProperty('reasoning_effort');
       expect(body).not.toHaveProperty('thinking');

@@ -32,6 +32,7 @@ import type {
   SearchServerConfig,
 } from '@omnicross/core/outbound-api/types';
 import {
+  ADDITIONAL_API_PROVIDER_IDS,
   apiSearchContributions,
   type SearchApiProviderConfigs,
 } from '@omnicross/core/search/api';
@@ -422,6 +423,31 @@ export function readSearchApiConfigFromEnv(
       ...optionalHost(deepseekHost),
     };
   }
+  for (const id of ADDITIONAL_API_PROVIDER_IDS) {
+    const prefix = id.toUpperCase();
+    const apiKey = read(`${prefix}_API_KEY`);
+    const apiHost = read(`${prefix}_API_HOST`);
+    if (id === 'exa' || id === 'parallel' || id === 'firecrawl') {
+      const mode = read(`${prefix}_AUTH_MODE`);
+      const authMode = mode === 'public' || mode === 'api' ? mode : undefined;
+      // A host alone does not opt a new provider in. An explicit API mode
+      // without credentials stays API mode and is reported as unconfigured.
+      if (apiKey || authMode) {
+        configs[id] = {
+          ...(apiKey ? { apiKey } : {}),
+          ...optionalHost(apiHost),
+          ...(authMode ? { authMode } : {}),
+        };
+      }
+    } else if (apiKey) {
+      const model = read(`${prefix}_MODEL`);
+      configs[id] = {
+        apiKey,
+        ...optionalHost(apiHost),
+        ...(model ? { model } : {}),
+      };
+    }
+  }
 
   return configs;
 }
@@ -458,6 +484,10 @@ export function resolveSearchApiConfigs(
   if (zai) resolved['z.ai'] = zai;
   const deepseek = configured?.deepseek ?? fromEnv.deepseek;
   if (deepseek) resolved.deepseek = deepseek;
+  for (const id of ADDITIONAL_API_PROVIDER_IDS) {
+    const entry = configured?.[id] ?? fromEnv[id];
+    if (entry) Object.assign(resolved, { [id]: entry });
+  }
   return resolved;
 }
 
@@ -536,7 +566,9 @@ export async function runSearchDoctor(
   // order: `--live` asks each provider in turn on purpose, and never
   // orchestrates.
   const contributions = [
-    ...builtinHttpSearchContributions(),
+    ...builtinHttpSearchContributions().filter(
+      ({ id }) => id === 'http-bing' || id === 'http-duckduckgo',
+    ),
     ...apiSearchContributions(apiConfigs, {
       ...(egressPolicy ? { egressPolicy } : {}),
       ...(source.providerRows

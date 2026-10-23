@@ -1,3 +1,4 @@
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import { detectModelKind, isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { resolvePrefixTarget } from './modelPrefixDispatch';
 import type {
@@ -130,7 +131,11 @@ function routeCanServe(
   if (binding.endpoint === 'chat') {
     if (!requestedModel) return false;
     const wanted = requestedModel.trim().toLowerCase();
-    return (binding.models ?? []).some((ref) => modelIdOf(ref)?.toLowerCase() === wanted);
+    const replacement = resolveModelRedirect(wanted);
+    return (binding.models ?? []).some((ref) => {
+      const candidate = modelIdOf(ref)?.toLowerCase();
+      return candidate === wanted || candidate === replacement;
+    });
   }
 
   return role === 'background'

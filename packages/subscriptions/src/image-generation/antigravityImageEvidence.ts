@@ -50,7 +50,8 @@ export const ANTIGRAVITY_IMAGE_ADAPTER_VALUES: ImageCapabilityValues = {
   streaming: false,
   maxPartialImages: 0,
   transparentBackground: false,
-  flexibleSizes: true,
+  flexibleSizes: false,
+  aspectRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9', '9:21'],
   // v1 declares PNG-only: the upstream has no output-format parameter, PNG is
   // the dominant NanoBanana output, and a declared-but-uncontrollable format
   // would be a capability lie (design D4).

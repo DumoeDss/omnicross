@@ -1203,6 +1203,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "認証モード",
+      "public": "公開（制限あり、キー不要）",
+      "api": "API（キー必須）",
+      "description": "公開アクセスには制限があり、利用できない場合があります。API モードはキーが必須で、公開モードには切り替わりません。",
+      "missingKey": "API モードにはキーが必要です：{{providers}}",
+      "enableHint": "公開モードを有効にするか、API モードを選択してキーを入力してください。"
+    },
+    "providerDescription": {
+      "keyed": "公式のキー認証 API。可用性、料金、制限はプロバイダーのアカウントによって異なります。",
+      "keyRequired": "API キーが必要です。",
+      "publicApi": "制限付きの公開アクセスまたはキー認証 API。無料枠は保証されません。",
+      "ollama": "Ollama 検索 API にはキーが必要です。カスタムホストでもキー不要のローカル検索になるとは限りません。"
+    },
+    "http": {
+      "aggregateDescription": "有効かつポリシーで許可された公開 HTTP エンジンを集約します。明示的な有効化が必要で、結果は保証されません。"
+    },
     "title": "検索プロバイダー",
     "description": "ウェブ検索ランタイムの設定：プロバイダーの認証情報、フォールバック方針、ネットワーク出口、フロントエンドごとの実行モード。",
     "unsupportedDaemon": "このデーモンのバージョンは検索設定セクションに対応していません。",
@@ -1225,7 +1242,7 @@
     "providers": {
       "title": "プロバイダー",
       "tavily": {
-        "description": "検索 API。無料枠が大きく、キーが必要です。"
+        "description": "検索 API。キーが必要です。割り当てと料金はプロバイダーによって異なります。"
       },
       "jina": {
         "description": "キーなしで動作する検索。キーでレート制限が緩和されます。"
@@ -1244,7 +1261,7 @@
       }
     },
     "keyless": {
-      "description": "キー不要のエンジンで、常に利用可能です。設定は不要です。"
+      "description": "キー不要の公開 HTTP 検索。ブロック、レート制限、利用不可の可能性があります。"
     },
     "status": {
       "ready": "準備完了",
@@ -1263,6 +1280,9 @@
       "deepseek": "キーを入力するか、DeepSeek プロバイダーのキーを再利用するか、プロバイダー設定で構成してください。"
     },
     "field": {
+      "enabled": "有効",
+      "model": "モデル",
+      "modelPlaceholder": "任意。空欄ならプロバイダーの既定値",
       "apiKey": "API キー",
       "apiKeyPlaceholder": "空欄なら保存済みキーを保持",
       "apiKeyNew": "API キーを入力",
@@ -1554,7 +1574,8 @@
       "notCaptured": "フィンガープリント未取得",
       "capturedAt": "{{time}} にクライアントフィンガープリントを取得しました"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "月次",
       "codexRefreshConfirmTitle": "Luna を使用してこの上限を更新しますか？",
       "codexRefreshConfirmDescription": "この Codex アカウントで gpt-5.6-luna に実際のリクエストを送信し、最新の上限を取得します。サブスクリプションの利用枠を少量消費します。続行しますか？",

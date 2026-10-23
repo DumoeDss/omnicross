@@ -1,12 +1,13 @@
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
 import { buildProviderApiUrl, resolveApiFormat } from '../../completion';
 import type { AuthSource } from '../../pipeline/AuthSource';
 import { executeProviderCall } from '../../pipeline/executeProviderCall';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
-import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
+import { resolveProviderChain, resolveRedirectedModelConfigs } from '../../pipeline/resolveProviderChain';
 import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChain';
-import { SubscriptionAuthSource } from '../../pipeline/SubscriptionAuthSource';
+import { SubscriptionAuthSource, applyModelSelection } from '../../pipeline/SubscriptionAuthSource';
 import type { AccountRouteActivityRecord } from '../../pipeline/AccountRouteActivity';
 import { fetchUpstream, type AccountRouteActivityContext } from '../../pipeline/upstreamFetch';
 import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
@@ -28,6 +29,11 @@ import { fillMissingHeaders } from '../identity/headerMerge';
 import { extractOpenCodeSessionHeader } from '../identity/openCodeGoHeaders';
 import type { SessionKeySource, SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
+import {
+  subscriptionModelDefaults,
+  withSubscriptionDefaults,
+  type SubscriptionModelDefaults,
+} from '../ingress/anthropicSubscriptionPlan';
 import {
   armNativeDsmlSalvage,
   salvageNativeResponsesJson,
@@ -69,6 +75,8 @@ import {
   type ReducedResponsesCapabilities,
   resolveReducedResponsesCapabilities,
   type ResponsesProfile,
+  validateReducedResponsesRequest,
+  unsupportedResponsesCapability,
 } from './responsesProfile';
 import { deriveCodexSearchUrl, deriveResponsesCompactUrl } from './responsesUrl';
 
@@ -81,6 +89,7 @@ export interface ResolvedResponsesRouteProfile {
   readonly provider?: LLMProvider;
   readonly upstreamUrl?: string;
   readonly providerIdentity: string;
+  readonly modelDefaults?: SubscriptionModelDefaults;
 }
 
 export interface ResponsesCallPlan {
@@ -119,6 +128,10 @@ export interface ResponsesCallPlan {
    * `ProviderProxyDeps.upstreamErrorSink`; absent on paths without a request log.
    */
   readonly onUpstreamError?: ((info: { status: number; body: string }) => void) | null;
+  readonly modelDefaults?: SubscriptionModelDefaults;
+  readonly capabilities?: ReducedResponsesCapabilities;
+  readonly resolveModelUrl?: (model: string) => string | undefined;
+  readonly rebuildForModel?: (model: string) => Promise<ResponsesCallPlan>;
 }
 
 export interface ResponsesPipelineResult {
@@ -135,6 +148,7 @@ export async function resolveResponsesRouteProfile(
   deps: ProviderProxyDeps,
   resolvedModel: string,
 ): Promise<ResolvedResponsesRouteProfile> {
+  resolvedModel = resolveModelRedirect(resolvedModel);
   if (route.authMode === 'byo') {
     const providerId = route.providerId;
     if (!providerId) {
@@ -170,7 +184,7 @@ export async function resolveResponsesRouteProfile(
   if (!subscriptionProfile) {
     throw new OpenAIOperationError({ status: 502, code: 'provider_configuration_error', message: 'Subscription route is missing its profile' });
   }
-  const upstreamUrl = subscriptionProfile.resolveUpstreamUrl?.(resolvedModel);
+  const upstreamUrl = subscriptionProfile.resolveUpstreamUrl?.(resolvedModel, route.subscriptionConfig as never);
   if (!upstreamUrl) {
     throw new OpenAIOperationError({ status: 502, code: 'provider_configuration_error', message: 'Subscription profile is missing its Responses URL' });
   }
@@ -178,7 +192,9 @@ export async function resolveResponsesRouteProfile(
   const declaration = {
     authMode: 'subscription',
     subscriptionProviderId: providerId,
-    subscriptionTransformerNames: subscriptionProfile.providerTransformerNames,
+    subscriptionTransformerNames: subscriptionProfile.chatBridgeTransformerNames?.(resolvedModel, route.subscriptionConfig)
+      ?? subscriptionProfile.resolveProviderTransformerNames?.(resolvedModel, route.subscriptionConfig)
+      ?? subscriptionProfile.providerTransformerNames,
     upstreamUrl,
   } as const;
   return {
@@ -276,12 +292,14 @@ async function buildByoPlan(
   const chain = resolved.profile === 'native'
     ? { providerTransformers: [], modelTransformers: [] }
     : (await resolveProviderChain(deps.llmConfig, providerId, resolvedModel)).chain;
+  const configuredModel = resolvedModel;
+  resolvedModel = resolveModelRedirect(resolvedModel);
   const transformerProvider: TransformerLLMProvider = {
     name: provider.name,
     baseUrl: provider.api_base_url,
     apiKey,
     models: provider.models || [],
-    modelConfigs: provider.modelConfigs,
+    modelConfigs: resolveRedirectedModelConfigs(provider.modelConfigs, configuredModel),
   };
   const upstreamUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   return {
@@ -323,6 +341,8 @@ async function buildSubscriptionPlan(
   requestHeaders: SessionRequestHeaders,
   affinity?: ResponsesAffinityEntry,
 ): Promise<ResponsesCallPlan> {
+  const modelDefaults = resolved.modelDefaults ?? subscriptionModelDefaults(route.subscriptionConfig, resolvedModel);
+  resolvedModel = resolveModelRedirect(resolvedModel);
   const profile = route.subscriptionProfile!;
   const upstreamUrl = resolved.upstreamUrl!;
   const affinityAccountId = affinity?.credential.kind === 'subscription-account'
@@ -335,51 +355,32 @@ async function buildSubscriptionPlan(
         profile,
         deps.llmConfig.getTransformerService(),
         getResponsesEndpointTransformer(),
+        profile.chatBridgeTransformerNames?.(resolvedModel, route.subscriptionConfig)
+          ?? profile.resolveProviderTransformerNames?.(resolvedModel, route.subscriptionConfig),
       );
   const transformerProvider: TransformerLLMProvider = {
     name: profile.authStrategy.providerId,
     baseUrl: upstreamUrl,
     apiKey: '',
     models: [resolvedModel],
+    responsesDialect: profile.authStrategy.providerId === 'codex' ? 'codex' : undefined,
   };
-  if (profile.authStrategy.providerId === 'gemini') {
-    transformerProvider.geminiProject = await resolveGeminiProject(profile, {
-      sessionKey,
-      preferredAccountId: affinityAccountId ?? route.preferredAccountId,
-      preferredAccountGroup: affinity ? undefined : route.preferredAccountGroup,
-      boundAccountFallbackPolicy: affinity ? 'strict' : route.boundAccountFallbackPolicy,
-    });
-  }
-  // Antigravity: the SAME threading seam via the ANTIGRAVITY dialect resolver
-  // (daily-cloudcode-pa; a REQUIRED project — its handshake failure propagates).
-  let antigravityAccountId: string | undefined;
-  if (profile.authStrategy.providerId === 'antigravity') {
-    transformerProvider.geminiProject = await resolveAntigravityProjectThreaded(profile, {
-      sessionKey,
-      resolvedModel,
-      reportSelection: (accountId) => { antigravityAccountId = accountId; },
-      preferredAccountId: affinityAccountId ?? route.preferredAccountId,
-      preferredAccountGroup: affinity ? undefined : route.preferredAccountGroup,
-      boundAccountFallbackPolicy: affinity ? 'strict' : route.boundAccountFallbackPolicy,
-    });
-  }
   return {
     profile: resolved.profile,
     auth,
     sessionKey,
     sessionSource,
-    preferredAccountId: antigravityAccountId ?? affinityAccountId ?? route.preferredAccountId,
-    preferredAccountGroup: antigravityAccountId || affinity ? undefined : route.preferredAccountGroup,
-    boundAccountFallbackPolicy: antigravityAccountId || affinity ? 'strict' : route.boundAccountFallbackPolicy,
+    preferredAccountId: affinityAccountId ?? route.preferredAccountId,
+    preferredAccountGroup: affinity ? undefined : route.preferredAccountGroup,
+    boundAccountFallbackPolicy: affinity ? 'strict' : route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
     isStream,
-    resolveUrl: (config) => config.url instanceof URL
-      ? config.url.toString()
-      : typeof config.url === 'string'
-        ? config.url
-        : upstreamUrl,
+    resolveUrl: (config) => profile.authStrategy.providerId === 'antigravity'
+      ? config.url instanceof URL ? config.url.toString()
+        : typeof config.url === 'string' ? config.url : upstreamUrl
+      : upstreamUrl,
     upstreamUrl,
     proxyProviderId: profile.authStrategy.providerId,
     providerIdentity: resolved.providerIdentity,
@@ -396,53 +397,16 @@ async function buildSubscriptionPlan(
     credential: affinityAccountId
       ? { kind: 'subscription-account', id: affinityAccountId }
       : { kind: 'subscription-account', id: 'pending-selection' },
+    modelDefaults,
+    capabilities: resolved.capabilities,
+    resolveModelUrl: (model) => profile.resolveUpstreamUrl?.(model, route.subscriptionConfig as never),
+    rebuildForModel: async (model) => buildSubscriptionPlan(
+      { ...route, auth }, deps, await resolveResponsesRouteProfile(route, deps, model),
+      model, isStream, sessionKey, sessionSource, requestHeaders, affinity,
+    ),
   };
 }
 
-async function resolveGeminiProject(
-  profile: RouteContext['subscriptionProfile'] & {},
-  hints: {
-    sessionKey?: string;
-    preferredAccountId?: string;
-    preferredAccountGroup?: string;
-    boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
-  },
-): Promise<string | undefined> {
-  const headers: Record<string, string> = {};
-  await profile.authStrategy.applyHeaders(headers, hints);
-  const accessToken = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
-  if (!accessToken) return undefined;
-  return getGeminiCodeAssistResolver()?.resolveProject(accessToken);
-}
-
-/**
- * The chat-bridge twin of {@link resolveGeminiProject}: resolve the Code-Assist
- * project for a gemini subscription route BEFORE the provider call so the
- * `gemini-code-assist` chain can wrap the request in its project/session
- * envelope. Same resolution, exported for the OpenAI-chat ingress.
- */
-export const resolveGeminiProjectForChatBridge = resolveGeminiProject;
-
-/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver).
- * Exported as the chat-bridge twin too: the OpenAI-chat ingress resolves the
- * REQUIRED antigravity project before its provider call the same way. */
-export async function resolveAntigravityProjectThreaded(
-  profile: RouteContext['subscriptionProfile'] & {},
-  hints: {
-    resolvedModel: string;
-    reportSelection: (accountId: string, isActive: boolean) => void;
-    sessionKey?: string;
-    preferredAccountId?: string;
-    preferredAccountGroup?: string;
-    boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
-  },
-): Promise<string | undefined> {
-  const headers: Record<string, string> = {};
-  await profile.authStrategy.applyHeaders(headers, hints);
-  const accessToken = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
-  if (!accessToken) return undefined;
-  return getAntigravityProjectResolver().resolveProject(accessToken);
-}
 
 export async function executeResponsesUpstream(
   body: Record<string, unknown>,
@@ -481,11 +445,20 @@ export async function executeResponsesUpstream(
     } else sanitizeResponsesRequest(body);
   }
 
-  const originalBody = rawBody === undefined ? undefined : { text: rawBody, model: body.model };
-  const run = (): Promise<ResponsesPipelineResult> =>
-    plan.profile === 'native'
-      ? runNative(body, plan, operation, signal, originalBody)
-      : runReduced(body, plan, signal);
+  const originalBody = rawBody === undefined ? undefined
+    : { text: rawBody, model: (JSON.parse(rawBody) as Record<string, unknown>).model };
+  const run = async (): Promise<ResponsesPipelineResult> => {
+    const attemptBody = { ...body };
+    const selected = await applyPlanAuth(attemptBody, plan, operation);
+    const attemptPlan = selected.plan;
+    if (attemptPlan.profile !== 'native') {
+      if (operation !== 'create') throw unsupportedResponsesCapability('$', 'requires a native Responses provider');
+      if (attemptPlan.capabilities) validateReducedResponsesRequest(attemptBody, attemptPlan.capabilities);
+    }
+    return attemptPlan.profile === 'native'
+      ? runNative(attemptBody, attemptPlan, operation, signal, selected, originalBody)
+      : runReduced(attemptBody, attemptPlan, signal, selected);
+  };
   let result = await run();
   throwIfResponsesAborted(signal);
 
@@ -552,19 +525,19 @@ function buildResponsesRouteActivity(
   };
 }
 
+interface SelectedResponsesAttempt {
+  headers: Record<string, string>;
+  accountId: string | undefined;
+  actualModel: string;
+  plan: ResponsesCallPlan;
+}
+
 async function applyPlanAuth(
   body: Record<string, unknown>,
   plan: ResponsesCallPlan,
   operation: NativeOperationKind = 'create',
-): Promise<{
-  headers: Record<string, string>;
-  accountId: string | undefined;
-  actualModel: string;
-}> {
-  let accountId: string | undefined;
-  let actualModel = plan.resolvedModel;
-  const headers: Record<string, string> = {};
-  await plan.auth.applyHeaders(headers, {
+): Promise<SelectedResponsesAttempt> {
+  const selected = await applyModelSelection(plan.auth, {
     upstreamUrl: operation === 'search' ? deriveCodexSearchUrl(plan.upstreamUrl) : plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
@@ -572,13 +545,20 @@ async function applyPlanAuth(
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
-    reportSelection: (selectedAccountId, _isActive, remappedModel) => {
-      accountId = selectedAccountId;
-      if (remappedModel) actualModel = remappedModel;
-    },
-  });
-  body.model = actualModel;
-  plan.transformerProvider.models = [actualModel];
+  }, plan.resolveModelUrl);
+  const { headers, accountId, model: actualModel } = selected;
+  if ((actualModel !== plan.resolvedModel || selected.configuredModel !== plan.resolvedModel) && plan.rebuildForModel) {
+    plan = await plan.rebuildForModel(selected.configuredModel);
+  }
+  Object.assign(body, withSubscriptionDefaults(body, actualModel, plan.modelDefaults, 'max_output_tokens'));
+  const bearer = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (plan.proxyProviderId === 'antigravity') {
+    plan.transformerProvider.geminiProject = bearer
+      ? await getAntigravityProjectResolver().resolveProject(bearer) : undefined;
+  } else if (plan.proxyProviderId === 'gemini') {
+    plan.transformerProvider.geminiProject = bearer
+      ? await getGeminiCodeAssistResolver()?.resolveProject(bearer) : undefined;
+  }
   // The ChatGPT Codex backend (2026-09) rejects any /codex/responses call whose
   // body lacks `store: false` — 400 `{"detail":"Store must be set to false"}` —
   // and one whose body asks `stream: false` — 400 `{"detail":"Stream must be set
@@ -592,7 +572,7 @@ async function applyPlanAuth(
     body.store = false;
     if (!plan.isStream) body.stream = true;
   }
-  return { headers, accountId, actualModel };
+  return { headers, accountId, actualModel, plan };
 }
 
 function decorateCodexHeaders(
@@ -634,10 +614,11 @@ async function runNative(
   plan: ResponsesCallPlan,
   operation: NativeOperationKind,
   signal: AbortSignal,
+  selected: SelectedResponsesAttempt,
   originalBody?: { text: string; model: unknown },
 ): Promise<ResponsesPipelineResult> {
   throwIfResponsesAborted(signal);
-  const { headers, accountId, actualModel } = await applyPlanAuth(body, plan, operation);
+  const { headers, accountId, actualModel } = selected;
   fillMissingHeaders(headers, { 'content-type': 'application/json' });
   decorateCodexHeaders(headers, plan, body, operation);
   const url = operation === 'search'
@@ -724,13 +705,10 @@ async function runReduced(
   body: Record<string, unknown>,
   plan: ResponsesCallPlan,
   signal: AbortSignal,
+  selected: SelectedResponsesAttempt,
 ): Promise<ResponsesPipelineResult> {
   throwIfResponsesAborted(signal);
-  const { headers: authHeaders, accountId, actualModel } = await applyPlanAuth(body, plan);
-  if (plan.proxyProviderId === 'antigravity') {
-    const bearer = (authHeaders.Authorization ?? authHeaders.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
-    if (bearer) plan.transformerProvider.geminiProject = await getAntigravityProjectResolver().resolveProject(bearer);
-  }
+  const { headers: authHeaders, accountId, actualModel } = selected;
   let rawStatus: number | null = null;
   let activityRecordId: string | undefined;
   const { response } = await executeProviderCall({
@@ -793,10 +771,10 @@ async function runReduced(
         // json_schema fallback below — this cannot rewrite-and-retry in
         // place).
         if (isReasoningReplayRejection(upstream.status, errorText)) {
-          markReasoningReplayRequired(reasoningReplayKey(plan.transformerProvider));
+          markReasoningReplayRequired(reasoningReplayKey(plan.transformerProvider, actualModel));
         }
         // REASONING-REPLAY STRIP: the mirror rejection — an upstream that
-        // FORBIDS `reasoning_content` in input (classic deepseek-reasoner).
+        // FORBIDS `reasoning_content` in input (e.g. a legacy R1 upstream).
         // A mis-classified or provider-key-poisoned route (the learned key is
         // endpoint-scoped, not model-scoped) would otherwise hard-fail every
         // turn; strip the field and retry ONCE.

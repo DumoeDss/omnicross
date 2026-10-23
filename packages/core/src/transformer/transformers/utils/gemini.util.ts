@@ -8,6 +8,7 @@
  */
 
 import type { LLMProvider, ToolCall, UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '../../types';
+import { applyAlias, normalizeModelId } from '@omnicross/contracts/canonical-models';
 import {
   extractReasoningIntent,
   normalizeThinkLevel,
@@ -16,13 +17,14 @@ import {
 import { getThinkLevel } from '../AnthropicTypes';
 import { recordDroppedField } from '../../transformWarnings';
 
-import { transformTool } from './gemini.schema';
+import { schemaToJsonSchema, transformTool } from './gemini.schema';
 
 /**
  * Gemini content part types
  */
 export interface GeminiTextPart {
   text: string;
+  thought?: boolean;
   thoughtSignature?: string;
 }
 
@@ -37,8 +39,10 @@ export interface GeminiFunctionCallPart {
 
 export interface GeminiFunctionResponsePart {
   functionResponse: {
+    id?: string;
     name: string;
-    response: { result: unknown };
+    response: Record<string, unknown>;
+    parts?: Array<{ inlineData: { mimeType: string; data: string } }>;
   };
 }
 
@@ -80,6 +84,9 @@ export interface GeminiTool {
 
 export interface GeminiGenerationConfig {
   maxOutputTokens?: number;
+  candidateCount?: number;
+  temperature?: number;
+  responseJsonSchema?: Record<string, unknown>;
   thinkingConfig?: {
     includeThoughts?: boolean;
     thinkingLevel?: string;
@@ -101,18 +108,24 @@ export interface GeminiGenerationConfig {
 
 export interface GeminiToolConfig {
   functionCallingConfig: {
-    mode?: 'auto' | 'none' | 'any';
+    mode?: 'auto' | 'none' | 'any' | 'AUTO' | 'NONE' | 'ANY' | 'VALIDATED';
     allowedFunctionNames?: string[];
   };
 }
 
 export interface GeminiRequestBody {
   contents: GeminiContent[];
+  systemInstruction?: { parts: GeminiPart[] };
   tools?: GeminiTool[];
   generationConfig?: GeminiGenerationConfig;
   toolConfig?: GeminiToolConfig;
+  [key: string]: unknown;
 }
 
+
+type NativeGemini = {
+  extra_content?: { google?: { parts?: GeminiPart[]; request?: Record<string, unknown>; thought_signature?: string } };
+};
 /**
  * Build Gemini request body from UnifiedChatRequest
  *
@@ -124,11 +137,16 @@ export function buildRequestBody(
   provider?: Pick<LLMProvider, 'modelConfigs'>,
   preserveNativeEffort = false,
 ): GeminiRequestBody {
+  const nativeRequest = (request as UnifiedChatRequest & NativeGemini).extra_content?.google?.request;
+  const nativeThinking = (nativeRequest?.generationConfig as GeminiGenerationConfig | undefined)?.thinkingConfig;
+  const modelId = applyAlias(normalizeModelId(request.model));
+  if ((request as UnifiedChatRequest & { _serverSideTools?: unknown[] })._serverSideTools?.length) {
+    throw new Error('Anthropic server-side tools cannot be represented as Gemini function declarations');
+  }
   const tools: GeminiTool[] = [];
 
   // Convert tools to function declarations
   const functionDeclarations = request.tools
-    ?.filter((tool) => tool.function.name !== 'web_search')
     ?.map((tool) => ({
       name: tool.function.name,
       description: tool.function.description,
@@ -143,138 +161,94 @@ export function buildRequestBody(
     );
   }
 
-  // Handle web_search as Google Search
-  const webSearch = request.tools?.find((tool) => tool.function.name === 'web_search');
-  if (webSearch) {
-    tools.push({ googleSearch: {} });
-  }
 
-  // Convert messages to Gemini contents
   const contents: GeminiContent[] = [];
-  const toolResponses = request.messages.filter((item) => item.role === 'tool');
-
-  request.messages
-    .filter((item) => item.role !== 'tool')
-    .forEach((message: UnifiedMessage) => {
-      // Map roles
-      let role: 'user' | 'model';
-      if (message.role === 'assistant') {
-        role = 'model';
-      } else if (['user', 'system'].includes(message.role)) {
-        role = 'user';
-      } else {
-        role = 'user';
+  const systemParts: GeminiPart[] = [];
+  const calls = new Map<string, ToolCall>();
+  for (const message of request.messages) {
+    const nativeParts = (message as UnifiedMessage & NativeGemini).extra_content?.google?.parts;
+    if (message.role === 'tool') {
+      const call = message.tool_call_id ? calls.get(message.tool_call_id) : undefined;
+      if (!call && !nativeParts) {
+        throw new Error(`Gemini tool result has no matching call: ${message.tool_call_id ?? ''}`);
       }
-
-      const parts: GeminiPart[] = [];
-
-      // Handle string content
-      if (typeof message.content === 'string') {
-        const part: GeminiTextPart = { text: message.content };
-        if (message.thinking?.signature) {
-          part.thoughtSignature = message.thinking.signature;
+      let result: unknown = message.content;
+      const media: Array<{ inlineData: { mimeType: string; data: string } }> = [];
+      if (Array.isArray(message.content)) {
+        const text: string[] = [];
+        for (const part of message.content) {
+          if (part.type === 'text') text.push(part.text);
+          else if (part.type === 'image_url') {
+            const dataUrl = /^data:([^;,]+);base64,([\s\S]*)$/.exec(part.image_url.url);
+            if (!dataUrl) throw new Error('Gemini function responses require inline base64 image data');
+            media.push({ inlineData: { mimeType: dataUrl[1], data: dataUrl[2] } });
+          }
         }
-        parts.push(part);
+        result = text.join('\n');
       }
-      // Handle array content
-      else if (Array.isArray(message.content)) {
+      const parts: GeminiPart[] = nativeParts ?? [{
+        functionResponse: {
+          id: message.tool_call_id,
+          name: call!.function.name,
+          response: message.is_error ? { error: result } : { result },
+          ...(media.length ? { parts: media } : {}),
+        },
+      }];
+      const previous = contents[contents.length - 1];
+      if (previous?.role === 'user' && previous.parts.every((part) => 'functionResponse' in part) &&
+          parts.every((part) => 'functionResponse' in part)) {
+        previous.parts.push(...parts);
+      } else {
+        contents.push({ role: 'user', parts });
+      }
+      continue;
+    }
+    for (const call of message.tool_calls ?? []) calls.set(call.id, call);
+    const parts: GeminiPart[] = [];
+    if (nativeParts) {
+      parts.push(...nativeParts);
+    } else {
+      const reasoning = (message as UnifiedMessage & { reasoning_content?: string }).reasoning_content ?? message.thinking?.content;
+      if (reasoning) parts.push({ text: reasoning, thought: true });
+      if (typeof message.content === 'string' && message.content !== '') {
+        parts.push({ text: message.content });
+      } else if (Array.isArray(message.content)) {
         for (const content of message.content) {
           if (content.type === 'text') {
-            parts.push({ text: content.text || '' });
+            parts.push({ text: content.text });
           } else if (content.type === 'image_url') {
-            const imageUrl = content.image_url?.url ?? '';
-            if (imageUrl.startsWith('http')) {
-              parts.push({
-                file_data: {
-                  mime_type: content.media_type,
-                  file_uri: imageUrl,
-                },
-              });
+            const url = content.image_url.url;
+            const dataUrl = /^data:([^;,]+);base64,([\s\S]*)$/.exec(url);
+            if (dataUrl) {
+              parts.push({ inlineData: { mime_type: dataUrl[1], data: dataUrl[2] } });
+            } else if (/^(https?:|gs:)/.test(url)) {
+              parts.push({ file_data: { mime_type: content.media_type, file_uri: url } });
             } else {
-              // Base64 image
-              const data = imageUrl.split(',').pop() || imageUrl;
-              parts.push({
-                inlineData: {
-                  mime_type: content.media_type || 'image/png',
-                  data,
-                },
-              });
+              throw new Error('Gemini image input requires a base64 data URL or file URI');
             }
           }
         }
       }
-      // Handle object content
-      else if (message.content && typeof message.content === 'object') {
-        const contentObj = message.content as Record<string, unknown>;
-        if (contentObj.text) {
-          parts.push({ text: contentObj.text as string });
-        } else {
-          parts.push({ text: JSON.stringify(message.content) });
-        }
-      }
-
-      // Handle tool calls
-      if (Array.isArray(message.tool_calls)) {
-        for (let index = 0; index < message.tool_calls.length; index++) {
-          const toolCall = message.tool_calls[index];
-          const functionCallPart: GeminiFunctionCallPart = {
-            functionCall: {
-              id: toolCall.id || `tool_${Math.random().toString(36).substring(2, 15)}`,
-              name: toolCall.function.name,
-              args: JSON.parse(toolCall.function.arguments || '{}'),
-            },
-          };
-
-          // Add signature only to first tool call if thinking exists
-          if (index === 0 && message.thinking?.signature) {
-            functionCallPart.thoughtSignature = message.thinking.signature;
-          }
-
-          parts.push(functionCallPart);
-        }
-      }
-
-      // Ensure at least one part
-      if (parts.length === 0) {
-        parts.push({ text: '' });
-      }
-
-      contents.push({ role, parts });
-
-      // Add tool responses after model's tool calls
-      if (role === 'model' && message.tool_calls) {
-        const functionResponses: GeminiFunctionResponsePart[] = message.tool_calls.map(
-          (tool) => {
-            const response = toolResponses.find((item) => item.tool_call_id === tool.id);
-            // functionResponse has no image channel: block content flattens to
-            // its text parts and images are audit-dropped (a raw base64 blob in
-            // `result` would be a token bomb the model cannot render anyway).
-            let result: unknown = response?.content;
-            if (Array.isArray(result)) {
-              const hasImage = result.some(
-                (part) => part && typeof part === 'object' && part.type === 'image_url',
-              );
-              if (hasImage) recordDroppedField(request, 'tool_result_image', 'gemini');
-              result = result
-                .map((part) => part && typeof part === 'object' && part.type === 'text' ? String(part.text) : '')
-                .filter(Boolean)
-                .join('\n');
-            }
-            return {
-              functionResponse: {
-                name: tool.function?.name ?? '',
-                response: { result },
-              },
-            };
-          }
-        );
-
-        contents.push({
-          role: 'user',
-          parts: functionResponses,
+      for (const toolCall of message.tool_calls ?? []) {
+        const signature = (toolCall as ToolCall & NativeGemini).extra_content?.google?.thought_signature;
+        const args: unknown = JSON.parse(toolCall.function.arguments || '{}');
+        if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Gemini function arguments must be an object');
+        parts.push({
+          functionCall: {
+            id: toolCall.id,
+            name: toolCall.function.name,
+            args: args as Record<string, unknown>,
+          },
+          ...(signature ? { thoughtSignature: signature } : {}),
         });
       }
-    });
+    }
+    if (message.role === 'system') {
+      systemParts.push(...parts);
+    } else if (parts.length) {
+      contents.push({ role: message.role === 'assistant' ? 'model' : 'user', parts });
+    }
+  }
 
   // Build generation config
   const generationConfig: GeminiGenerationConfig = {};
@@ -282,6 +256,7 @@ export function buildRequestBody(
   if (request.max_tokens !== undefined) {
     generationConfig.maxOutputTokens = request.max_tokens;
   }
+  if (request.n !== undefined) generationConfig.candidateCount = request.n;
 
   // R7 (claude-api-transform-fidelity): decoded sampling/stop knobs — all
   // conditionally present, so a request that omits them builds the exact same
@@ -289,8 +264,15 @@ export function buildRequestBody(
   if (request.stop !== undefined && request.stop.length > 0) {
     generationConfig.stopSequences = request.stop;
   }
-  // Gemini 4 manages sampling internally; these fields are ignored upstream.
-  if (!/(?:^|\/)gemini-4(?:-|$)/i.test(request.model)) {
+  // Argon ignores these sampling controls. Audit the loss when converting;
+  // native same-format generationConfig remains intact below.
+  // https://ai.google.dev/gemini-api/docs/generate-content/latest-model
+  if (modelId === 'gemini-4-argon' && !nativeRequest?.generationConfig) {
+    if (request.temperature !== undefined) recordDroppedField(request, 'temperature', 'gemini');
+    if (request.top_p !== undefined) recordDroppedField(request, 'top_p', 'gemini');
+    if (request.top_k !== undefined) recordDroppedField(request, 'top_k', 'gemini');
+  } else {
+    if (request.temperature !== undefined) generationConfig.temperature = request.temperature;
     if (request.top_p !== undefined) generationConfig.topP = request.top_p;
     if (request.top_k !== undefined) generationConfig.topK = request.top_k;
   }
@@ -302,12 +284,12 @@ export function buildRequestBody(
   // Responses `text.format`) becomes Gemini's responseMimeType + responseSchema.
   if (request.response_format?.type === 'json_schema' && request.response_format.json_schema?.schema) {
     generationConfig.responseMimeType = 'application/json';
-    generationConfig.responseSchema = request.response_format.json_schema.schema;
+    generationConfig.responseJsonSchema = request.response_format.json_schema.schema;
   } else if (request.response_format?.type === 'json_object') {
     generationConfig.responseMimeType = 'application/json';
   }
 
-  const reasoningPlan = resolveReasoningPlan({
+  const reasoningPlan = nativeThinking ? undefined : resolveReasoningPlan({
     intent: extractReasoningIntent(request),
     model: request.model,
     provider,
@@ -342,6 +324,7 @@ export function buildRequestBody(
 
   const body: GeminiRequestBody = {
     contents,
+    ...(systemParts.length ? { systemInstruction: { parts: systemParts } } : {}),
     tools: tools.length > 0 ? tools : undefined,
     generationConfig:
       Object.keys(generationConfig).length > 0 ? generationConfig : undefined,
@@ -354,22 +337,29 @@ export function buildRequestBody(
     };
 
     if (request.tool_choice === 'auto') {
-      toolConfig.functionCallingConfig.mode = 'auto';
+      toolConfig.functionCallingConfig.mode = 'AUTO';
     } else if (request.tool_choice === 'none') {
-      toolConfig.functionCallingConfig.mode = 'none';
+      toolConfig.functionCallingConfig.mode = 'NONE';
     } else if (request.tool_choice === 'required') {
-      toolConfig.functionCallingConfig.mode = 'any';
+      toolConfig.functionCallingConfig.mode = 'ANY';
     } else if (
       typeof request.tool_choice === 'object' &&
       request.tool_choice.function?.name
     ) {
-      toolConfig.functionCallingConfig.mode = 'any';
+      toolConfig.functionCallingConfig.mode = 'ANY';
       toolConfig.functionCallingConfig.allowedFunctionNames = [
         request.tool_choice.function.name,
       ];
+    } else {
+      throw new Error(`Unsupported Gemini tool choice: ${JSON.stringify(request.tool_choice)}`);
     }
 
-    (body as unknown as Record<string, unknown>).toolConfig = toolConfig;
+    body.toolConfig = toolConfig;
+  }
+
+  if (nativeRequest) {
+    Object.assign(body, nativeRequest);
+    if (nativeRequest.generationConfig) body.generationConfig = nativeRequest.generationConfig as GeminiGenerationConfig;
   }
 
   return body;
@@ -398,7 +388,7 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
   const model = request.model as string;
   const generationConfig = request.generationConfig as GeminiGenerationConfig | undefined;
   const maxTokens = generationConfig?.maxOutputTokens ?? request.max_tokens as number | undefined;
-  const temperature = request.temperature as number | undefined;
+  const temperature = generationConfig?.temperature ?? request.temperature as number | undefined;
   const stream = request.stream as boolean | undefined;
   const toolChoice = request.tool_choice as string | undefined;
 
@@ -406,10 +396,39 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
     messages: [],
     model,
     max_tokens: maxTokens,
+    n: generationConfig?.candidateCount,
     temperature,
     stream,
     tool_choice: toolChoice as UnifiedChatRequest['tool_choice'],
   };
+  const nativeRequest = Object.fromEntries(Object.entries(request).filter(([key]) =>
+    ['generationConfig', 'tools', 'toolConfig', 'safetySettings', 'cachedContent', 'labels'].includes(key)));
+  (unifiedRequest as UnifiedChatRequest & NativeGemini).extra_content = { google: { request: nativeRequest } };
+  unifiedRequest.top_p = generationConfig?.topP;
+  unifiedRequest.top_k = generationConfig?.topK;
+  unifiedRequest.stop = generationConfig?.stopSequences;
+  const schema = generationConfig?.responseJsonSchema ??
+    (generationConfig?.responseSchema ? schemaToJsonSchema(generationConfig.responseSchema) : undefined);
+  if (schema) unifiedRequest.response_format = { type: 'json_schema', json_schema: { schema } };
+  else if (generationConfig?.responseMimeType === 'application/json') unifiedRequest.response_format = { type: 'json_object' };
+  const calling = (request.toolConfig as GeminiToolConfig | undefined)?.functionCallingConfig;
+  const mode = calling?.mode?.toUpperCase();
+  if (mode === 'NONE') unifiedRequest.tool_choice = 'none';
+  else if (mode === 'AUTO') unifiedRequest.tool_choice = 'auto';
+  else if (mode === 'ANY') {
+    unifiedRequest.tool_choice = calling?.allowedFunctionNames?.length === 1
+      ? { type: 'function', function: { name: calling.allowedFunctionNames[0] } }
+      : 'required';
+  }
+  const system = (request.systemInstruction ?? request.system_instruction) as { parts?: GeminiTextPart[] } | undefined;
+  if (system?.parts) {
+    const message: UnifiedMessage & NativeGemini = {
+      role: 'system',
+      content: system.parts.map((part) => part.text ?? '').join('\n'),
+      extra_content: { google: { parts: system.parts } },
+    };
+    unifiedRequest.messages.push(message);
+  }
 
   const thinkingConfig = generationConfig?.thinkingConfig;
   const discreteEffort = normalizeThinkLevel(thinkingConfig?.thinkingLevel);
@@ -424,17 +443,13 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
     unifiedRequest.reasoning = budget === 0
       ? { effort: 'none', enabled: false, max_tokens: 0 }
       : { effort: getThinkLevel(budget), enabled: true, max_tokens: budget };
+  } else if (thinkingConfig?.thinkingBudget === -1) {
+    unifiedRequest.reasoning = { enabled: true };
   }
 
   // Convert contents to messages
   if (Array.isArray(contents)) {
-    // Gemini pairs a functionResponse to its functionCall by NAME only — there
-    // is no per-call id on functionResponse. Track the tool_call ids per
-    // function name as a QUEUE as we walk the contents; Gemini delivers
-    // functionResponse parts in the same order as the matching functionCall
-    // parts, so shifting one id per response pairs them correctly even when the
-    // model makes PARALLEL calls to the same function (two `search`, two
-    // `read_file`). A plain last-wins map would mispair those.
+    // Explicit IDs take precedence; otherwise pair by name and occurrence.
     const toolCallIdsByName = new Map<string, string[]>();
 
     for (const content of contents) {
@@ -459,7 +474,7 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
         continue;
       }
 
-      if (!content || typeof content !== 'object' || !('role' in content)) {
+      if (!content || typeof content !== 'object' || !('parts' in content)) {
         continue;
       }
 
@@ -490,22 +505,21 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
           functionResponses.push(part as unknown as GeminiFunctionResponsePart);
         } else if ('functionCall' in part) {
           functionCalls.push(part as unknown as GeminiFunctionCallPart);
-        } else if ('inlineData' in part || 'file_data' in part) {
-          // Multimodal → image_url content block (mirror of buildRequestBody).
-          const inline = part.inlineData as { mime_type?: string; data?: string } | undefined;
-          const fileData = part.file_data as { mime_type?: string; file_uri?: string } | undefined;
+        } else if ('inlineData' in part || 'inline_data' in part || 'file_data' in part || 'fileData' in part) {
+          const inline = (part.inlineData ?? part.inline_data) as { mimeType?: string; mime_type?: string; data?: string } | undefined;
+          const fileData = (part.fileData ?? part.file_data) as { mimeType?: string; mime_type?: string; fileUri?: string; file_uri?: string } | undefined;
           if (inline?.data) {
-            const mime = inline.mime_type || 'image/png';
+            const mime = inline.mimeType ?? inline.mime_type ?? 'image/png';
             contentParts.push({
               type: 'image_url',
               image_url: { url: `data:${mime};base64,${inline.data}` },
               media_type: mime,
             });
-          } else if (fileData?.file_uri) {
+          } else if (fileData?.fileUri || fileData?.file_uri) {
             contentParts.push({
               type: 'image_url',
-              image_url: { url: fileData.file_uri },
-              media_type: fileData.mime_type,
+              image_url: { url: fileData.fileUri ?? fileData.file_uri },
+              media_type: fileData.mimeType ?? fileData.mime_type,
             });
           }
         } else if ('text' in part) {
@@ -514,6 +528,7 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
             thinkingText += (part.text as string) ?? '';
           } else {
             textParts.push(part as unknown as GeminiTextPart);
+            contentParts.push({ type: 'text', text: part.text });
           }
         }
       }
@@ -524,10 +539,9 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
       for (const fr of functionResponses) {
         const fnName = fr.functionResponse.name ?? '';
         const queue = toolCallIdsByName.get(fnName);
-        const id =
-          queue && queue.length > 0
-            ? (queue.shift() as string)
-            : `tool_${Math.random().toString(36).substring(2, 15)}`;
+        const explicitId = fr.functionResponse.id;
+        const id = explicitId ?? queue?.shift() ?? `tool_${Math.random().toString(36).substring(2, 15)}`;
+        if (explicitId && queue?.includes(explicitId)) queue.splice(queue.indexOf(explicitId), 1);
         // Gemini's functionResponse.response.result is the tool output; OpenAI
         // tool messages carry a string `content`. The forward direction always
         // writes `{ result }`, but external SDKs sometimes use other shapes
@@ -542,11 +556,19 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
               : response !== undefined
                 ? JSON.stringify(response)
                 : '';
-        unifiedRequest.messages.push({
+        const media = fr.functionResponse.parts?.map((part) => ({
+          type: 'image_url' as const,
+          image_url: { url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` },
+          media_type: part.inlineData.mimeType,
+        }));
+        const toolMessage: UnifiedMessage & NativeGemini = {
           role: 'tool',
           tool_call_id: id,
-          content: toolContent,
-        });
+          content: media?.length ? [{ type: 'text', text: toolContent }, ...media] : toolContent,
+          ...(response && 'error' in response ? { is_error: true } : {}),
+          extra_content: { google: { parts: [fr] } },
+        };
+        unifiedRequest.messages.push(toolMessage);
       }
 
       // Build tool_calls array from functionCall parts, queuing each call's id
@@ -566,6 +588,7 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
             name: p.functionCall.name,
             arguments: JSON.stringify(p.functionCall.args ?? {}),
           },
+          ...(p.thoughtSignature ? { extra_content: { google: { thought_signature: p.thoughtSignature } } } : {}),
         };
       });
 
@@ -580,28 +603,21 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
         !signature;
       if (onlyToolResults) continue;
 
-      // Compose the unified message content. Prefer a plain string for
-      // text-only contents (the common case); otherwise build a content array.
-      let messageContent: string | null | Array<Record<string, unknown>>;
-      if (contentParts.length > 0) {
-        messageContent = [
-          ...textParts.map((p) => ({ type: 'text', text: p.text })),
-          ...contentParts,
-        ];
-      } else {
-        messageContent = textParts.map((p) => p.text).join('\n') || null;
-      }
+      // Keep multimodal content in original order; plain text needs no array.
+      const hasMedia = contentParts.some((part) => part.type !== 'text');
+      const messageContent = hasMedia
+        ? contentParts
+        : textParts.map((part) => part.text).join('') || null;
 
-      const message: UnifiedMessage = {
+      const message: UnifiedMessage & NativeGemini = {
         role,
         content: messageContent as unknown as UnifiedMessage['content'],
+        extra_content: { google: { parts: functionResponses.length ? parts.filter((part) => !('functionResponse' in part)) : parts } },
       };
       if (toolCalls.length > 0) {
         message.tool_calls = toolCalls;
       }
-      if (signature || thinkingText) {
-        message.thinking = { content: thinkingText || '', signature };
-      }
+      if (thinkingText) message.thinking = { content: thinkingText };
       unifiedRequest.messages.push(message);
     }
   }
@@ -612,14 +628,15 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
     for (const tool of tools) {
       if (Array.isArray(tool.functionDeclarations)) {
         for (const funcDecl of tool.functionDeclarations) {
+          if (mode === 'ANY' && calling?.allowedFunctionNames?.length &&
+              !calling.allowedFunctionNames.includes(funcDecl.name)) continue;
           unifiedRequest.tools.push({
             type: 'function',
             function: {
               name: funcDecl.name,
               description: funcDecl.description ?? '',
-              parameters: (funcDecl.parameters ??
-                funcDecl.parametersJsonSchema ??
-                {}) as unknown as UnifiedTool['function']['parameters'],
+              parameters: (funcDecl.parametersJsonSchema ??
+                (funcDecl.parameters ? schemaToJsonSchema(funcDecl.parameters) : {})) as unknown as UnifiedTool['function']['parameters'],
             },
           });
         }

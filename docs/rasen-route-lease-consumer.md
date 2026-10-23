@@ -54,7 +54,7 @@ Idempotency-Key: rasen:run-123:apply:1
     "kind": "provider",
     "providerId": "deepseek-api"
   },
-  "model": "deepseek-chat",
+  "model": "deepseek-flash",
   "execution": {
     "runId": "run-123",
     "stageId": "apply",

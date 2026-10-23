@@ -1,21 +1,21 @@
 /**
- * `@omnicross/core/search/http` — the keyless HTTP search slice (plan 阶段2).
- *
- * Two providers (`http-bing`, `http-duckduckgo`) implementing
- * `SearchProvider` from `@omnicross/contracts/search-types`, on one shared
- * undici transport with explicit UA/redirect/body-cap/timeout/proxy/cancellation
- * semantics. Pure Node: no Elftia, no Electron, no host runtime.
- *
- * This is the ONLY subpath the search tree exports. The bare `search` subpath is
- * deliberately unclaimed — it belongs to 阶段3's runtime index.
- *
- * Nothing here is wired into an existing runtime path: the providers are
- * standalone until the registry arrives.
- *
- * @module search/http
+ * Bounded Node HTTP search transports and providers. Embedding hosts decide
+ * enablement; extended engines and aggregation are not implicit opt-ins.
  */
 
 export { builtinHttpSearchContributions, HTTP_SEARCH_CAPABILITIES } from './contributions';
+export {
+  extendedHttpSearchContributions,
+  EXTENDED_HTTP_SEARCH_CAPABILITIES,
+} from './extendedContributions';
+export { HttpStartpageProvider } from './HttpStartpageProvider';
+export { HttpEcosiaProvider } from './HttpEcosiaProvider';
+export { HttpMojeekProvider } from './HttpMojeekProvider';
+export {
+  HttpPublicSearchProvider,
+  type HttpPublicSearchOptions,
+  type HttpPublicChildId,
+} from './HttpPublicSearchProvider';
 export {
   clampMaxResults,
   DEFAULT_MAX_RESULTS,

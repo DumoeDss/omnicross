@@ -16,9 +16,9 @@
  * days of parallel-agent traffic while first turns kept succeeding).
  *
  * Three pieces share this module:
- *  - {@link isReasoningReplayProvider} — static classification (DeepSeek
- *    identity + a v4-era model), used by the chat encoder so KNOWN providers
- *    replay proactively and never pay the failed round trip.
+ *  - {@link isReasoningReplayProvider} — provider identity plus resolved
+ *    capabilities classify modern DeepSeek and reasoning-capable Kimi models,
+ *    so known providers replay proactively and never pay the failed round trip.
  *  - {@link isReasoningReplayRejection} + the learned-key registry — the
  *    Responses driver marks a provider after one observed rejection so
  *    unclassified upstreams self-heal on the NEXT request. (The reasoning text
@@ -26,7 +26,7 @@
  *    so an immediate retry is not possible the way the json_schema fallback
  *    retries; the next turn injects.)
  *  - {@link isReasoningContentForbidden} — the mirror image: an upstream that
- *    rejects `reasoning_content` in INPUT (classic deepseek-reasoner "not
+ *    rejects `reasoning_content` in INPUT (classic deepseek-r1 "not
  *    allowed in input messages"). The driver strips the field and retries
  *    once, so a mis-classified provider still completes its turn.
  *
@@ -34,10 +34,8 @@
  */
 
 import { usesDeepSeekThinkingToggle } from '../../../reasoning/openai-chat-wire';
-import {
-  resolveTargetModelCapabilities,
-  type ReasoningProvider,
-} from '../../reasoning-effort';
+import { resolveTargetModelCapabilities } from '../../reasoning-effort';
+import type { ReasoningProvider } from '../../reasoning-effort';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -55,11 +53,14 @@ export interface ReasoningReplayProvider extends ReasoningProvider {
 }
 
 /**
- * Providers whose Chat wire requires complete assistant history back
- * WITH `reasoning_content`. DeepSeek's discrete-thinking family and Kimi's
- * reasoning API require complete assistant tool-call continuations.
- * Provider identity keeps aggregators out; resolved capabilities exclude
- * legacy DeepSeek R1, which instead forbids reasoning_content in input.
+ * Providers whose Chat wire requires assistant reasoning history back WITH
+ * `reasoning_content`, including tool-call continuations.
+ *
+ * Provider identity and resolved model capabilities are both required:
+ * DeepSeek's discrete-thinking family declares `thinkingLevels`, excluding
+ * legacy R1/v3 models that forbid reasoning_content in input; Kimi requires
+ * a reasoning-capable model. Unrelated aggregators are not classified by
+ * model name alone.
  */
 export function isReasoningReplayProvider(
   provider: ReasoningReplayProvider | undefined,
@@ -86,7 +87,7 @@ export function isReasoningReplayRejection(status: number, errorText: string): b
 
 /**
  * The mirror rejection: `reasoning_content` present in INPUT is refused
- * (classic deepseek-reasoner behavior). Names the field and refuses it.
+ * (classic deepseek-r1 behavior). Names the field and refuses it.
  * Deliberately excludes bare "invalid" — the passback DEMAND above rides an
  * `invalid_request_error` envelope, and a demand must never trigger a strip.
  */
@@ -102,8 +103,9 @@ export function isReasoningContentForbidden(status: number, errorText: string): 
  */
 export function reasoningReplayKey(
   provider: ReasoningReplayProvider | undefined,
+  model: string,
 ): string {
-  return `${(provider?.name ?? '').toLowerCase()}|${provider?.baseUrl ?? ''}`;
+  return `${(provider?.name ?? '').toLowerCase()}|${provider?.baseUrl ?? ''}|${model}`;
 }
 
 /**
@@ -134,7 +136,7 @@ export function shouldReplayReasoning(
   provider: ReasoningReplayProvider | undefined,
   model: string,
 ): boolean {
-  const key = reasoningReplayKey(provider);
+  const key = reasoningReplayKey(provider, model);
   return isReasoningReplayProvider(provider, model) || isReasoningReplayLearned(key);
 }
 
@@ -150,6 +152,7 @@ export function applyReasoningReplay(
     if (
       target &&
       target.role === 'assistant' &&
+      target.reasoning_content === undefined &&
       typeof entry.text === 'string' &&
       entry.text.length > 0
     ) {

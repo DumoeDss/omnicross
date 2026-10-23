@@ -18,6 +18,8 @@
 import type {
   DeepseekProviderConfig,
   JinaProviderConfig,
+  KeyedSearchProviderConfig,
+  KeylessSearchProviderConfig,
   SearchApiProviderConfigs,
   SearxngProviderConfig,
   TavilyProviderConfig,
@@ -29,7 +31,7 @@ import {
   validateSearchFrontendModes,
 } from '../search/frontends';
 
-import type { SearchServerConfig } from './types';
+import type { SearchHttpProviderConfigs, SearchServerConfig } from './types';
 
 /** Upper bound on `policy.maxAttempts`; also the cap on `policy.allowed` length. */
 const MAX_POLICY_ATTEMPTS = 32;
@@ -37,6 +39,15 @@ const MAX_POLICY_ATTEMPTS = 32;
 const MAX_ALLOWED_PRIVATE_HOSTS = 64;
 /** Longest accepted single config string (key, host, provider id). */
 const MAX_CONFIG_STRING = 2048;
+
+const PUBLIC_API_IDS = ['exa', 'parallel', 'firecrawl'] as const;
+const KEYED_API_IDS = [
+  'brave', 'kagi', 'kimi', 'synthetic', 'ollama', 'tinyfish',
+  'perplexity', 'bocha', 'claude',
+] as const;
+const HTTP_IDS = [
+  'http-bing', 'http-duckduckgo', 'http-startpage', 'http-ecosia', 'http-mojeek', 'public',
+] as const;
 
 /**
  * HTTP-only providers, behavior-preserving modes, public-only egress, fallback
@@ -133,6 +144,41 @@ function deepseekConfig(value: unknown): DeepseekProviderConfig | undefined {
   return { ...(apiKey ? { apiKey } : {}), ...(apiHost ? { apiHost } : {}) };
 }
 
+function publicApiConfig(value: unknown): KeylessSearchProviderConfig | undefined {
+  const raw = record(value);
+  if (!raw || (raw['authMode'] !== undefined && raw['authMode'] !== 'public' && raw['authMode'] !== 'api')) {
+    return undefined;
+  }
+  const apiKey = configString(raw['apiKey']);
+  const authMode = raw['authMode'] ??
+    (typeof raw['apiKey'] === 'string' && raw['apiKey'].trim() ? 'api' : 'public');
+  if (authMode === 'api' && !apiKey) return undefined;
+  const apiHost = configString(raw['apiHost']);
+  return {
+    authMode,
+    ...(apiKey ? { apiKey } : {}),
+    ...(apiHost ? { apiHost } : {}),
+  };
+}
+
+function keyedApiConfig(value: unknown): KeyedSearchProviderConfig | undefined {
+  const base = tavilyConfig(value);
+  if (!base) return undefined;
+  const model = configString(record(value)?.['model']);
+  return { ...base, ...(model ? { model } : {}) };
+}
+
+function httpProviderConfigs(value: unknown): SearchHttpProviderConfigs {
+  const raw = record(value) ?? {};
+  const configs: SearchHttpProviderConfigs = {};
+  for (const id of HTTP_IDS) {
+    const entry = record(raw[id]);
+    if (!entry || (entry['enabled'] !== undefined && typeof entry['enabled'] !== 'boolean')) continue;
+    configs[id] = { enabled: entry['enabled'] !== false };
+  }
+  return configs;
+}
+
 /** Tolerant read: unusable members are DROPPED, which leaves them unconfigured. */
 export function normalizeSearchApiProviderConfigs(value: unknown): SearchApiProviderConfigs {
   const raw = record(value) ?? {};
@@ -149,6 +195,14 @@ export function normalizeSearchApiProviderConfigs(value: unknown): SearchApiProv
   if (zai) configs['z.ai'] = zai;
   const deepseek = deepseekConfig(raw['deepseek']);
   if (deepseek) configs.deepseek = deepseek;
+  for (const id of PUBLIC_API_IDS) {
+    const config = publicApiConfig(raw[id]);
+    if (config) configs[id] = config;
+  }
+  for (const id of KEYED_API_IDS) {
+    const config = keyedApiConfig(raw[id]);
+    if (config) configs[id] = config;
+  }
   return configs;
 }
 
@@ -169,7 +223,10 @@ export function normalizeSearchServerConfig(value: unknown): SearchServerConfig 
 
   return {
     modes: normalizeSearchFrontendModes(raw['modes']),
-    providers: normalizeSearchApiProviderConfigs(raw['providers']),
+    providers: {
+      ...normalizeSearchApiProviderConfigs(raw['providers']),
+      ...httpProviderConfigs(raw['providers']),
+    },
     egress: {
       allowedPrivateHosts: stringList(
         egressRaw['allowedPrivateHosts'],
@@ -188,6 +245,7 @@ export function normalizeSearchServerConfig(value: unknown): SearchServerConfig 
 
 const PROVIDER_KEYS: ReadonlySet<string> = new Set([
   'tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek',
+  ...PUBLIC_API_IDS, ...KEYED_API_IDS, ...HTTP_IDS,
 ]);
 
 /**
@@ -204,6 +262,7 @@ const PROVIDER_REQUIRED_FIELD: Readonly<Record<string, string | undefined>> = Ob
   zhipu: 'apiKey',
   'z.ai': 'apiKey',
   deepseek: undefined,
+  ...Object.fromEntries(KEYED_API_IDS.map((id) => [id, 'apiKey'])),
 });
 
 function validateProviders(value: unknown, path: string): string[] {
@@ -219,6 +278,26 @@ function validateProviders(value: unknown, path: string): string[] {
     if (!record(entry)) {
       errors.push(`${path}.${id}: expected an object`);
       continue;
+    }
+    const config = entry as Record<string, unknown>;
+    if ((HTTP_IDS as readonly string[]).includes(id)) {
+      if (config['enabled'] !== undefined && typeof config['enabled'] !== 'boolean') {
+        errors.push(`${path}.${id}.enabled: expected a boolean`);
+      }
+      continue;
+    }
+    if ((PUBLIC_API_IDS as readonly string[]).includes(id)) {
+      const mode = config['authMode'];
+      if (mode !== undefined && mode !== 'public' && mode !== 'api') {
+        errors.push(`${path}.${id}.authMode: expected public or api`);
+      } else if ((mode === 'api' || (mode === undefined &&
+          typeof config['apiKey'] === 'string' && config['apiKey'].trim())) &&
+          configString(config['apiKey']) === undefined) {
+        errors.push(`${path}.${id}.apiKey: missing or unusable`);
+      }
+    }
+    if (config['model'] !== undefined && configString(config['model']) === undefined) {
+      errors.push(`${path}.${id}.model: missing or unusable`);
     }
     const required = PROVIDER_REQUIRED_FIELD[id];
     if (required !== undefined && configString((entry as Record<string, unknown>)[required]) === undefined) {

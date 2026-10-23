@@ -127,9 +127,9 @@ export function getAntigravityUserAgent(): string {
  * client against `daily-cloudcode-pa`:
  *  - `modelEnum` is the opaque `labels.model_enum` telemetry token — OPTIONAL
  *    because Anthropic-backed wire ids are accepted without one,
- *  - `maxOutputTokens` is the fixed `generationConfig.maxOutputTokens` the
- *    backend enforces regardless of the thinking budget (Claude caps at
- *    64000 — a larger value is a 400; Gemini ids take the discovered cap).
+ *  - `maxOutputTokens` is the upper bound for `generationConfig.maxOutputTokens`
+ *    (Claude caps at 64000 — a larger value is a 400; Gemini ids take the
+ *    discovered cap). Smaller caller limits must remain intact.
  *
  * Keyed by the routed upstream WIRE id (post effort/thinking variant mapping),
  * not the logical id. Ids without an entry keep the request's own value.

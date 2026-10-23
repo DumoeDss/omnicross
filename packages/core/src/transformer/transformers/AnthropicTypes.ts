@@ -10,16 +10,34 @@
 
 import type { ThinkLevel } from '../types';
 
+/** Optional gateway extension; standard Anthropic clients may discard it. */
+export interface AnthropicReplayContent {
+  extra_content?: {
+    google?: { parts?: unknown[]; thought_signature?: string };
+  };
+}
+
+export function readGoogleReplayContent(extra: unknown): AnthropicReplayContent['extra_content'] {
+  if (!extra || typeof extra !== 'object' || !('google' in extra)) return undefined;
+  const google = extra.google;
+  if (!google || typeof google !== 'object') return undefined;
+  const parts = 'parts' in google && Array.isArray(google.parts) ? google.parts : undefined;
+  const signature = 'thought_signature' in google && typeof google.thought_signature === 'string'
+    ? google.thought_signature : undefined;
+  if (!parts && signature === undefined) return undefined;
+  return { google: { ...(parts ? { parts } : {}), ...(signature !== undefined ? { thought_signature: signature } : {}) } };
+}
+
 /**
  * Anthropic content types
  */
-export interface AnthropicTextContent {
+export interface AnthropicTextContent extends AnthropicReplayContent {
   type: 'text';
   text: string;
   cache_control?: { type?: string };
 }
 
-export interface AnthropicImageContent {
+export interface AnthropicImageContent extends AnthropicReplayContent {
   type: 'image';
   source: {
     type: 'base64' | 'url';
@@ -29,24 +47,30 @@ export interface AnthropicImageContent {
   };
 }
 
-export interface AnthropicToolUseContent {
+export interface AnthropicToolUseContent extends AnthropicReplayContent {
   type: 'tool_use';
   id: string;
   name: string;
   input: Record<string, unknown>;
 }
 
-export interface AnthropicToolResultContent {
+export interface AnthropicToolResultContent extends AnthropicReplayContent {
   type: 'tool_result';
   tool_use_id: string;
   content: string | unknown[];
   cache_control?: { type?: string };
+  is_error?: boolean;
 }
 
-export interface AnthropicThinkingContent {
+export interface AnthropicThinkingContent extends AnthropicReplayContent {
   type: 'thinking';
   thinking: string;
   signature?: string;
+}
+
+export interface AnthropicRedactedThinkingContent extends AnthropicReplayContent {
+  type: 'redacted_thinking';
+  data: string;
 }
 
 export type AnthropicContent =
@@ -54,7 +78,8 @@ export type AnthropicContent =
   | AnthropicImageContent
   | AnthropicToolUseContent
   | AnthropicToolResultContent
-  | AnthropicThinkingContent;
+  | AnthropicThinkingContent
+  | AnthropicRedactedThinkingContent;
 
 export interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -73,7 +98,7 @@ export interface AnthropicRequest {
     description?: string;
     input_schema: Record<string, unknown>;
   }>;
-  tool_choice?: { type: 'auto' | 'any' | 'tool'; name?: string };
+  tool_choice?: { type: 'auto' | 'any' | 'tool' | 'none'; name?: string; disable_parallel_tool_use?: boolean };
   thinking?: {
     type: 'enabled' | 'disabled' | 'adaptive';
     budget_tokens?: number;
@@ -101,37 +126,16 @@ export function formatBase64(data: string, mediaType?: string): string {
   return `data:${mediaType || 'image/png'};base64,${data}`;
 }
 
-/**
- * Flatten an Anthropic `tool_result.content` into the plain string an
- * OpenAI-chat `tool` message carries.
- *
- * Claude Code sends tool results as a BLOCK ARRAY (`[{type:'text',text:…}]`)
- * far more often than as a bare string, so `JSON.stringify` made the upstream
- * model read the literal envelope `[{"type":"text","text":"…"}]` on EVERY tool
- * result — and a screenshot tool dumped its whole base64 payload into the
- * prompt. Text blocks are concatenated; an image block becomes a short
- * placeholder because a chat `tool` message cannot carry image parts at all.
- * A non-array object still falls back to JSON, which is a fair textual
- * rendering of structured data.
- */
-export function flattenToolResultContent(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (content == null) return '';
-  if (!Array.isArray(content)) return JSON.stringify(content);
-
-  const parts: string[] = [];
-  for (const block of content) {
-    if (typeof block === 'string') {
-      parts.push(block);
-      continue;
+/** Public web-source metadata can cross protocols; encrypted search payloads cannot. */
+export function formatAnthropicWebSources(sources: unknown): string {
+  if (!Array.isArray(sources)) throw new Error('Unsupported Anthropic web search result');
+  return sources.map((source: unknown) => {
+    if (!source || typeof source !== 'object' || !('url' in source) || typeof source.url !== 'string') {
+      throw new Error('Unsupported Anthropic citation or web search result');
     }
-    if (!block || typeof block !== 'object') continue;
-    const typed = block as Record<string, unknown>;
-    if (typed.type === 'image' || typed.type === 'image_url') {
-      parts.push('[image omitted]');
-    } else if (typeof typed.text === 'string') {
-      parts.push(typed.text);
-    }
-  }
-  return parts.filter((text) => text !== '').join('\n');
+    const title = 'title' in source && typeof source.title === 'string' ? source.title : source.url;
+    const snippet = 'page_content' in source && typeof source.page_content === 'string' ? source.page_content
+      : 'snippet' in source && typeof source.snippet === 'string' ? source.snippet : '';
+    return `[${title}](${source.url})${snippet ? `: ${snippet}` : ''}`;
+  }).join('\n');
 }

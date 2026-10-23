@@ -211,3 +211,94 @@ describe('first-time key configuration from an EMPTY config (the owner repro)', 
     expect(savedPayload!.providers).toEqual({});
   });
 });
+
+describe('expanded provider settings through visible controls', () => {
+  it.each(['Exa', 'Parallel', 'Firecrawl'])('saves and restores public access for %s with no secret', async (name) => {
+    const id = name.toLowerCase();
+    const card = cardFor(name);
+    const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    act(() => toggle.click());
+    await act(async () => clickSave());
+    expect(savedPayload!.providers[id as 'exa']).toEqual({ authMode: 'public' });
+    const restored: SearchServerConfig = {
+      ...EMPTY_CONFIG, providers: { [id]: { authMode: 'public', apiKeyConfigured: false } },
+    };
+    act(() => root!.render(React.createElement(SearchSettingsSection, {
+      config: restored, diagnostics: null, busy: false,
+      onUpdate: async (search) => { savedPayload = search; },
+      onQuery: async (): Promise<SearchQueryOutcome> => ({ ok: false, error: 'unused' }),
+    })));
+    expect(cardFor(name).querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
+    expect(cardFor(name).querySelector(`#search-auth-mode-${id}`)!.textContent).toBe('search.authMode.public');
+    await act(async () => clickSave());
+    expect(savedPayload!.providers[id as 'exa']).toEqual({ authMode: 'public' });
+  });
+
+  it.each(['Bing (HTTP)', 'DuckDuckGo (HTTP)'])('can explicitly disable the default %s engine', async (name) => {
+    const id = name === 'Bing (HTTP)' ? 'http-bing' : 'http-duckduckgo';
+    const toggle = cardFor(name).querySelector<HTMLButtonElement>('[role="switch"]')!;
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    act(() => toggle.click());
+    await act(async () => clickSave());
+    expect(savedPayload!.providers[id]).toEqual({ enabled: false });
+  });
+
+  it.each(['Exa', 'Parallel', 'Firecrawl'])('rejects keyless API mode for %s instead of downgrading', async (name) => {
+    const card = cardFor(name);
+    const id = name.toLowerCase();
+    act(() => card.querySelector<HTMLButtonElement>(`#search-auth-mode-${id}`)!.click());
+    const option = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'search.authMode.api')!;
+    act(() => option.click());
+    const save = container!.querySelector<HTMLButtonElement>('.sticky button')!;
+    expect(save.disabled).toBe(true);
+    expect(container!.querySelector('[role="alert"]')?.textContent).toContain(id);
+    await act(async () => save.click());
+    expect(savedPayload).toBeNull();
+    typeInto(card, 'search.field.apiKey', 'key-for-api-mode');
+    expect(save.disabled).toBe(false);
+    await act(async () => save.click());
+    expect(savedPayload!.providers[id as 'exa']).toEqual({ authMode: 'api', apiKey: 'key-for-api-mode' });
+  });
+
+  it.each(['Startpage (HTTP)', 'Ecosia (HTTP)', 'Mojeek (HTTP)', 'Public (HTTP aggregate)'])(
+    'opts in %s only through explicit enablement', async (name) => {
+      const ids: Record<string, 'http-startpage' | 'http-ecosia' | 'http-mojeek' | 'public'> = {
+        'Startpage (HTTP)': 'http-startpage', 'Ecosia (HTTP)': 'http-ecosia',
+        'Mojeek (HTTP)': 'http-mojeek', 'Public (HTTP aggregate)': 'public',
+      };
+      const card = cardFor(name);
+      const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!;
+      expect(toggle.getAttribute('aria-checked')).toBe('false');
+      act(() => toggle.click());
+      await act(async () => clickSave());
+      expect(savedPayload!.providers[ids[name]!]).toEqual({ enabled: true });
+      act(() => toggle.click());
+      await act(async () => clickSave());
+      expect(savedPayload!.providers[ids[name]!]).toBeUndefined();
+    },
+  );
+
+  it('offers a model override for Claude, not Perplexity, and preserves a saved secret', async () => {
+    expect(cardFor('Perplexity').querySelector('input[aria-label="search.field.model"]')).toBeNull();
+    const card = cardFor('Claude');
+    typeInto(card, 'search.field.apiKey', 'claude-secret');
+    typeInto(card, 'search.field.model', 'claude-custom-model');
+    await act(async () => clickSave());
+    expect(savedPayload!.providers.claude).toEqual({ apiKey: 'claude-secret', model: 'claude-custom-model' });
+    const masked: SearchServerConfig = {
+      ...EMPTY_CONFIG, providers: { claude: { apiKeyConfigured: true, model: 'claude-custom-model' } },
+    };
+    act(() => root!.render(React.createElement(SearchSettingsSection, {
+      config: masked, diagnostics: null, busy: false,
+      onUpdate: async (search) => { savedPayload = search; },
+      onQuery: async (): Promise<SearchQueryOutcome> => ({ ok: false, error: 'unused' }),
+    })));
+    const restored = cardFor('Claude');
+    expect(restored.querySelector<HTMLInputElement>('input[aria-label="search.field.apiKey"]')!.value).toBe('');
+    expect(restored.querySelector<HTMLInputElement>('input[aria-label="search.field.model"]')!.value).toBe('claude-custom-model');
+    await act(async () => clickSave());
+    expect(savedPayload!.providers.claude).toEqual({ model: 'claude-custom-model' });
+  });
+});

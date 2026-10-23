@@ -330,8 +330,9 @@ export class AntigravityTransformer implements Transformer {
     const family = antigravityModelFamily(request.model) ?? 'gemini';
     const { wireModelId, variantEngaged } = resolveAntigravityWireModelId(request.model, request, provider);
 
-    // Inner standard generateContent body via the shared gemini encoder.
-    const inner = buildRequestBody({ ...request, model: wireModelId }, provider) as unknown as Record<string, unknown>;
+    // Negotiate against the logical model's capabilities; only the envelope
+    // uses the wire variant id. Provider model overrides are keyed by logical id.
+    const inner = buildRequestBody(request, provider) as unknown as Record<string, unknown>;
 
     // generationConfig: per-wire-id maxOutputTokens profile clamp + drop the
     // thinkingConfig when the WIRE ID already encodes the effort (variant route).
@@ -341,7 +342,10 @@ export class AntigravityTransformer implements Transformer {
     }
     const profile = getAntigravityModelWireProfile(wireModelId);
     if (profile) {
-      generationConfig['maxOutputTokens'] = profile.maxOutputTokens;
+      const requestedMax = generationConfig['maxOutputTokens'];
+      generationConfig['maxOutputTokens'] = typeof requestedMax === 'number'
+        ? Math.min(requestedMax, profile.maxOutputTokens)
+        : profile.maxOutputTokens;
     }
 
     // tools: the Claude family rides the LEGACY `parameters` schema (the CCA
@@ -360,15 +364,15 @@ export class AntigravityTransformer implements Transformer {
     let toolConfig = inner['toolConfig'] as
       | { functionCallingConfig: { mode?: string; allowedFunctionNames?: string[] } }
       | undefined;
-    let forcedToolInjected = false;
+    const mode = toolConfig?.functionCallingConfig?.mode?.toUpperCase();
     const hasTools = !!decoratedTools?.some((tool) => (tool.functionDeclarations?.length ?? 0) > 0);
-    if (toolConfig?.functionCallingConfig.mode === 'none') {
+    if (mode === 'NONE') {
       toolConfig = { functionCallingConfig: { mode: 'NONE' } };
-    } else if (toolConfig?.functionCallingConfig.mode === 'any') {
+    } else if (mode === 'ANY') {
       toolConfig = {
         functionCallingConfig: {
           mode: 'ANY',
-          ...(toolConfig.functionCallingConfig.allowedFunctionNames
+          ...(toolConfig?.functionCallingConfig.allowedFunctionNames
             ? { allowedFunctionNames: toolConfig.functionCallingConfig.allowedFunctionNames }
             : {}),
         },
@@ -378,14 +382,15 @@ export class AntigravityTransformer implements Transformer {
       // toolConfig natively).
       if (family !== 'claude') {
         contents.push({ role: 'user', parts: [{ text: ANTIGRAVITY_FORCED_TOOL_DIRECTIVE }] });
-        forcedToolInjected = true;
       }
     } else if (hasTools || family === 'claude') {
-      toolConfig = { functionCallingConfig: { mode: 'VALIDATED' } };
+      toolConfig = {
+        ...toolConfig,
+        functionCallingConfig: { ...toolConfig?.functionCallingConfig, mode: 'VALIDATED' },
+      };
     } else {
       toolConfig = undefined;
     }
-    void forcedToolInjected;
 
     // Session/request envelope identity. Stateless-per-request (the omnicross
     // dispatch creates a transformer per request): sessionId is DERIVED from
@@ -414,8 +419,8 @@ export class AntigravityTransformer implements Transformer {
       ...inner,
       contents,
       ...(decoratedTools ? { tools: decoratedTools } : {}),
-      ...(toolConfig ? { toolConfig } : {}),
-      ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
+      toolConfig,
+      generationConfig: Object.keys(generationConfig).length > 0 ? generationConfig : undefined,
       sessionId,
       labels,
     };
@@ -456,10 +461,11 @@ export class AntigravityTransformer implements Transformer {
       string,
       unknown
     >;
-    if (inner && typeof inner === 'object' && !('model' in inner) && 'model' in r) {
-      inner.model = r.model;
-    }
-    return toUnifiedRequest(inner);
+    return toUnifiedRequest(
+      inner && typeof inner === 'object' && !('model' in inner) && r && 'model' in r
+        ? { ...inner, model: r.model }
+        : inner,
+    );
   }
 
   /** antigravity response → OpenAI-compatible: peel `.response`, delegate. */
@@ -478,6 +484,7 @@ function legacyParametersTool(tool: {
 }): { functionDeclarations?: Array<Record<string, unknown>> } {
   if (!tool.functionDeclarations) return tool;
   return {
+    ...tool,
     functionDeclarations: tool.functionDeclarations.map((declaration) => {
       if ('parameters' in declaration) return declaration;
       const { parametersJsonSchema, ...rest } = declaration as {

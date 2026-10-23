@@ -15,21 +15,34 @@
  * @module transformer/transformers/AnthropicConversion
  */
 
-import type { UnifiedChatRequest, UnifiedMessage } from '../types';
+import type { MessageContent, UnifiedChatRequest, UnifiedMessage } from '../types';
 import { normalizeThinkLevel } from '../reasoning-effort';
 
-import { convertAnthropicToolsToOpenAI, isServerSideTool } from './AnthropicToolHandling';
+import { convertAnthropicToolsToOpenAI, isNativeAnthropicTool } from './AnthropicToolHandling';
 import type {
   AnthropicContent,
-  AnthropicImageContent,
   AnthropicRequest,
   AnthropicTextContent,
-  AnthropicThinkingContent,
   AnthropicToolResultContent,
   AnthropicToolUseContent,
 } from './AnthropicTypes';
-import { flattenToolResultContent, formatBase64, getThinkLevel } from './AnthropicTypes';
-import { recordDroppedField } from '../transformWarnings';
+import { formatBase64, getThinkLevel } from './AnthropicTypes';
+
+function decodeContentPart(part: AnthropicContent): MessageContent {
+  if (part.type === 'text') {
+    return { type: 'text', text: part.text, ...(part.cache_control ? { cache_control: part.cache_control } : {}) };
+  }
+  if (part.type === 'image') {
+    return {
+      type: 'image_url',
+      image_url: { url: part.source.type === 'base64'
+        ? formatBase64(part.source.data || '', part.source.media_type)
+        : part.source.url || '' },
+      media_type: part.source.media_type,
+    };
+  }
+  throw new Error(`Unsupported Anthropic content block: ${part.type}`);
+}
 
 export { buildAnthropicRequestBody } from './AnthropicRequestBuilder';
 export {
@@ -37,15 +50,21 @@ export {
   convertOpenAIResponseToAnthropic,
 } from './AnthropicResponseConversion';
 
+// Claude Code can send system turns inside messages as well as the top-level system field.
+type AnthropicIngressRequest = Omit<AnthropicRequest, 'messages'> & {
+  messages: Array<AnthropicRequest['messages'][number] | {
+    role: 'system';
+    content: string | AnthropicContent[];
+  }>;
+};
+
 /**
  * Transform an Anthropic Messages API request body to the unified request shape.
  * (Reverse direction of `buildAnthropicRequestBody`.)
  */
 export function transformAnthropicRequestToUnified(request: unknown): UnifiedChatRequest {
-  const anthropicRequest = request as AnthropicRequest;
+  const anthropicRequest = request as AnthropicIngressRequest;
   const messages: UnifiedMessage[] = [];
-  /** Set when any assistant turn carried a redacted_thinking block (audit). */
-  let redactedSeen = false;
 
   // Handle system message
   if (anthropicRequest.system) {
@@ -55,13 +74,14 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
         content: anthropicRequest.system,
       });
     } else if (Array.isArray(anthropicRequest.system)) {
-      const textParts = anthropicRequest.system
-        .filter((item) => item.type === 'text' && item.text)
-        .map((item) => ({
+      const textParts = anthropicRequest.system.map((item) => {
+        if (item.type !== 'text') throw new Error('Anthropic system messages only support text');
+        return {
           type: 'text' as const,
           text: item.text,
           cache_control: item.cache_control as { type?: string } | undefined,
-        }));
+        };
+      });
       if (textParts.length > 0) {
         messages.push({
           role: 'system',
@@ -72,10 +92,12 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
   }
 
   // Process messages
-  const requestMessages = JSON.parse(JSON.stringify(anthropicRequest.messages || []));
+  const requestMessages = anthropicRequest.messages || [];
 
   for (const msg of requestMessages) {
-    if (msg.role !== 'user' && msg.role !== 'assistant') continue;
+    if (msg.role !== 'user' && msg.role !== 'assistant' && msg.role !== 'system') {
+      throw new Error(`Unsupported Anthropic message role: ${msg.role}`);
+    }
 
     // String content
     if (typeof msg.content === 'string') {
@@ -88,51 +110,37 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
 
     // Array content
     if (Array.isArray(msg.content)) {
-      if (msg.role === 'user') {
+      if (msg.role === 'system') {
+        messages.push({
+          role: 'system',
+          content: msg.content.map((part) => {
+            if (part.type !== 'text') throw new Error('Anthropic system messages only support text');
+            return decodeContentPart(part);
+          }),
+        });
+      } else if (msg.role === 'user') {
         // Handle tool results
         const toolParts = msg.content.filter(
-          (c: AnthropicContent) => c.type === 'tool_result' && (c as AnthropicToolResultContent).tool_use_id
+          (c): c is AnthropicToolResultContent => c.type === 'tool_result'
         );
-        for (const tool of toolParts as AnthropicToolResultContent[]) {
+        for (const tool of toolParts) {
+          if (!tool.tool_use_id) throw new Error('Anthropic tool_result requires tool_use_id');
           messages.push({
             role: 'tool',
-            // Claude Code sends tool results as a block ARRAY; stringifying it
-            // fed the model the literal `[{"type":"text","text":"…"}]` envelope
-            // on every tool result.
-            content: flattenToolResultContent(tool.content),
+            content: Array.isArray(tool.content)
+              ? (tool.content as AnthropicContent[]).map(decodeContentPart)
+              : tool.content ?? '',
             tool_call_id: tool.tool_use_id,
             cache_control: tool.cache_control,
+            ...(tool.is_error !== undefined ? { is_error: tool.is_error } : {}),
           });
         }
 
-        // Handle text and images
-        const textAndMediaParts = msg.content.filter(
-          (c: AnthropicContent) =>
-            (c.type === 'text' && (c as AnthropicTextContent).text) ||
-            (c.type === 'image' && (c as AnthropicImageContent).source)
-        );
+        const textAndMediaParts = msg.content.filter((c) => c.type !== 'tool_result');
         if (textAndMediaParts.length > 0) {
           messages.push({
             role: 'user',
-            content: textAndMediaParts.map((part: AnthropicContent) => {
-              if (part.type === 'image') {
-                const imagePart = part as AnthropicImageContent;
-                return {
-                  type: 'image_url' as const,
-                  image_url: {
-                    url:
-                      imagePart.source.type === 'base64'
-                        ? formatBase64(imagePart.source.data || '', imagePart.source.media_type)
-                        : imagePart.source.url || '',
-                  },
-                  media_type: imagePart.source.media_type,
-                };
-              }
-              return {
-                type: 'text' as const,
-                text: (part as AnthropicTextContent).text,
-              };
-            }),
+            content: textAndMediaParts.map(decodeContentPart),
           });
         }
       } else if (msg.role === 'assistant') {
@@ -141,19 +149,19 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
           content: '',
         };
 
-        // Extract text
-        const textParts = msg.content.filter(
-          (c: AnthropicContent) => c.type === 'text' && (c as AnthropicTextContent).text
-        ) as AnthropicTextContent[];
+        const textParts = msg.content.filter((c): c is AnthropicTextContent => c.type === 'text');
         if (textParts.length > 0) {
-          assistantMessage.content = textParts.map((t) => t.text).join('\n');
+          assistantMessage.content = textParts.map(decodeContentPart);
         }
 
         // Extract tool calls
         const toolCallParts = msg.content.filter(
-          (c: AnthropicContent) => c.type === 'tool_use' && (c as AnthropicToolUseContent).id
-        ) as AnthropicToolUseContent[];
+          (c): c is AnthropicToolUseContent => c.type === 'tool_use'
+        );
         if (toolCallParts.length > 0) {
+          for (const tool of toolCallParts) {
+            if (!tool.id || !tool.name) throw new Error('Anthropic tool_use requires id and name');
+          }
           assistantMessage.tool_calls = toolCallParts.map((tool) => ({
             id: tool.id,
             type: 'function' as const,
@@ -161,56 +169,33 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
               name: tool.name,
               arguments: JSON.stringify(tool.input || {}),
             },
+            ...(typeof tool.extra_content?.google?.thought_signature === 'string'
+              ? { extra_content: { google: { thought_signature: tool.extra_content.google.thought_signature } } } : {}),
           }));
         }
 
-        // Extract thinking — IN BLOCK ORDER (R7/D5). The old `find` kept only
-        // the FIRST thinking block and silently dropped the rest, and
-        // `redacted_thinking` blocks vanished entirely. Now every block is
-        // concatenated in order: `thinking` blocks contribute their content
-        // (the first block's `signature` is kept — Unified has one signature
-        // slot; later signatures are appended into the content so echo-back
-        // upstreams keep the full material), and each `redacted_thinking`
-        // contributes a `[redacted thinking omitted]` placeholder AT ITS
-        // POSITION plus a dropped_field audit entry.
-        // The block is preserved even when `signature` is absent: some
-        // Anthropic-compatible providers (e.g. Xiaomi MiMo's
-        // `/anthropic/v1/messages`) still require the prior assistant's
-        // thinking content echoed back on the next tool_result turn.
-        let thinkingText = '';
-        let firstSignature: string | undefined;
-        let sawRedacted = false;
-        for (const block of msg.content) {
-          if (block.type === 'thinking') {
-            const t = (block as AnthropicThinkingContent).thinking;
-            if (typeof t === 'string' && t.length > 0) {
-              if (thinkingText.length > 0) thinkingText += '\n';
-              thinkingText += t;
-            }
-            const signature = (block as AnthropicThinkingContent).signature;
-            if (signature) {
-              if (firstSignature === undefined) {
-                firstSignature = signature;
-              } else if (typeof t === 'string' && t.length > 0) {
-                // Later-block signatures have no separate slot; keep them in
-                // the content so nothing is lost (Q3 dialect handling).
-                thinkingText += `\n[signature: ${signature}]`;
-              }
-            }
-          } else if (block.type === 'redacted_thinking') {
-            sawRedacted = true;
-            if (thinkingText.length > 0) thinkingText += '\n';
-            thinkingText += '[redacted thinking omitted]';
-          }
-        }
-        if (thinkingText.length > 0) {
+        const blocks = msg.content.filter(
+          (block) => block.type === 'thinking' || block.type === 'redacted_thinking'
+        ).map((block) => block.type === 'thinking'
+          ? { type: 'thinking' as const, thinking: block.thinking, ...(block.signature ? { signature: block.signature } : {}) }
+          : { type: 'redacted_thinking' as const, data: block.data });
+        if (blocks.length > 0) {
           assistantMessage.thinking = {
-            content: thinkingText,
-            signature: firstSignature,
+            content: blocks.filter((block) => block.type === 'thinking').map((block) => block.thinking).join(''),
+            blocks,
+            ...(blocks.length === 1 && blocks[0].type === 'thinking' && blocks[0].signature
+              ? { signature: blocks[0].signature } : {}),
           };
         }
-        if (sawRedacted) {
-          redactedSeen = true;
+        const googleParts = msg.content.flatMap((block) =>
+          Array.isArray(block.extra_content?.google?.parts) ? block.extra_content.google.parts : []);
+        if (googleParts.length) {
+          Object.assign(assistantMessage, { extra_content: { google: { parts: googleParts } } });
+        }
+        for (const block of msg.content) {
+          if (!['text', 'tool_use', 'thinking', 'redacted_thinking'].includes(block.type)) {
+            throw new Error(`Unsupported Anthropic assistant content block: ${block.type}`);
+          }
         }
 
         messages.push(assistantMessage);
@@ -218,10 +203,10 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
     }
   }
 
-  // Separate server-side tools (web_search, code_execution, etc.) from regular function tools.
-  // Server-side tools are preserved as-is and re-injected in transformRequestIn.
+  // Native tools have provider-defined schemas, whether executed by the server
+  // or client. Preserve their declarations rather than invent function schemas.
   const rawTools = (anthropicRequest.tools || []) as Array<Record<string, unknown>>;
-  const serverSideTools = rawTools.filter(t => isServerSideTool(t));
+  const serverSideTools = rawTools.filter(isNativeAnthropicTool);
   const functionTools = rawTools.length > 0
     ? convertAnthropicToolsToOpenAI(rawTools)
     : undefined;
@@ -251,10 +236,6 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
   if (typeof raw.top_k === 'number') result.top_k = raw.top_k;
   if (typeof raw.metadata?.user_id === 'string') result.metadata_user_id = raw.metadata.user_id;
 
-  if (redactedSeen) {
-    recordDroppedField(result, 'redacted_thinking', 'unified');
-  }
-
   // Preserve server-side tools for round-trip through transformer pipeline
   if (serverSideTools.length > 0) {
     (result as unknown as Record<string, unknown>)._serverSideTools = serverSideTools;
@@ -266,7 +247,10 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
       result.reasoning = { effort: 'none', enabled: false };
     } else if (anthropicRequest.thinking.type === 'adaptive') {
       const effort = normalizeThinkLevel(anthropicRequest.output_config?.effort);
-      if (effort) result.reasoning = { effort, enabled: effort !== 'none' };
+      if (anthropicRequest.output_config?.effort !== undefined && !effort) {
+        throw new Error(`Unsupported Anthropic effort: ${anthropicRequest.output_config.effort}`);
+      }
+      result.reasoning = { effort: effort ?? 'high', enabled: effort !== 'none' };
     } else {
       result.reasoning = {
         effort: getThinkLevel(anthropicRequest.thinking.budget_tokens),
@@ -286,7 +270,10 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
         function: { name: anthropicRequest.tool_choice.name },
       };
     } else {
-      result.tool_choice = anthropicRequest.tool_choice.type;
+      result.tool_choice = anthropicRequest.tool_choice.type === 'any' ? 'required' : anthropicRequest.tool_choice.type;
+    }
+    if (anthropicRequest.tool_choice.disable_parallel_tool_use !== undefined) {
+      result.parallel_tool_calls = !anthropicRequest.tool_choice.disable_parallel_tool_use;
     }
   }
 

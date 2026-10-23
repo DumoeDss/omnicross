@@ -1,3 +1,4 @@
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
 
 import type { ProviderConfigSource } from '../ports/provider-config-source';
@@ -113,7 +114,7 @@ export class RouteLeaseTargetResolver implements RouteLeaseTargetResolverPort {
     if (!provider) throw new RouteLeaseError('upstream_not_found', 'provider was not found');
     if (provider.enabled === false) throw new RouteLeaseError('upstream_unavailable', 'provider is disabled');
     const model = resolveOfficialModelRoute(provider, request.model)?.actualModelId ?? request.model;
-    if (!providerSupportsModel(provider, model)) {
+    if (!providerSupportsModel(provider, model) && !providerSupportsModel(provider, resolveModelRedirect(model))) {
       throw new RouteLeaseError('model_not_configured', 'model is not configured for the provider');
     }
 
@@ -175,7 +176,7 @@ export class RouteLeaseTargetResolver implements RouteLeaseTargetResolverPort {
     const profile = registry?.getProfile(target.providerId) ?? null;
     if (!profile) throw new RouteLeaseError('upstream_not_found', 'subscription provider was not found');
     await this.options.subscriptions?.assertAvailable(target, model);
-    const names = profile.resolveProviderTransformerNames?.(model) ?? profile.providerTransformerNames ?? [];
+    const names = profile.resolveProviderTransformerNames?.(resolveModelRedirect(model)) ?? profile.providerTransformerNames ?? [];
     if (names.some((name) => !transformerRegistered(this.llmConfig, name))) {
       throw new RouteLeaseError('format_unsupported', 'a required transformer is unavailable');
     }

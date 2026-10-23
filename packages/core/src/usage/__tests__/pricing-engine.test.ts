@@ -183,6 +183,56 @@ describe('PricingEngine.getEntry resolution order', () => {
     expect(await engine.getEntry('p', 'm')).toBeNull();
   });
 
+  it.each(['commandcode', '*', 'deepseek'])('prices publisher/date variants using a %s base row', async providerId => {
+    const engine = new PricingEngine(new FakePricingStore([
+      entry({ providerId, modelId: 'deepseek-v4.1-flash', inputPricePer1m: 1, outputPricePer1m: 2, cacheReadPricePer1m: 0.1 }),
+    ]), makeLogger());
+    for (const model of [
+      'deepseek/deepseek-v4.1-flash',
+      'deepseek-v4.1-flash-1017',
+      'deepseek/deepseek-v4.1-flash-1017',
+      'deepseek/deepseek-v4.1-flash-20261017',
+      'deepseek/deepseek-v4.1-flash-2026-10-17',
+    ]) {
+      expect((await engine.getEntry('commandcode', model))?.modelId).toBe('deepseek-v4.1-flash');
+      expect(await engine.calculateCost('commandcode', model, usage({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 1000 })))
+        .toEqual({ costUsd: 0.0021, costSavedByCacheUsd: 0.0009 });
+    }
+  });
+
+  it('prefers complete dated prices and provider-specific normalized rows before base estimates', async () => {
+    const engine = new PricingEngine(new FakePricingStore([
+      entry({ providerId: 'deepseek', modelId: 'deepseek-v4.1-flash', inputPricePer1m: 1 }),
+      entry({ providerId: '*', modelId: 'deepseek-v4.1-flash', inputPricePer1m: 2 }),
+      entry({ providerId: 'commandcode', modelId: 'deepseek-v4.1-flash', inputPricePer1m: 3 }),
+      entry({ providerId: 'deepseek', modelId: 'deepseek-v4.1-flash-1017', inputPricePer1m: 4 }),
+      entry({ providerId: 'commandcode', modelId: 'deepseek/deepseek-v4.1-flash-1017', inputPricePer1m: 5 }),
+    ]), makeLogger());
+    expect((await engine.getEntry('commandcode', 'deepseek/deepseek-v4.1-flash-1017'))?.inputPricePer1m).toBe(5);
+    expect((await engine.getEntry('commandcode', 'deepseek/deepseek-v4.1-flash-1018'))?.inputPricePer1m).toBe(3);
+    expect((await engine.getEntry('other', 'publisher/deepseek-v4.1-flash-1017'))?.inputPricePer1m).toBe(4);
+    expect((await engine.getEntry('other', 'deepseek/deepseek-v4.1-flash-1018'))?.inputPricePer1m).toBe(2);
+  });
+
+  it('does not guess across model versions, tiers, billing qualifiers or sibling releases', async () => {
+    const engine = new PricingEngine(new FakePricingStore([
+      entry({ providerId: 'deepseek', modelId: 'deepseek-v4-flash' }),
+      entry({ providerId: 'deepseek', modelId: 'deepseek-v4.1-pro' }),
+      entry({ providerId: 'deepseek', modelId: 'deepseek-v4.1-flash-1018' }),
+    ]), makeLogger());
+    for (const model of ['deepseek/deepseek-v4.1-flash', 'deepseek-v4.1-flash-1017', 'deepseek-v4-flash:free', 'deepseek-v4-flash-preview']) {
+      expect(await engine.getEntry('commandcode', model)).toBeNull();
+    }
+  });
+
+  it('uses normalized OpenRouter prices only within their own provider', async () => {
+    const engine = new PricingEngine(new FakePricingStore([
+      entry({ providerId: 'openrouter', modelId: 'deepseek/deepseek-v4.1-flash', source: 'openrouter', inputPricePer1m: 9 }),
+    ]), makeLogger());
+    expect((await engine.getEntry('openrouter', 'deepseek-v4.1-flash-1017'))?.inputPricePer1m).toBe(9);
+    expect(await engine.getEntry('commandcode', 'deepseek-v4.1-flash-1017')).toBeNull();
+  });
+
   it('fuzzy fallback matches a bare model id against prefixed catalog slugs (glm-5.2 hero)', async () => {
     // Real catalog shape: glm-5.2 only exists as prefixed slugs. Usage is
     // recorded under the user's provider id + bare model id.
@@ -323,6 +373,16 @@ describe('PricingEngine.upsertManual', () => {
     // exact wildcard lookup resolves (step 2), but a different model misses
     expect(await engine.getEntry('p', 'm')).not.toBeNull();
     expect(await engine.getEntry('p', 'other')).toBeNull();
+  });
+
+  it('immediately applies manual edits to publisher and dated lookup variants', async () => {
+    const engine = new PricingEngine(new FakePricingStore([
+      entry({ providerId: '*', modelId: 'deepseek-v4.1-flash', inputPricePer1m: 1 }),
+    ]), makeLogger());
+    const model = 'deepseek/deepseek-v4.1-flash-1017';
+    expect((await engine.getEntry('commandcode', model))?.inputPricePer1m).toBe(1);
+    await engine.upsertManual({ providerId: '*', modelId: 'deepseek-v4.1-flash', inputPricePer1m: 7, outputPricePer1m: 9 });
+    expect((await engine.getEntry('commandcode', model))?.inputPricePer1m).toBe(7);
   });
 });
 

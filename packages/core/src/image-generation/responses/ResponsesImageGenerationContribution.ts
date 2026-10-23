@@ -594,6 +594,9 @@ class RequestScope implements ResponsesImageRequestScope {
   }
 
   #buildRequest(call: ResponsesSelectedImageCall): ImageProviderRequest {
+    if (this.#admission.hasDirectInputImages) {
+      throw new ImageGenerationError('unsupported_capability', { param: 'input' });
+    }
     const options = this.#admission.options!;
     const common = {
       model: this.#runtime.imageModel,

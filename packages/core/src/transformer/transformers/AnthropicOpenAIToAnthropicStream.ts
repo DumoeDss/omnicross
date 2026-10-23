@@ -20,6 +20,9 @@
  */
 
 import type { TransformerContext, TransformerLogger } from '../types';
+import { readAnthropicSSE } from './AnthropicSSE';
+import { readGoogleReplayContent, type AnthropicReplayContent } from './AnthropicTypes';
+import { assertAnthropicChatStreamChunk } from './AnthropicStreamTypes';
 
 import {
   beginAnthropicImageDropScope,
@@ -109,375 +112,174 @@ export function convertOpenAIStreamToAnthropic(
   _context?: TransformerContext,
   logger?: TransformerLogger
 ): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
   const encoder = new TextEncoder();
-
-  let hasStarted = false;
-  let hasTextContentStarted = false;
-  let isThinkingStarted = false;
-  let contentIndex = 0;
-  let currentContentBlockIndex = -1;
-  const toolCallIndexToContentBlockIndex = new Map<number, number>();
-
-  // Hoisted so the `cancel()` handler (client disconnect) can reach it.
-  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  const reader = openaiStream.getReader();
+  let cancelled = false;
+  let pingTimer: NodeJS.Timeout | undefined;
+  const clearPing = () => { clearTimeout(pingTimer); pingTimer = undefined; };
 
   return new ReadableStream({
     start: async (controller) => {
-      reader = openaiStream.getReader();
-      let buffer = '';
-      const messageId = `msg_${Date.now()}`;
-      let model = 'unknown';
-      let isClosed = false;
-      let stopReasonDelta: Record<string, unknown> | null = null;
-
-      const safeEnqueue = (data: string) => {
-        if (!isClosed) {
-          try {
-            controller.enqueue(encoder.encode(data));
-          } catch (_e) {
-            isClosed = true;
-          }
+      let started = false;
+      let failed = false;
+      let finished = false;
+      let contentIndex = 0;
+      let active: { index: number; type: 'thinking' | 'text'; source?: unknown } | undefined;
+      const tools = new Map<number, { id: string; name: string; arguments: string; extra_content?: AnthropicReplayContent['extra_content'] }>();
+      let pendingGoogleParts: unknown[] = [];
+      let stopReason = 'end_turn';
+      let usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0 };
+      const emit = (event: Record<string, unknown>) => {
+        if (pendingGoogleParts.length &&
+          (event.type === 'content_block_start' || event.type === 'content_block_delta' ||
+            event.type === 'content_block_stop' || event.type === 'message_delta')) {
+          event.extra_content = { google: { parts: pendingGoogleParts } };
+          pendingGoogleParts = [];
         }
+        if (!cancelled) controller.enqueue(encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`));
       };
-
-      // ── Synthetic ping heartbeat (R6): a LAZY idle timeout, not a resident
-      // interval. Armed when the stream opens and re-armed after every chunk;
-      // fires only when the upstream goes silent past the configured interval,
-      // then re-arms. Cleared on end / error / cancel — a flowing stream never
-      // sees a synthesized frame, and a closed stream leaks no timer.
-      let pingTimer: ReturnType<typeof setTimeout> | null = null;
-      const clearPing = (): void => {
-        if (pingTimer !== null) {
-          clearTimeout(pingTimer);
-          pingTimer = null;
-        }
-      };
-      const armPing = (): void => {
+      const armPing = () => {
         clearPing();
         const interval = getAnthropicPingHeartbeatMs();
-        if (!(interval > 0)) return; // ≤0 → heartbeat disabled
-        pingTimer = setTimeout(() => {
-          pingTimer = null;
-          safeEnqueue(`event: ping\ndata: ${JSON.stringify({ type: 'ping' })}\n\n`);
-          armPing();
-        }, interval);
-        // Do not hold the event loop open just for a heartbeat.
-        (pingTimer as { unref?: () => void }).unref?.();
+        if (cancelled || interval <= 0) return;
+        pingTimer = setTimeout(() => { emit({ type: 'ping' }); armPing(); }, interval);
+        pingTimer.unref?.();
       };
-
-      const assignContentBlockIndex = (): number => {
-        return contentIndex++;
+      const closeBlock = () => {
+        if (!active) return;
+        emit({ type: 'content_block_stop', index: active.index });
+        active = undefined;
       };
-
-      const safeClose = () => {
-        if (isClosed) return;
-
-        // Close any open content block
-        if (currentContentBlockIndex >= 0) {
-          safeEnqueue(`event: content_block_stop\ndata: ${JSON.stringify({
-            type: 'content_block_stop',
-            index: currentContentBlockIndex,
-          })}\n\n`);
-        }
-
-        // Send message delta
-        if (stopReasonDelta) {
-          safeEnqueue(`event: message_delta\ndata: ${JSON.stringify(stopReasonDelta)}\n\n`);
-        } else {
-          safeEnqueue(`event: message_delta\ndata: ${JSON.stringify({
-            type: 'message_delta',
-            delta: { stop_reason: 'end_turn', stop_sequence: null },
-            usage: { input_tokens: 0, output_tokens: 0 },
-          })}\n\n`);
-        }
-
-        // Send message stop
-        safeEnqueue(`event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`);
-
-        try {
-          controller.close();
-        } catch (_e) {
-          // Already closed
-        }
-        isClosed = true;
+      const openBlock = (type: 'thinking' | 'text', source?: unknown) => {
+        if (active?.type === type && active.source === source) return;
+        closeBlock();
+        active = { index: contentIndex++, type, source };
+        emit({
+          type: 'content_block_start', index: active.index,
+          content_block: type === 'thinking' ? { type, thinking: '' } : { type, text: '' },
+        });
       };
-
       try {
-        // One bounded-drop warn per stream (chat-inline-images): the scope
-        // resets as the conversion opens so the first dropped-image chunk
-        // logs once, subsequent chunks only count.
         beginAnthropicImageDropScope();
         armPing();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (isClosed) break;
-            if (!line.startsWith('data:')) continue;
-
-            const data = line.slice(5).trim();
-            if (data === '[DONE]') continue;
-
-            try {
-              const chunk = JSON.parse(data);
-
-              if (chunk.error) {
-                safeEnqueue(`event: error\ndata: ${JSON.stringify({
-                  type: 'error',
-                  error: {
-                    type: sniffErrorType(chunk.error),
-                    message: JSON.stringify(chunk.error),
-                  },
-                })}\n\n`);
-                continue;
-              }
-
-              // R8 (claude-api-transform-fidelity): the codex Responses backend
-              // reports failures (incl. `server_is_overloaded` capacity events)
-              // as `response.failed` INSIDE a 200 stream. Without this branch
-              // the event vanished and the client saw an empty SUCCESS; now it
-              // surfaces as the official in-band error event (message = the
-              // upstream `response.error` serialized verbatim, so downstream
-              // observers — the messages overload bridge — can classify it).
-              if (chunk.type === 'response.failed' && chunk.response?.error) {
-                safeEnqueue(`event: error\ndata: ${JSON.stringify({
-                  type: 'error',
-                  error: {
-                    type: sniffErrorType(chunk.response.error),
-                    message: JSON.stringify(chunk.response.error),
-                  },
-                })}\n\n`);
-                continue;
-              }
-
-              model = chunk.model || model;
-
-              // Send message start
-              if (!hasStarted) {
-                hasStarted = true;
-                // R6: backfill the usage known AT EMISSION TIME. When the
-                // upstream's first (or triggering) chunk carries usage (e.g.
-                // include_usage up front), the client sees real input tokens
-                // in message_start instead of 0; otherwise 0 stays and the
-                // terminal message_delta accumulation covers it (unchanged).
-                const startUsage = chunk.usage
-                  ? {
-                      input_tokens: (chunk.usage.prompt_tokens || 0) -
-                        (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-                      output_tokens: chunk.usage.completion_tokens || 0,
-                    }
-                  : { input_tokens: 0, output_tokens: 0 };
-                safeEnqueue(`event: message_start\ndata: ${JSON.stringify({
-                  type: 'message_start',
-                  message: {
-                    id: messageId,
-                    type: 'message',
-                    role: 'assistant',
-                    content: [],
-                    model,
-                    stop_reason: null,
-                    stop_sequence: null,
-                    usage: startUsage,
-                  },
-                })}\n\n`);
-              }
-
-              const choice = chunk.choices?.[0];
-              if (!choice) continue;
-
-              // Honest boundary (chat-inline-images): delta.images has no
-              // Anthropic event equivalent — drop with a bounded count (no
-              // image data in any log or output frame).
-              const deltaImages = choice.delta?.images;
-              if (Array.isArray(deltaImages) && deltaImages.length > 0) {
-                noteDroppedInlineImages(deltaImages.length);
-              }
-
-              // Update usage for stop reason
-              if (chunk.usage) {
-                stopReasonDelta = {
-                  type: 'message_delta',
-                  delta: { stop_reason: 'end_turn', stop_sequence: null },
-                  usage: {
-                    input_tokens: (chunk.usage.prompt_tokens || 0) -
-                      (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-                    output_tokens: chunk.usage.completion_tokens || 0,
-                    cache_read_input_tokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-                  },
-                };
-              }
-
-              // Handle thinking content
-              if (choice.delta?.thinking) {
-                if (!isThinkingStarted) {
-                  const thinkingBlockIndex = assignContentBlockIndex();
-                  safeEnqueue(`event: content_block_start\ndata: ${JSON.stringify({
-                    type: 'content_block_start',
-                    index: thinkingBlockIndex,
-                    content_block: { type: 'thinking', thinking: '' },
-                  })}\n\n`);
-                  currentContentBlockIndex = thinkingBlockIndex;
-                  isThinkingStarted = true;
-                }
-
-                if (choice.delta.thinking.signature) {
-                  safeEnqueue(`event: content_block_delta\ndata: ${JSON.stringify({
-                    type: 'content_block_delta',
-                    index: currentContentBlockIndex,
-                    delta: { type: 'signature_delta', signature: choice.delta.thinking.signature },
-                  })}\n\n`);
-                  safeEnqueue(`event: content_block_stop\ndata: ${JSON.stringify({
-                    type: 'content_block_stop',
-                    index: currentContentBlockIndex,
-                  })}\n\n`);
-                  currentContentBlockIndex = -1;
-                } else if (choice.delta.thinking.content) {
-                  safeEnqueue(`event: content_block_delta\ndata: ${JSON.stringify({
-                    type: 'content_block_delta',
-                    index: currentContentBlockIndex,
-                    delta: { type: 'thinking_delta', thinking: choice.delta.thinking.content },
-                  })}\n\n`);
-                }
-              }
-
-              // Handle text content
-              if (choice.delta?.content) {
-                if (!hasTextContentStarted) {
-                  // Close thinking block if open
-                  if (currentContentBlockIndex >= 0 && isThinkingStarted) {
-                    safeEnqueue(`event: content_block_stop\ndata: ${JSON.stringify({
-                      type: 'content_block_stop',
-                      index: currentContentBlockIndex,
-                    })}\n\n`);
-                  }
-
-                  hasTextContentStarted = true;
-                  const textBlockIndex = assignContentBlockIndex();
-                  safeEnqueue(`event: content_block_start\ndata: ${JSON.stringify({
-                    type: 'content_block_start',
-                    index: textBlockIndex,
-                    content_block: { type: 'text', text: '' },
-                  })}\n\n`);
-                  currentContentBlockIndex = textBlockIndex;
-                }
-
-                safeEnqueue(`event: content_block_delta\ndata: ${JSON.stringify({
-                  type: 'content_block_delta',
-                  index: currentContentBlockIndex,
-                  delta: { type: 'text_delta', text: choice.delta.content },
-                })}\n\n`);
-              }
-
-              // Handle tool calls
-              if (choice.delta?.tool_calls) {
-                for (const toolCall of choice.delta.tool_calls) {
-                  const toolCallIndex = toolCall.index ?? 0;
-
-                  if (!toolCallIndexToContentBlockIndex.has(toolCallIndex)) {
-                    // Close previous content block
-                    if (currentContentBlockIndex >= 0) {
-                      safeEnqueue(`event: content_block_stop\ndata: ${JSON.stringify({
-                        type: 'content_block_stop',
-                        index: currentContentBlockIndex,
-                      })}\n\n`);
-                      hasTextContentStarted = false;
-                    }
-
-                    const newBlockIndex = assignContentBlockIndex();
-                    toolCallIndexToContentBlockIndex.set(toolCallIndex, newBlockIndex);
-
-                    safeEnqueue(`event: content_block_start\ndata: ${JSON.stringify({
-                      type: 'content_block_start',
-                      index: newBlockIndex,
-                      content_block: {
-                        type: 'tool_use',
-                        id: toolCall.id || `call_${Date.now()}_${toolCallIndex}`,
-                        name: toolCall.function?.name || `tool_${toolCallIndex}`,
-                        input: {},
-                      },
-                    })}\n\n`);
-                    currentContentBlockIndex = newBlockIndex;
-                  }
-
-                  if (toolCall.function?.arguments) {
-                    const blockIndex = toolCallIndexToContentBlockIndex.get(toolCallIndex);
-                    if (blockIndex !== undefined) {
-                      safeEnqueue(`event: content_block_delta\ndata: ${JSON.stringify({
-                        type: 'content_block_delta',
-                        index: blockIndex,
-                        delta: { type: 'input_json_delta', partial_json: toolCall.function.arguments },
-                      })}\n\n`);
-                    }
-                  }
-                }
-              }
-
-              // Handle finish reason
-              if (choice.finish_reason) {
-                if (choice.finish_reason === 'content_filter') {
-                  noteContentFilterRemap(logger);
-                }
-                // R6: `content_filter` maps to `refusal` (the Anthropic
-                // semantic for refused content — `stop_sequence` was wrong);
-                // `refusal` / `pause_turn` are shape-first placeholders for
-                // upstreams that emit them natively; unknown values still fall
-                // back to `end_turn`.
-                const stopReasonMapping: Record<string, string> = {
-                  stop: 'end_turn',
-                  length: 'max_tokens',
-                  tool_calls: 'tool_use',
-                  content_filter: 'refusal',
-                  refusal: 'refusal',
-                  pause_turn: 'pause_turn',
-                };
-
-                stopReasonDelta = {
-                  type: 'message_delta',
-                  delta: {
-                    stop_reason: stopReasonMapping[choice.finish_reason] || 'end_turn',
-                    stop_sequence: null,
-                  },
-                  usage: {
-                    input_tokens: (chunk.usage?.prompt_tokens || 0) -
-                      (chunk.usage?.prompt_tokens_details?.cached_tokens || 0),
-                    output_tokens: chunk.usage?.completion_tokens || 0,
-                    cache_read_input_tokens: chunk.usage?.prompt_tokens_details?.cached_tokens || 0,
-                  },
-                };
-              }
-            } catch (e) {
-              logger?.error('Error parsing stream chunk:', e);
+        await readAnthropicSSE(reader, (raw) => {
+          if (cancelled) return false;
+          const chunk: unknown = raw;
+          assertAnthropicChatStreamChunk(chunk);
+          armPing();
+          const error = chunk.error ?? (chunk.type === 'response.failed' ? chunk.response?.error : undefined);
+          if (error) {
+            failed = true;
+            emit({ type: 'error', error: { type: sniffErrorType(error), message: JSON.stringify(error) } });
+            return false;
+          }
+          if (chunk.usage) {
+            usage = {
+              input_tokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+              output_tokens: chunk.usage.completion_tokens || 0,
+              cache_read_input_tokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+            };
+          }
+          if (!started) {
+            started = true;
+            emit({
+              type: 'message_start',
+              message: {
+                id: chunk.id || `msg_${Date.now()}`, type: 'message', role: 'assistant',
+                content: [], model: chunk.model || 'unknown', stop_reason: null, stop_sequence: null, usage,
+              },
+            });
+          }
+          if ((chunk.choices?.length ?? 0) > 1 || chunk.choices?.some(choice => choice.index !== undefined && choice.index !== 0)) {
+            throw new Error('Multiple Chat candidates cannot be represented by one Anthropic message');
+          }
+          const choice = chunk.choices?.[0];
+          if (!choice) return;
+          const delta = choice.delta ?? {};
+          const replay = readGoogleReplayContent(delta.extra_content);
+          if (replay?.google?.parts) pendingGoogleParts.push(...replay.google.parts);
+          if (Array.isArray(delta.images) && delta.images.length) noteDroppedInlineImages(delta.images.length);
+          const thinking = typeof delta.thinking === 'string' ? { content: delta.thinking } : delta.thinking;
+          const reasoning = thinking?.content ?? delta.reasoning_content;
+          if ((typeof reasoning === 'string' && (!replay || reasoning.length > 0)) ||
+            (!replay && thinking?.signature !== undefined)) {
+            openBlock('thinking', thinking?.index);
+            if (typeof reasoning === 'string' && reasoning.length) {
+              emit({ type: 'content_block_delta', index: active!.index, delta: { type: 'thinking_delta', thinking: reasoning } });
+            }
+            if (!replay && typeof thinking?.signature === 'string') {
+              emit({ type: 'content_block_delta', index: active!.index, delta: { type: 'signature_delta', signature: thinking.signature } });
             }
           }
-          // Chunk fully processed → the stream is not idle; restart the
-          // silence clock.
-          armPing();
+          if (thinking?.type === 'redacted_thinking') {
+            closeBlock();
+            const index = contentIndex++;
+            emit({ type: 'content_block_start', index, content_block: { type: 'redacted_thinking', data: thinking.data } });
+            emit({ type: 'content_block_stop', index });
+          }
+          if (thinking?.done) closeBlock();
+          if (typeof delta.content === 'string' && delta.content.length) {
+            openBlock('text');
+            emit({ type: 'content_block_delta', index: active!.index, delta: { type: 'text_delta', text: delta.content } });
+          }
+          // Chat interleaves argument fragments for parallel calls. Buffer each
+          // call until completion so Anthropic blocks never receive deltas after stop.
+          for (const tool of delta.tool_calls ?? []) {
+            const index = tool.index ?? 0;
+            let state = tools.get(index);
+            if (!state) {
+              state = { id: '', name: '', arguments: '' };
+              tools.set(index, state);
+            }
+            if (tool.id) state.id = tool.id;
+            if (tool.function?.name) state.name += tool.function.name;
+            if (tool.function?.arguments) state.arguments += tool.function.arguments;
+            const toolReplay = readGoogleReplayContent(tool.extra_content);
+            if (toolReplay) state.extra_content = toolReplay;
+          }
+          if (choice.finish_reason) {
+            finished = true;
+            if (choice.finish_reason === 'content_filter') noteContentFilterRemap(logger);
+            const reasons: Record<string, string> = {
+              stop: 'end_turn', length: 'max_tokens', tool_calls: 'tool_use',
+              content_filter: 'refusal', refusal: 'refusal', pause_turn: 'pause_turn',
+            };
+            stopReason = reasons[choice.finish_reason] || 'end_turn';
+          }
+        }, logger);
+        if (!cancelled && !failed) {
+          if (!started) throw new Error('Upstream stream ended without a message');
+          if (!finished) throw new Error('OpenAI stream ended without finish_reason');
+          closeBlock();
+          for (const tool of tools.values()) {
+            if (!tool.id || !tool.name) throw new Error('Upstream tool call is missing its id or name');
+            const index = contentIndex++;
+            emit({
+              type: 'content_block_start', index,
+              content_block: {
+                type: 'tool_use', id: tool.id, name: tool.name, input: {},
+                ...(tool.extra_content ? { extra_content: tool.extra_content } : {}),
+              },
+            });
+            if (tool.arguments) emit({ type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: tool.arguments } });
+            emit({ type: 'content_block_stop', index });
+          }
+          emit({ type: 'message_delta', delta: { stop_reason: stopReason, stop_sequence: null }, usage });
+          emit({ type: 'message_stop' });
         }
-      } catch (e) {
-        if (!isClosed) {
-          controller.error(e);
-        }
+        if (!cancelled) controller.close();
+      } catch (error) {
+        await reader.cancel(error).catch(() => {});
+        if (!cancelled) controller.error(error);
       } finally {
         clearPing();
-        safeClose();
         reader.releaseLock();
       }
     },
-    // R6: client disconnect. Cancelling the upstream reader settles the pending
-    // read(), which unblocks the loop's `finally` → `clearPing` — the timer is
-    // cleared INDIRECTLY (pinned by the cancel-leak fake-timer test).
-    cancel: async () => {
-      try {
-        await reader?.cancel();
-      } catch (_e) {
-        // Upstream already closed/errored — nothing to cancel.
-      }
+    cancel: async (reason) => {
+      cancelled = true;
+      clearPing();
+      await reader.cancel(reason);
     },
   });
 }

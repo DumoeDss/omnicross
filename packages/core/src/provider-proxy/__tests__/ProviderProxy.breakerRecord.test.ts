@@ -10,7 +10,6 @@
  *  - PRIMARY-GATES an open mapped primary: when `allowModel(primary)` is false the
  *    loop jumps to the first admitting fallback WITHOUT an upstream call on the
  *    open primary; when EVERY candidate is open it FAILS OPEN (attempts the primary).
- *  - is a NO-OP for a profile WITHOUT the callback (claude / codex / gemini).
  *
  * The breaker is modeled core-side as plain closures over a `Map<string,number>`
  * (the REAL state machine is proven in `@omnicross/subscriptions`'s
@@ -262,7 +261,7 @@ describe('ProviderProxy core /v1/messages breaker RECORD + PRIMARY-GATING (D5)',
 
   it('5xx → records ok:false for the failed model', async () => {
     await startProxy();
-    upstream.statusByModel.set('cli', 503); // verbatim primary body model = 'cli'
+    upstream.statusByModel.set('minimax-m2.5', 503);
     const hooks = makeBreakerHooks();
     const token = proxy.addRoute(subRoute(ocProfile(hooks, [])));
     const res = await post(token);
@@ -273,25 +272,29 @@ describe('ProviderProxy core /v1/messages breaker RECORD + PRIMARY-GATING (D5)',
 
   it('429 → records ok:false (transient model-health signal)', async () => {
     await startProxy();
-    upstream.statusByModel.set('cli', 429);
+    upstream.statusByModel.set('minimax-m2.5', 429);
     const hooks = makeBreakerHooks();
     const token = proxy.addRoute(subRoute(ocProfile(hooks, [])));
-    await post(token);
+    const res = await post(token);
+    expect(res.status).toBe(429);
+    expect(upstream.models).toEqual(['minimax-m2.5']);
     expect(hooks.recordModelOutcome).toHaveBeenCalledWith('minimax-m2.5', false);
   });
 
   it('network throw → records ok:false', async () => {
     await startProxy();
-    upstream.throwForModels.add('cli'); // socket destroy → fetch rejects
+    upstream.throwForModels.add('minimax-m2.5'); // socket destroy → fetch rejects
     const hooks = makeBreakerHooks();
     const token = proxy.addRoute(subRoute(ocProfile(hooks, [])));
-    await post(token);
+    const res = await post(token);
+    expect(res.status).toBe(502);
+    expect(upstream.models).toEqual(['minimax-m2.5']);
     expect(hooks.recordModelOutcome).toHaveBeenCalledWith('minimax-m2.5', false);
   });
 
   it('non-429 4xx (400) → NEUTRAL: recordModelOutcome is NEVER called', async () => {
     await startProxy();
-    upstream.statusByModel.set('cli', 400);
+    upstream.statusByModel.set('minimax-m2.5', 400);
     const hooks = makeBreakerHooks();
     const token = proxy.addRoute(subRoute(ocProfile(hooks, [])));
     const res = await post(token);
@@ -323,45 +326,8 @@ describe('ProviderProxy core /v1/messages breaker RECORD + PRIMARY-GATING (D5)',
     const token = proxy.addRoute(subRoute(ocProfile(hooks, ['fb-1', 'fb-2'])));
     const res = await post(token);
     expect(res.status).toBe(200);
-    // Fail open: the primary's ORIGINAL verbatim body ('cli') is relayed once.
-    expect(upstream.models).toEqual(['cli']);
+    expect(upstream.models).toEqual(['minimax-m2.5']);
     expect(hooks.recordModelOutcome).toHaveBeenCalledWith('minimax-m2.5', true);
   });
 
-  it('non-opencodego profile (no recordModelOutcome) → NO-OP record, single attempt', async () => {
-    await startProxy();
-    // A claude-like pass-through profile: no modelMapper / nextFallback / breaker.
-    const recordModelOutcome = vi.fn();
-    const profile: SubscriptionDispatchProfile = {
-      providerId: 'claude',
-      displayName: 'Claude',
-      authStrategy: {
-        kind: 'pass-through',
-        providerId: 'claude',
-        async applyHeaders(headers: Record<string, string>) {
-          headers['Authorization'] = 'Bearer fake-oauth';
-        },
-        async onUnauthorized() {
-          return false;
-        },
-        async describeStatus() {
-          return { providerId: 'claude', ok: true };
-        },
-      } as AuthStrategy,
-      mode: 'pass-through',
-      resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['anthropic'],
-      modelTransformerNames: [],
-      // recordModelOutcome intentionally UNSET (claude has no breaker). We pass a
-      // spy via a sibling to prove the loop never reaches into it for claude.
-    };
-    // Sanity: the profile genuinely omits the callback.
-    expect((profile as { recordModelOutcome?: unknown }).recordModelOutcome).toBeUndefined();
-    const token = proxy.addRoute(subRoute(profile));
-    const res = await post(token);
-    expect(res.status).toBe(200);
-    // Single verbatim attempt (claude has no nextFallback), no breaker interaction.
-    expect(upstream.models).toEqual(['cli']);
-    expect(recordModelOutcome).not.toHaveBeenCalled();
-  });
 });

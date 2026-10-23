@@ -11,8 +11,8 @@ const MIMO_HOSTS = new Set(['api.xiaomimimo.com', 'token-plan-cn.xiaomimimo.com'
 export function resolveRetiredOfficialModel(model: string, baseUrl: string): string {
   try {
     const url = new URL(baseUrl);
-    return url.protocol === 'https:' && MIMO_HOSTS.has(url.hostname)
-      ? MIMO_REPLACEMENTS[model] ?? model : model;
+    return url.protocol === 'https:' && MIMO_HOSTS.has(url.hostname) && Object.hasOwn(MIMO_REPLACEMENTS, model)
+      ? MIMO_REPLACEMENTS[model] : model;
   } catch {
     return model;
   }
@@ -24,11 +24,13 @@ export function refreshOfficialTextModels<T extends LLMProvider>(provider: T): T
   const update = (id: string) => resolveRetiredOfficialModel(id, endpoint);
   if (!(provider.models ?? []).some((id) => update(id) !== id)
     && !(provider.modelConfigs ?? []).some((model) => update(model.id) !== model.id)) return provider;
-  const current = new Set((provider.models ?? []).filter((id) => update(id) === id));
+  const currentConfigs = new Set((provider.modelConfigs ?? [])
+    .filter((model) => update(model.id) === model.id).map((model) => model.id));
   return {
     ...provider,
     models: [...new Set((provider.models ?? []).map(update))],
-    modelConfigs: provider.modelConfigs?.filter((model) => update(model.id) === model.id || !current.has(update(model.id)))
+    modelConfigs: provider.modelConfigs?.filter((model) =>
+      update(model.id) === model.id || !currentConfigs.has(update(model.id)))
       .map((model) => update(model.id) === model.id ? model : {
         ...model, id: update(model.id), name: model.name.replace(/v2\.5/gu, 'v2.6'),
       }),

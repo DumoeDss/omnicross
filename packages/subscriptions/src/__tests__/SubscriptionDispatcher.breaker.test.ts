@@ -18,6 +18,10 @@
 import type http from 'node:http';
 
 import type { OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
+import { TransformerChainExecutor } from '@omnicross/core/transformer/TransformerChainExecutor';
+import { TransformerService } from '@omnicross/core/transformer/TransformerService';
+import { AnthropicTransformer } from '@omnicross/core/transformer/transformers/AnthropicTransformer';
+import { OpenAITransformer } from '@omnicross/core/transformer/transformers/OpenAITransformer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CircuitBreakerRegistry } from '../opencodego/CircuitBreaker';
@@ -82,7 +86,7 @@ function makeProfile(
     mode: 'transformer',
     // MiniMax (anthropic-shape) → /v1/messages → verbatim bypass loop.
     resolveUpstreamUrl: () => 'https://opencode.ai/zen/go/v1/messages',
-    providerTransformerNames: ['opencodego'],
+    providerTransformerNames: ['openai'],
     modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
     nextFallback: (_scenario, attempted) => scanNextFallback(breaker, fallbacks, attempted),
     allowModel: (modelId) => breaker.allowRequest(modelId),
@@ -102,11 +106,14 @@ function makeHooks(opts: {
 }): DispatcherHooks {
   const statusByModel = opts.statusByModel ?? new Map<string, number>();
   const throwForModels = opts.throwForModels ?? new Set<string>();
+  const transformerService = new TransformerService();
+  transformerService.registerTransformer('openai', new OpenAITransformer());
   return {
-    endpointTransformer: {} as DispatcherHooks['endpointTransformer'],
-    executor: {} as DispatcherHooks['executor'],
-    transformerService: {} as DispatcherHooks['transformerService'],
-    fetchWithRetry: vi.fn(async (_url: string, _headers, _body, model: string) => {
+    endpointTransformer: new AnthropicTransformer(),
+    executor: new TransformerChainExecutor(),
+    transformerService,
+    fetchWithRetry: vi.fn(async (_url: string, _headers: Record<string, string>, body: unknown, model: string) => {
+      expect(body).toMatchObject({ model });
       opts.fetched.push(model);
       if (throwForModels.has(model)) {
         throw new Error('ECONNRESET'); // status-less network failure
@@ -115,7 +122,13 @@ function makeHooks(opts: {
       if (status < 200 || status >= 300) {
         throw new FakeProviderApiError(status);
       }
-      return new Response(JSON.stringify({ ok: true }), {
+      return new Response(JSON.stringify({
+        id: 'chatcmpl-breaker',
+        object: 'chat.completion',
+        model,
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }), {
         status,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -125,11 +138,12 @@ function makeHooks(opts: {
 }
 
 function makeReq(): DispatchRequest {
+  const anthropicBody = { model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] };
   return {
     reqId: 1,
     res: {} as http.ServerResponse,
-    rawBody: JSON.stringify({ model: 'cli', messages: [] }),
-    anthropicBody: { model: 'cli', messages: [] },
+    rawBody: JSON.stringify(anthropicBody),
+    anthropicBody,
     isStream: false,
     sdkModel: 'cli',
     fallbackModel: 'minimax-m2.5',
@@ -141,11 +155,11 @@ const NO_CONFIG = async (): Promise<OpenCodeGoTokenConfig | undefined> => undefi
 describe('SubscriptionDispatcher circuit breaker (D5)', () => {
   it('records a failure on 5xx and a success on 2xx (drives the breaker)', async () => {
     const breaker = new CircuitBreakerRegistry();
+    const recordFailure = vi.spyOn(breaker, 'recordFailure');
+    const recordSuccess = vi.spyOn(breaker, 'recordSuccess');
     const fetched: string[] = [];
     const profile = makeProfile(breaker, ['fb-1', 'fb-2']);
-    // First two hits on the SAME model 5xx; the breaker opens after 3 failures.
-    // Here we just assert recording happens: minimax-m2.5 → 503 (failure recorded),
-    // fb-1 → 503 (failure recorded), fb-2 → 200 (success recorded).
+    // The first two models fail; the third succeeds.
     const statusByModel = new Map<string, number>([
       ['minimax-m2.5', 503],
       ['fb-1', 503],
@@ -157,8 +171,8 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
     );
     await dispatcher.dispatch(makeReq());
     expect(fetched).toEqual(['minimax-m2.5', 'fb-1', 'fb-2']);
-    // minimax-m2.5 + fb-1 each recorded ONE failure; fb-2 recorded a success.
-    expect(breaker.allowRequest('fb-2')).toBe(true); // success keeps it closed
+    expect(recordFailure.mock.calls).toEqual([['minimax-m2.5'], ['fb-1']]);
+    expect(recordSuccess.mock.calls).toEqual([['fb-2']]);
   });
 
   it('opens a model after 3 recorded failures (then skips it as primary)', async () => {
@@ -219,7 +233,7 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
       );
       // The 400 surfaces as a throw (no fallback eligible for it under the
       // dispatcher's own advance logic; nextFallback list is empty anyway).
-      await expect(dispatcher.dispatch(makeReq())).rejects.toBeTruthy();
+      await expect(dispatcher.dispatch(makeReq())).rejects.toMatchObject({ status: 400 });
       expect(fetched).toEqual(['minimax-m2.5']);
     }
     // After three 400s the circuit is STILL closed (400 is neutral).
@@ -236,7 +250,7 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
         makeHooks({ statusByModel: new Map([['minimax-m2.5', 429]]), fetched: [] }),
         NO_CONFIG,
       );
-      await expect(dispatcher.dispatch(makeReq())).rejects.toBeTruthy();
+      await expect(dispatcher.dispatch(makeReq())).rejects.toMatchObject({ status: 429 });
     }
     expect(breaker429.allowRequest('minimax-m2.5')).toBe(false); // opened by 429s
 
@@ -249,12 +263,12 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
         makeHooks({ throwForModels: new Set(['minimax-m2.5']), fetched: [] }),
         NO_CONFIG,
       );
-      await expect(dispatcher.dispatch(makeReq())).rejects.toBeTruthy();
+      await expect(dispatcher.dispatch(makeReq())).rejects.toThrow('ECONNRESET');
     }
     expect(breakerNet.allowRequest('minimax-m2.5')).toBe(false); // opened by net throws
   });
 
-  it('all-closed behavior is unchanged: one verbatim hit on the primary, no breaker effect', async () => {
+  it('a healthy primary succeeds once without consulting fallbacks', async () => {
     const breaker = new CircuitBreakerRegistry();
     const fetched: string[] = [];
     const next = vi.fn(() => null);
@@ -268,7 +282,6 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
       NO_CONFIG,
     );
     await dispatcher.dispatch(makeReq());
-    // Byte-identical happy path: single attempt on the mapped primary, no fallback.
     expect(fetched).toEqual(['minimax-m2.5']);
     expect(next).not.toHaveBeenCalled();
     // Success recorded → primary stays closed.
@@ -288,7 +301,7 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
         makeHooks({ statusByModel: new Map([['minimax-m2.5', 0]]), fetched: [] }),
         NO_CONFIG,
       );
-      await expect(dispatcher.dispatch(makeReq())).rejects.toBeTruthy();
+      await expect(dispatcher.dispatch(makeReq())).rejects.toMatchObject({ status: 0 });
     }
     // Three cancels did NOT open the circuit (cancel is neutral, not a failure).
     expect(breaker.allowRequest('minimax-m2.5')).toBe(true);

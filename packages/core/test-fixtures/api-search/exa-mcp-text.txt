@@ -1,0 +1,10 @@
+Title: HTTP headers - MDN Web Docs
+URL: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers
+Published: 2026-09-12
+Highlights: HTTP headers pass additional information with requests and responses.
+Headers can be grouped according to their contexts.
+
+Title: N/A
+URL: https://httpwg.org/specs/
+Published: N/A
+Highlights: Specifications maintained by the HTTP Working Group.

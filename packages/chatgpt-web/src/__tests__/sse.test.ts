@@ -4,7 +4,7 @@
  * @module @omnicross/chatgpt-web/bridge/__tests__/sse.test
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildResponseJSON, bridgeToResponsesSSE } from '../bridge/sse';
 import { decodeCompactionSummary } from '../bridge/compaction';
@@ -97,6 +97,38 @@ describe('bridgeToResponsesSSE', () => {
     expect(output).toContain('event: response.incomplete');
     expect(output).toContain('adapter_eof');
   });
+
+  it('releases an adapter when the client cancels its response', async () => {
+    const pending = Promise.withResolvers<IteratorResult<BridgeEvent>>();
+    const returned = vi.fn(async () => {
+      const result = { done: true as const, value: undefined };
+      pending.resolve(result);
+      return result;
+    });
+    const adapter: AsyncIterable<BridgeEvent> = {
+      [Symbol.asyncIterator]: () => ({
+        next: () => pending.promise,
+        return: returned,
+      }),
+    };
+    const reader = bridgeToResponsesSSE(adapter, 'chatgpt-web/pro').getReader();
+    await reader.cancel();
+    expect(returned).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not label a truncated function call as completed', async () => {
+    const output = await collect(bridgeToResponsesSSE(eventsOf([
+      { type: 'tool_call_start', id: 'c1', name: 'shell' },
+      { type: 'tool_call_delta', arguments: '{"command":' },
+      { type: 'error', message: 'connection lost' },
+    ]), 'chatgpt-web/pro'));
+    const frames = output.split('\n').filter((line) => line.startsWith('data: {'))
+      .map((line) => JSON.parse(line.slice(6)));
+    const failed = frames.find((frame) => frame.type === 'response.failed');
+    expect(failed.response.output).toMatchObject([
+      { type: 'function_call', call_id: 'c1', arguments: '{"command":', status: 'incomplete' },
+    ]);
+  });
 });
 
 describe('buildResponseJSON', () => {
@@ -119,5 +151,52 @@ describe('buildResponseJSON', () => {
     );
     expect(document['status']).toBe('failed');
     expect((document['output'] as unknown[])).toHaveLength(0);
+  });
+
+  it('preserves reasoning, function/custom calls and text in emitted order', () => {
+    const document = buildResponseJSON([
+      { type: 'thinking_delta', thinking: 'plan' },
+      { type: 'text_delta', text: 'calling' },
+      { type: 'tool_call_start', id: 'f1', name: 'shell' },
+      { type: 'tool_call_delta', arguments: '{"command":' },
+      { type: 'tool_call_delta', arguments: '"pwd"}' },
+      { type: 'tool_call_end' },
+      { type: 'tool_call_start', id: 'f2', name: 'patch', freeform: true },
+      { type: 'tool_call_delta', arguments: '{"input":"raw patch"}' },
+      { type: 'tool_call_end' },
+      { type: 'text_delta', text: 'after tools' },
+      { type: 'done' },
+      { type: 'error', message: 'late event must not overwrite completion' },
+    ], 'chatgpt-web/pro');
+    expect(document.status).toBe('completed');
+    expect(document.output).toMatchObject([
+      { type: 'reasoning', summary: [{ text: 'plan' }] },
+      { type: 'message', content: [{ text: 'calling' }] },
+      { type: 'function_call', call_id: 'f1', name: 'shell', arguments: '{"command":"pwd"}' },
+      { type: 'custom_tool_call', call_id: 'f2', name: 'patch', input: 'raw patch' },
+      { type: 'message', content: [{ text: 'after tools' }] },
+    ]);
+  });
+
+  it('reports adapter EOF as incomplete and never produces successful compaction', () => {
+    const document = buildResponseJSON([{ type: 'text_delta', text: 'partial' }], 'chatgpt-web/pro', { compaction: true });
+    expect(document).toMatchObject({ status: 'incomplete', incomplete_details: { reason: 'adapter_eof' }, output: [] });
+  });
+
+  it('keeps compaction output to one checkpoint even when the browser exposes reasoning', async () => {
+    const events: BridgeEvent[] = [
+      { type: 'thinking_delta', thinking: 'summarizing' },
+      { type: 'text_delta', text: 'checkpoint' },
+      { type: 'done' },
+    ];
+    const json = buildResponseJSON(events, 'chatgpt-web/pro', { compaction: true });
+    expect(json.output).toMatchObject([{ type: 'compaction' }]);
+    expect(json.output).toHaveLength(1);
+    const streamed = await collect(bridgeToResponsesSSE(eventsOf(events), 'chatgpt-web/pro', { compaction: true }));
+    expect(streamed).not.toContain('reasoning_summary');
+    const completed = streamed.split('\n').filter((line) => line.startsWith('data: {'))
+      .map((line) => JSON.parse(line.slice(6))).find((frame) => frame.type === 'response.completed');
+    expect(completed.response.output).toHaveLength(1);
+    expect(completed.response.output[0].type).toBe('compaction');
   });
 });

@@ -23,8 +23,12 @@
  * robust to either shape.
  */
 export function peelCcaResponseEnvelope(parsed: unknown): unknown {
-  if (parsed && typeof parsed === 'object' && 'response' in (parsed as Record<string, unknown>)) {
-    return (parsed as Record<string, unknown>).response;
+  if (parsed && typeof parsed === 'object' && 'response' in parsed && !('error' in parsed)) {
+    const inner = (parsed as Record<string, unknown>).response;
+    if (!inner || typeof inner !== 'object' || Array.isArray(inner)) {
+      throw new Error('Invalid Code Assist response envelope');
+    }
+    return inner;
   }
   return parsed;
 }
@@ -36,72 +40,84 @@ export function peelCcaResponseEnvelope(parsed: unknown): unknown {
  * the right (json vs stream) handler.
  */
 export async function unwrapCcaResponse(response: Response): Promise<Response> {
-  const contentType = response.headers.get('Content-Type') ?? '';
+  return mapCcaResponse(response, peelCcaResponseEnvelope);
+}
 
-  // Streaming: peel each `data:` line's `.response`.
-  if (contentType.includes('stream') || contentType.includes('text/event-stream')) {
-    const sourceBody = response.body;
-    if (!sourceBody) return response;
+/** Encode the same envelope for JSON responses and complete SSE events. */
+export async function wrapCcaResponse(response: Response): Promise<Response> {
+  return mapCcaResponse(response, (parsed) =>
+    parsed && typeof parsed === 'object' && 'error' in parsed ? parsed : { response: parsed });
+}
+
+async function mapCcaResponse(
+  response: Response,
+  mapPayload: (parsed: unknown) => unknown,
+): Promise<Response> {
+  const contentType = response.headers.get('Content-Type') ?? '';
+  const headers = new Headers(response.headers);
+  // The re-encoded bytes no longer have the upstream length or compression.
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  const init = { status: response.status, statusText: response.statusText, headers };
+
+  if (contentType.includes('stream')) {
+    if (!response.body) return response;
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
-    const peeled = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const reader = sourceBody.getReader();
-        let buffer = '';
-        const processLine = (line: string) => {
-          if (!line.startsWith('data:')) {
-            // Forward non-data lines (blank separators, comments) verbatim.
-            if (line.length > 0) controller.enqueue(encoder.encode(`${line}\n`));
-            return;
-          }
-          const payload = line.slice(line.indexOf(':') + 1).trim();
-          if (!payload || payload === '[DONE]') {
-            controller.enqueue(encoder.encode(`${line}\n`));
-            return;
-          }
-          try {
-            const parsed = JSON.parse(payload);
-            const inner = peelCcaResponseEnvelope(parsed);
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(inner)}\n`));
-          } catch {
-            // Unparseable chunk — forward verbatim so the downstream parser logs it.
-            controller.enqueue(encoder.encode(`${line}\n`));
-          }
-        };
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              if (buffer) processLine(buffer);
-              break;
-            }
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) processLine(line);
-          }
-        } catch (err) {
-          controller.error(err);
-        } finally {
-          controller.close();
+    let buffer = '';
+    let lines: string[] = [];
+    const emitEvent = (controller: TransformStreamDefaultController<Uint8Array>) => {
+      const data = lines.filter((line) => line.startsWith('data:'));
+      if (data.length > 0) {
+        const payload = data.map((line) => line.slice(5).replace(/^ /, '')).join('\n');
+        if (payload.trim() && payload.trim() !== '[DONE]') {
+          const mapped = `data: ${JSON.stringify(mapPayload(JSON.parse(payload)))}`;
+          let emitted = false;
+          lines = lines.flatMap((line) => {
+            if (!line.startsWith('data:')) return [line];
+            if (emitted) return [];
+            emitted = true;
+            return [mapped];
+          });
         }
+      }
+      controller.enqueue(encoder.encode(`${lines.join('\n')}\n\n`));
+      lines = [];
+    };
+    const drain = (controller: TransformStreamDefaultController<Uint8Array>, final: boolean) => {
+      let start = 0;
+      for (let index = 0; index < buffer.length; index++) {
+        const char = buffer[index];
+        if (char !== '\r' && char !== '\n') continue;
+        if (char === '\r' && index === buffer.length - 1 && !final) break;
+        const line = buffer.slice(start, index);
+        if (char === '\r' && buffer[index + 1] === '\n') index++;
+        start = index + 1;
+        if (line === '') emitEvent(controller);
+        else lines.push(line);
+      }
+      buffer = buffer.slice(start);
+      if (final) {
+        if (buffer) lines.push(buffer);
+        if (lines.length > 0) emitEvent(controller);
+      }
+    };
+    const body = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        buffer += decoder.decode(chunk, { stream: true });
+        drain(controller, false);
       },
-    });
-    return new Response(peeled, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
+      flush(controller) {
+        buffer += decoder.decode();
+        drain(controller, true);
+      },
+    }));
+    return new Response(body, init);
   }
 
-  // Non-stream JSON: read, peel `.response`, re-serialize.
-  const raw = await response.json().catch(() => null);
-  const inner = peelCcaResponseEnvelope(raw);
-  return new Response(JSON.stringify(inner), {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
+  // Preserve non-JSON HTTP failures verbatim rather than replacing them with null.
+  if (!response.ok && !contentType.includes('json')) return response;
+  return new Response(JSON.stringify(mapPayload(await response.json())), init);
 }
 
 /**

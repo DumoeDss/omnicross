@@ -33,6 +33,11 @@ const CHECKED_AT = '2026-09-02T00:00:00.000Z';
 const CANARY_KEY = 'tvly-DOCTORCANARY-0123456789abcdef';
 const CANARY_HOST = 'https://tavily.private-mirror.example.test';
 
+const NEW_API_IDS = [
+  'exa', 'parallel', 'firecrawl', 'brave', 'kagi', 'kimi', 'synthetic',
+  'ollama', 'tinyfish', 'perplexity', 'bocha', 'claude',
+] as const;
+
 function captureInfo(run: () => Promise<number> | number): Promise<{ output: string; code: number }> {
   const lines: string[] = [];
   const info = vi.spyOn(console, 'info').mockImplementation((...args: unknown[]) => {
@@ -51,8 +56,8 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
     expect(buildSearchDoctorSnapshot().every((row) => row.status === undefined)).toBe(true);
   });
 
-  it('lists all six API providers as unconfigured when nothing is configured', () => {
-    const rows = buildSearchDoctorSnapshot(builtinHttpSearchContributions(), {});
+  it('lists the original six then all twelve new API providers as unconfigured', () => {
+    const rows = buildSearchDoctorSnapshot(undefined, {});
     const apiRows = rows.filter((row) => row.kind === 'api');
 
     expect(apiRows.map((row) => row.providerId)).toEqual([
@@ -62,6 +67,7 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
       'zhipu',
       'z.ai',
       'deepseek',
+      ...NEW_API_IDS,
     ]);
     for (const row of apiRows) {
       expect(row.status).toBe('unconfigured');
@@ -98,6 +104,7 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
       'zhipu',
       'z.ai',
       'deepseek',
+      ...NEW_API_IDS,
     ]);
   });
 
@@ -112,6 +119,40 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
     expect(byId('deepseek').capabilities.supportsUrlRead).toBe(true);
     expect(byId('deepseek').capabilities.maxResults).toBe(50);
   });
+
+  it('keeps newly enabled HTTP contributions without adding disabled defaults', () => {
+    const extended = builtinHttpSearchContributions()
+      .filter(({ id }) => id === 'http-startpage' || id === 'public');
+    expect(extended.map(({ id }) => id)).toEqual(['http-startpage', 'public']);
+    expect(buildSearchDoctorSnapshot(extended).map(({ providerId }) => providerId))
+      .toEqual(['http-startpage', 'public']);
+    expect(buildSearchDoctorSnapshot().map(({ providerId }) => providerId))
+      .toEqual(['http-bing', 'http-duckduckgo']);
+  });
+
+  it.each(['exa', 'parallel', 'firecrawl'] as const)(
+    'reports %s API mode without a key instead of silently enabling public mode',
+    (id) => {
+      const configs = { [id]: { authMode: 'api' as const } };
+      const contributions = apiSearchContributions(configs);
+      expect(contributions).toEqual([]);
+      const row = buildSearchDoctorSnapshot(contributions, configs)
+        .find(({ providerId }) => providerId === id);
+      expect(row?.status).toBe('unconfigured');
+      expect(row?.reason).toContain('API key');
+    },
+  );
+
+  it.each(['exa', 'parallel', 'firecrawl'] as const)(
+    'recognizes explicitly public %s as configured without a key',
+    (id) => {
+      const configs = { [id]: { authMode: 'public' as const } };
+      const rows = buildSearchDoctorSnapshot(apiSearchContributions(configs), configs);
+      const providerRows = rows.filter(({ providerId }) => providerId === id);
+      expect(providerRows).toHaveLength(1);
+      expect(providerRows[0].status).toBeUndefined();
+    },
+  );
 });
 
 describe('readSearchApiConfigFromEnv — the diagnostic-only convenience', () => {
@@ -177,6 +218,33 @@ describe('readSearchApiConfigFromEnv — the diagnostic-only convenience', () =>
       }),
     ).toEqual({});
   });
+
+  it.each(['exa', 'parallel', 'firecrawl'] as const)(
+    'requires opt-in and preserves the explicit auth mode for %s',
+    (id) => {
+      const prefix = `OMNICROSS_SEARCH_${id.toUpperCase()}`;
+      expect(readSearchApiConfigFromEnv({ [`${prefix}_API_HOST`]: CANARY_HOST })).toEqual({});
+      expect(readSearchApiConfigFromEnv({ [`${prefix}_AUTH_MODE`]: ' public ' }))
+        .toEqual({ [id]: { authMode: 'public' } });
+      expect(readSearchApiConfigFromEnv({ [`${prefix}_AUTH_MODE`]: 'api' }))
+        .toEqual({ [id]: { authMode: 'api' } });
+      expect(readSearchApiConfigFromEnv({ [`${prefix}_API_KEY`]: ' key ' }))
+        .toEqual({ [id]: { apiKey: 'key' } });
+    },
+  );
+
+  it.each(NEW_API_IDS.filter((id) => !['exa', 'parallel', 'firecrawl'].includes(id)))(
+    'reads key, host and optional model for %s, without enabling it from a model alone',
+    (id) => {
+      const prefix = `OMNICROSS_SEARCH_${id.toUpperCase()}`;
+      expect(readSearchApiConfigFromEnv({ [`${prefix}_MODEL`]: 'chosen-model' })).toEqual({});
+      expect(readSearchApiConfigFromEnv({
+        [`${prefix}_API_KEY`]: ' key ',
+        [`${prefix}_API_HOST`]: ` ${CANARY_HOST} `,
+        [`${prefix}_MODEL`]: ' chosen-model ',
+      })).toEqual({ [id]: { apiKey: 'key', apiHost: CANARY_HOST, model: 'chosen-model' } });
+    },
+  );
 });
 
 describe('Live probe gating and classification', () => {
@@ -222,11 +290,14 @@ describe('runSearchDoctor output hygiene', () => {
     const { output, code } = await captureInfo(() => runSearchDoctor(false, {}));
 
     expect(code).toBe(0);
-    for (const id of ['tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek']) {
+    for (const id of ['tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek', ...NEW_API_IDS]) {
       expect(output).toContain(id);
     }
     expect(output).toContain('unconfigured');
     expect(output).toContain('http-bing');
+    for (const id of ['http-startpage', 'http-ecosia', 'http-mojeek', 'public']) {
+      expect(output).not.toContain(`${id}:`);
+    }
   });
 
   it('never echoes a configured key or host', async () => {
@@ -251,6 +322,23 @@ describe('runSearchDoctor output hygiene', () => {
     // The row itself is still there — it is the VALUES that are absent.
     expect(output).toContain('tavily');
     expect(output).not.toMatch(/tavily.*unconfigured/);
+  });
+
+  it('keeps all new provider credentials and hosts out of offline output', async () => {
+    const env: Record<string, string> = {};
+    for (const id of NEW_API_IDS) {
+      const prefix = `OMNICROSS_SEARCH_${id.toUpperCase()}`;
+      env[`${prefix}_API_KEY`] = CANARY_KEY;
+      env[`${prefix}_API_HOST`] = CANARY_HOST;
+    }
+    const { output, code } = await captureInfo(() => runSearchDoctor(false, env));
+    expect(code).toBe(0);
+    expect(output).not.toContain(CANARY_KEY);
+    expect(output).not.toContain(CANARY_HOST);
+    for (const id of NEW_API_IDS) {
+      expect(output).toContain(`${id}: source=builtin, kind=api`);
+      expect(output).not.toMatch(new RegExp(`${id}:.*unconfigured`));
+    }
   });
 });
 

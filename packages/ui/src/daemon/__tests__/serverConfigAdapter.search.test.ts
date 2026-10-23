@@ -157,6 +157,39 @@ describe('updateSearchConfig — layer-replaced full-segment rebuild', () => {
     expect(result.success).toBe(false);
     expect(result.message).toContain('maxAttempts');
   });
+
+  it('preserves auth modes, models and HTTP enablement while stripping every secret marker', async () => {
+    const adapter = createApiServiceAdapter();
+    mocked.put.mockResolvedValueOnce(putResponse());
+    await adapter.updateSearchConfig({
+      ...MASKED_SEARCH,
+      providers: {
+        exa: { authMode: 'public', apiKeyConfigured: true, apiKey: null },
+        parallel: { authMode: 'api', apiKeyConfigured: true },
+        firecrawl: { authMode: 'api', apiKeyConfigured: false, apiKey: 'new-key' },
+        claude: { apiKeyConfigured: true, model: 'claude-custom' },
+        perplexity: { apiKeyConfigured: true, model: 'sonar-custom' },
+        'http-startpage': { enabled: true },
+        'http-bing': { enabled: false },
+        public: { enabled: true },
+      },
+    });
+    expect(mocked.put).toHaveBeenCalledWith('/server', {
+      search: {
+        ...MASKED_SEARCH,
+        providers: {
+          exa: { authMode: 'public', apiKey: null },
+          parallel: { authMode: 'api' },
+          firecrawl: { authMode: 'api', apiKey: 'new-key' },
+          claude: { model: 'claude-custom' },
+          perplexity: { model: 'sonar-custom' },
+          'http-startpage': { enabled: true },
+          'http-bing': { enabled: false },
+          public: { enabled: true },
+        },
+      },
+    });
+  });
 });
 
 describe('getSearchDiagnostics — older-daemon compatibility', () => {

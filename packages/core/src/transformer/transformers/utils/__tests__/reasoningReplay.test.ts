@@ -2,7 +2,7 @@
  * reasoningReplay — classification, rejection matching, and the wire rewrites.
  *
  * The static gate must let the DeepSeek v4 family in and keep legacy
- * deepseek-reasoner (which FORBIDS `reasoning_content` in input) out; the
+ * deepseek-r1 (which FORBIDS `reasoning_content` in input) out; the
  * matchers drive both the driver's learning and its strip-and-retry recovery.
  *
  * @module transformer/transformers/utils/__tests__/reasoningReplay.test
@@ -35,10 +35,13 @@ describe('isReasoningReplayProvider', () => {
   });
 
   it('keeps legacy DeepSeek models out — they forbid reasoning_content in input', () => {
-    // deepseek-reasoner aliases deepseek-r1; deepseek-chat aliases v3.
-    for (const model of ['deepseek-r1', 'deepseek-reasoner', 'deepseek-chat', 'deepseek-v3']) {
+    for (const model of ['deepseek-r1', 'deepseek-v3']) {
       expect(isReasoningReplayProvider(deepseek, model)).toBe(false);
     }
+  });
+
+  it.each(['deepseek-chat', 'deepseek-reasoner'])('uses flash replay capabilities for retired alias %s', (model) => {
+    expect(isReasoningReplayProvider(deepseek, model)).toBe(true);
   });
 
   it('requires DeepSeek identity — a deepseek model on another provider stays out', () => {
@@ -75,15 +78,15 @@ describe('rejection matchers', () => {
 
 describe('learned registry', () => {
   it('marks and reads back a provider key', () => {
-    const key = reasoningReplayKey(zai);
+    const key = reasoningReplayKey(zai, 'glm-5.3');
     expect(isReasoningReplayLearned(key)).toBe(false);
     markReasoningReplayRequired(key);
     expect(isReasoningReplayLearned(key)).toBe(true);
   });
 
   it('keys on normalized provider identity', () => {
-    expect(reasoningReplayKey({ name: 'Z-AI', baseUrl: undefined })).toBe(
-      reasoningReplayKey({ name: 'z-ai', baseUrl: undefined }),
+    expect(reasoningReplayKey({ name: 'Z-AI', baseUrl: undefined }, 'glm-5.3')).toBe(
+      reasoningReplayKey({ name: 'z-ai', baseUrl: undefined }, 'glm-5.3'),
     );
   });
 });

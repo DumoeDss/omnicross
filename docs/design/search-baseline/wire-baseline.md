@@ -147,7 +147,7 @@ the protocol-frontends change (阶段5).
 | # | Statement | Evidence |
 | --- | --- | --- |
 | A1 | The Anthropic augmentation constructs `{ type: 'web_search_20250305', name: 'web_search' }`, adding `max_uses` when the user set `maxResults` and `blocked_domains` when the user configured any. | **VERIFIED** — `NativeSearchInjector.ts` `buildAnthropicAugmentation`, lines 193–207. |
-| A2 | Server-side tools are detected by type **prefix**, not by an exact list: `type.startsWith('web_search_')` (alongside `code_execution_`, `text_editor_`, `memory_`, `web_fetch_`, `search_tool_`). | **VERIFIED** — `isServerSideTool` in `packages/core/src/transformer/transformers/AnthropicToolHandling.ts` lines 19–27. |
+| A2 | 原生工具定义由 `isNativeAnthropicTool` 识别：存在字符串 `type` 且不为 `custom`。它同时包含服务端工具和客户端执行的原生工具，不能据此把响应伪装为普通 client function call。 | **VERIFIED** — `packages/core/src/transformer/transformers/AnthropicToolHandling.ts`。早期快照的 `isServerSideTool` 前缀规则已替换。 |
 | A3 | The SSE parser tracks `server_tool_use` content blocks, emitting a `ToolUseBlock` whose `toolName` defaults to `'web_search'` and whose `status` starts as `'running'`. | **VERIFIED** — `packages/core/src/sse-parser.ts` lines 226–241. |
 | A4 | It also tracks `web_search_tool_result` blocks, turning the block's `content` array into a `tool_result` block bound to the last `server_tool_use` id. | **VERIFIED** — `sse-parser.ts` lines 244–273. |
 | A5 | `input_json_delta` deltas are accumulated into a buffer to reassemble the server tool's input. | **VERIFIED** — `sse-parser.ts` lines 299–302. |

@@ -36,6 +36,9 @@ export interface SearchProviderConfigView {
   apiHost?: string;
   /** Basic-auth username (non-secret by the spec's round-trip list). */
   basicAuthUsername?: string;
+  authMode?: 'public' | 'api';
+  model?: string;
+  enabled?: boolean;
   /** Admin-read marker: an `apiKey` is stored. Strip before writing. */
   apiKeyConfigured?: boolean;
   /** Admin-read marker: a `basicAuthPassword` is stored. Strip before writing. */
@@ -50,6 +53,8 @@ export type SearchServerConfigView = Omit<SearchServerConfig, 'providers'> & {
 /** Provider entries whose shape carries an API key. */
 const API_KEY_PROVIDERS: ReadonlySet<string> = new Set([
   'tavily', 'jina', 'zhipu', 'z.ai', 'deepseek',
+  'exa', 'parallel', 'firecrawl', 'brave', 'kagi', 'kimi', 'synthetic',
+  'ollama', 'tinyfish', 'perplexity', 'bocha', 'claude',
 ]);
 /** Provider entries whose shape carries a Basic-auth password. */
 const BASIC_AUTH_PROVIDERS: ReadonlySet<string> = new Set(['searxng']);
@@ -77,10 +82,16 @@ export function redactSearchServerConfig(search: SearchServerConfig): SearchServ
       basicAuthUsername: string;
       apiKey: string;
       basicAuthPassword: string;
+      authMode: 'public' | 'api';
+      model: string;
+      enabled: boolean;
     }>;
     const view: SearchProviderConfigView = {};
     if (entry.apiHost !== undefined) view.apiHost = entry.apiHost;
     if (entry.basicAuthUsername !== undefined) view.basicAuthUsername = entry.basicAuthUsername;
+    if (entry.authMode !== undefined) view.authMode = entry.authMode;
+    if (entry.model !== undefined) view.model = entry.model;
+    if (entry.enabled !== undefined) view.enabled = entry.enabled;
     // Per-id markers: a normalized entry only ever carries its own shape's
     // fields, so the marker says "this provider's secret slot is filled", never
     // inventing a slot the provider does not have.

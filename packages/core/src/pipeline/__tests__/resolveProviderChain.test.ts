@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ProviderConfigSource } from '../../ports';
 import type { Transformer } from '../../transformer';
-import { resolveProviderChain } from '../resolveProviderChain';
+import { resolveProviderChain, resolveRedirectedModelConfigs } from '../resolveProviderChain';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -181,4 +181,24 @@ describe('resolveProviderChain — chain-equivalence assertions (task 1.4)', () 
       'cache',
     ]);
   });
+});
+
+describe('selected retired model configuration', () => {
+  it('keeps the selected legacy overrides without mutating or merging stored rows', () => {
+    const rows = [
+      { id: 'deepseek-chat', thinkingLevels: ['low'], temperature: 0.2 },
+      { id: 'deepseek-reasoner', thinkingLevels: ['high'], temperature: 0.4 },
+      { id: 'deepseek-flash', thinkingLevels: ['max'], temperature: 0.8 },
+      { id: 'custom', thinkingLevels: [], temperature: 0 },
+    ];
+    const selected = resolveRedirectedModelConfigs(rows, 'deepseek-reasoner');
+    expect(selected).toEqual([
+      { ...rows[1], id: 'deepseek-flash' },
+      rows[0],
+      rows[3],
+    ]);
+    expect(rows.map(row => row.id)).toEqual(['deepseek-chat', 'deepseek-reasoner', 'deepseek-flash', 'custom']);
+    expect(resolveRedirectedModelConfigs(rows, 'deepseek-chat')?.[0]).toEqual({ ...rows[0], id: 'deepseek-flash' });
+  });
+
 });

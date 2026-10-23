@@ -96,6 +96,15 @@ describe('RouteLeaseTargetResolver provider preflight', () => {
     expect(await resolver.resolve(request({ kind: 'provider', providerId: 'provider-a' }, { model: 'mimo-v2.5' })))
       .toMatchObject({ model: 'mimo-v2.6-flash', providerId: 'provider-a' });
   });
+  it('accepts a retired DeepSeek selection against a flash-only catalog without losing its configuration key', async () => {
+    const source = configSource([provider({ apiFormat: 'openai', models: ['deepseek-flash'] })], {
+      transformerNames: ['openai'],
+    });
+    const resolver = new RouteLeaseTargetResolver(source);
+    expect(await resolver.resolve(request({ kind: 'provider', providerId: 'provider-a' }, { model: 'deepseek-reasoner' })))
+      .toMatchObject({ model: 'deepseek-reasoner', providerId: 'provider-a' });
+    expect(source.resolveTransformerChain).toHaveBeenCalledWith('provider-a', 'deepseek-reasoner');
+  });
   it('freezes an explicit provider key with strict fallback and never consults another provider', async () => {
     const source = configSource([
       provider(),

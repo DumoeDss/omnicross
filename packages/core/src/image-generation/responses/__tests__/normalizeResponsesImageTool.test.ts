@@ -84,6 +84,22 @@ describe('Responses image selection policy', () => {
   const image = () => inspectResponsesImageRequest({ tools: [{ type: 'image_generation' }] });
   const noneSelected = { imageCalls: [], otherToolCount: 0, otherTools: [] } as const;
 
+  it.each(['auto', 'edit', 'generate'])(
+    'rejects direct-image %s execution without rejecting ordinary visual no-selection', (action) => {
+      const admission = inspectResponsesImageRequest({
+        tools: [{ type: 'image_generation', action }],
+        input: [{ role: 'user', content: [
+          { type: 'input_text', text: 'Describe or edit this picture' },
+          { type: 'input_image', image_url: 'https://images.example/reference.png' },
+        ] }],
+      });
+      validateResponsesImageSelection(admission, noneSelected);
+      expect(() => validateResponsesImageSelection(admission, {
+        imageCalls: [{ prompt: 'edit this image' }], otherToolCount: 0, otherTools: [],
+      })).toThrowError(expect.objectContaining({ code: 'unsupported_capability', param: 'input' }));
+    },
+  );
+
   it('allows auto no-selection and generic required satisfied by another tool', () => {
     expect(() => validateResponsesImageSelection(image(), noneSelected))
       .not.toThrow();

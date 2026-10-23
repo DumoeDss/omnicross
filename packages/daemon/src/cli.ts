@@ -86,12 +86,17 @@ Usage:
                                            capabilities (offline, no config needed). --live sends ONE
                                            fixed public query per provider and reports healthy /
                                            degraded / blocked / failed.
-                                           Keyed API providers show as unconfigured unless enabled
-                                           through the DIAGNOSTIC-ONLY environment variables
-                                           OMNICROSS_SEARCH_{TAVILY,JINA,SEARXNG,ZHIPU,Z_AI}_API_KEY
-                                           / _API_HOST (plus SEARXNG_BASIC_AUTH_USERNAME/_PASSWORD).
-                                           These are read only by this command and are not the
-                                           configuration system.
+                                           API providers use daemon config first; absent entries may
+                                           use DIAGNOSTIC-ONLY OMNICROSS_SEARCH_<PROVIDER>_API_KEY
+                                           / _API_HOST. Providers: TAVILY,JINA,SEARXNG,ZHIPU,Z_AI,
+                                           DEEPSEEK,EXA,PARALLEL,FIRECRAWL,BRAVE,KAGI,KIMI,SYNTHETIC,
+                                           OLLAMA,TINYFISH,PERPLEXITY,BOCHA,CLAUDE.
+                                           EXA/PARALLEL/FIRECRAWL_AUTH_MODE=public enables keyless
+                                           diagnostics; api requires a key and never falls back.
+                                           New keyed providers also accept _MODEL. SearXNG accepts
+                                           SEARXNG_BASIC_AUTH_USERNAME/_PASSWORD under the same prefix.
+                                           These variables are read only by this command, never
+                                           persisted, and are not the configuration system.
 `;
 
 async function main(): Promise<void> {

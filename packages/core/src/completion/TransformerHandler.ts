@@ -10,13 +10,15 @@
  */
 
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 
 import { isOpenRouterProvider, OPENROUTER_APP_HEADERS } from '../openrouter';
 import { executeProviderCall } from '../pipeline/executeProviderCall';
-import { resolveProviderChain } from '../pipeline/resolveProviderChain';
+import { resolveProviderChain, resolveRedirectedModelConfigs } from '../pipeline/resolveProviderChain';
 import type { UsageSink } from '../ports/index';
 import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
+import { streamSSEResponse } from '../sse-parser';
 import {
   type LLMProvider as TransformerLLMProvider,
   TransformerChainExecutor,
@@ -31,6 +33,8 @@ import {
   type StreamCallbacks
 } from './';
 import { getProviderHeaders } from './header-builder';
+import { convertMessageToOpenAI } from './message-converter';
+import { applyAugmentation } from './NativeSearchInjector';
 import { resolveProviderEndpoint } from './url-builder';
 
 /** Extra context passed to the transformer-handler functions for usage recording. */
@@ -106,13 +110,31 @@ export function buildUnifiedCompletionRequest(
 ): UnifiedChatRequest {
   return {
     model: actualModel,
-    messages: options.messages.map(m => ({
-      role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-      content: m.content,
-    })),
+    messages: options.messages.map(m => {
+      const message = convertMessageToOpenAI(m);
+      delete message.reasoning_content;
+      return {
+        ...message,
+        ...(m.isError !== undefined ? { is_error: m.isError } : {}),
+        ...(m.thinking ? { thinking: {
+          ...m.thinking,
+          ...(m.providerMetadata?.apiFormat === 'anthropic' ? {
+            blocks: m.providerMetadata.content.filter(block => block.type === 'thinking' || block.type === 'redacted_thinking'),
+          } : {}),
+        } } : {}),
+        ...(m.providerMetadata?.apiFormat === 'google'
+          ? { extra_content: { google: { parts: m.providerMetadata.content } } } : {}),
+        ...(m.providerMetadata?.apiFormat === 'openai-response' ? {
+          extra_content: { responses: { reasoning: m.providerMetadata.content.filter(item => item.type === 'reasoning') } },
+        } : {}),
+      } as UnifiedChatRequest['messages'][number];
+    }),
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     temperature: options.temperature,
+    ...(options.thinkLevel !== undefined
+      ? { reasoning: { effort: options.thinkLevel, enabled: options.thinkLevel !== 'none' } } : {}),
     stream,
+    ...(stream ? { stream_options: { include_usage: true } } : {}),
   };
 }
 
@@ -138,7 +160,8 @@ export async function completeWithTransformers(
 
     // Resolve the actual provider and model
     const actualProviderId = routedInfo?.actualProviderId || options.providerId;
-    const actualModel = routedInfo?.actualModelId || options.model;
+    const configuredModel = routedInfo?.actualModelId || options.model;
+    const actualModel = resolveModelRedirect(configuredModel);
 
     const provider = await getProvider(actualProviderId);
     if (!provider) {
@@ -157,7 +180,7 @@ export async function completeWithTransformers(
 
     // Resolve chain with mainTransformer merged into providerTransformers
     const { chain, hasTransformers } = await resolveChainWithMain(
-      llmConfig, actualProviderId, actualModel
+      llmConfig, actualProviderId, configuredModel
     );
 
     // If no transformers configured, use legacy path
@@ -169,7 +192,7 @@ export async function completeWithTransformers(
     const unifiedRequest = buildUnifiedCompletionRequest(
       actualModel,
       options,
-      options.stream ?? false,
+      false,
     );
 
     // Convert provider to transformer LLMProvider format
@@ -178,7 +201,7 @@ export async function completeWithTransformers(
       baseUrl: provider.api_base_url,
       apiKey,
       models: provider.models || [],
-      modelConfigs: provider.modelConfigs,
+      modelConfigs: resolveRedirectedModelConfigs(provider.modelConfigs, configuredModel),
     };
 
     // Execute transformer chain (using shared executor)
@@ -213,12 +236,10 @@ export async function completeWithTransformers(
         ...(isOpenRouterProvider(provider) ? OPENROUTER_APP_HEADERS : {})
       }),
       // Add OpenRouter provider routing config if applicable
-      prepareBody: (requestBody) =>
-        addOpenRouterProviderToRequest(
-          requestBody as Record<string, unknown>,
-          provider,
-          actualModel
-        ),
+      prepareBody: (requestBody) => {
+        if (options.nativeSearchAugmentation) applyAugmentation(requestBody as Record<string, unknown>, options.nativeSearchAugmentation);
+        return addOpenRouterProviderToRequest(requestBody as Record<string, unknown>, provider, configuredModel);
+      },
       fetchFn: (url, headers, body) => {
         logger.info('Calling completion with transformers', { url });
         return fetch(url, {
@@ -293,10 +314,17 @@ export async function completeWithTransformers(
         role: 'assistant',
         content: choice.message?.content || '',
         timestamp: Date.now(),
-        thinking: (data.reasoning_content || choice.message?.thinking?.content)
-          ? { content: data.reasoning_content || choice.message?.thinking?.content || '', signature: choice.message?.thinking?.signature }
+        thinking: (choice.message?.reasoning_content || choice.message?.thinking || data.reasoning_content)
+          ? { ...choice.message?.thinking, content: choice.message?.reasoning_content || choice.message?.thinking?.content || data.reasoning_content }
           : undefined,
         toolCalls,
+        images: choice.message?.images?.map((image: string) => ({ url: image })),
+        ...(choice.message?.extra_content?.google?.parts ? { providerMetadata: {
+          apiFormat: 'google' as const, content: choice.message.extra_content.google.parts,
+        } } : {}),
+        ...(choice.message?.extra_content?.responses?.reasoning ? { providerMetadata: {
+          apiFormat: 'openai-response' as const, content: choice.message.extra_content.responses.reasoning,
+        } } : {}),
       },
       usage: data.usage ? {
         promptTokens: data.usage.prompt_tokens || 0,
@@ -333,7 +361,8 @@ export async function completeStreamWithTransformers(
 
     // Resolve the actual provider and model
     const actualProviderId = routedInfo?.actualProviderId || options.providerId;
-    const actualModel = routedInfo?.actualModelId || options.model;
+    const configuredModel = routedInfo?.actualModelId || options.model;
+    const actualModel = resolveModelRedirect(configuredModel);
 
     const provider = await getProvider(actualProviderId);
     if (!provider) {
@@ -355,7 +384,7 @@ export async function completeStreamWithTransformers(
 
     // Resolve chain with mainTransformer merged into providerTransformers
     const { chain, hasTransformers } = await resolveChainWithMain(
-      llmConfig, actualProviderId, actualModel
+      llmConfig, actualProviderId, configuredModel
     );
 
     // If no transformers, use legacy path
@@ -375,7 +404,7 @@ export async function completeStreamWithTransformers(
       baseUrl: provider.api_base_url,
       apiKey,
       models: provider.models || [],
-      modelConfigs: provider.modelConfigs,
+      modelConfigs: resolveRedirectedModelConfigs(provider.modelConfigs, configuredModel),
     };
 
     // Execute transformer chain (using shared executor)
@@ -405,12 +434,10 @@ export async function completeStreamWithTransformers(
         ...(isOpenRouterProvider(provider) ? OPENROUTER_APP_HEADERS : {})
       }),
       // Add OpenRouter provider routing config if applicable
-      prepareBody: (requestBody) =>
-        addOpenRouterProviderToRequest(
-          requestBody as Record<string, unknown>,
-          provider,
-          actualModel
-        ),
+      prepareBody: (requestBody) => {
+        if (options.nativeSearchAugmentation) applyAugmentation(requestBody as Record<string, unknown>, options.nativeSearchAugmentation);
+        return addOpenRouterProviderToRequest(requestBody as Record<string, unknown>, provider, configuredModel);
+      },
       fetchFn: (url, headers, body) => {
         logger.info('Streaming completion with transformers', { url });
         return fetch(url, {
@@ -436,100 +463,44 @@ export async function completeStreamWithTransformers(
       { endpointTransformer: undefined }
     );
 
-    // Process the stream
-    const reader = transformedResponse.body?.getReader();
-    if (!reader) {
-      callbacks.onError?.('No response body');
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let content = '';
-    let reasoning = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const json = JSON.parse(data);
-              const delta = json.choices?.[0]?.delta;
-
-              if (delta?.content) {
-                content += delta.content;
-                callbacks.onDelta?.(delta.content);
-              }
-
-              if (delta?.thinking?.content) {
-                reasoning += delta.thinking.content;
-                callbacks.onReasoning?.(delta.thinking.content);
-              }
-
-              if (delta?.reasoning_content) {
-                reasoning += delta.reasoning_content;
-                callbacks.onReasoning?.(delta.reasoning_content);
-              }
-
-              if (json.usage) {
-                // Tap A (streaming): record usage.
-                const tapped = readUsageFromOpenAIResponse(json.usage);
-                if (recording?.recorder && tapped) {
-                  recording.recorder.record({
-                    messageId: options.messageId ?? null,
-                    parentMessageId: options.parentMessageId ?? null,
-                    sessionId: options.sessionId ?? null,
-                    providerId: actualProviderId,
-                    model: actualModel,
-                    apiKeyId: recording.apiKeyId ?? null,
-                    engineOrigin: 'completion',
-                    usage: tapped,
-                    rawUsage: json.usage,
-                  });
-                }
-
-                callbacks.onDone?.(
-                  {
-                    id: messageId,
-                    role: 'assistant',
-                    content,
-                    timestamp: Date.now(),
-                    thinking: reasoning ? { content: reasoning } : undefined
-                  },
-                  {
-                    promptTokens: json.usage.prompt_tokens || 0,
-                    completionTokens: json.usage.completion_tokens || 0,
-                    totalTokens: json.usage.total_tokens || 0
-                  }
-                );
-                return;
-              }
-            } catch (_e) {
-              // Ignore parse errors
-            }
-          }
+    const result = await streamSSEResponse(transformedResponse, 'openai', {
+      onDelta: callbacks.onDelta,
+      onReasoning: callbacks.onReasoning,
+      onError: callbacks.onError,
+      onAudio: callbacks.onAudio,
+      onVideo: callbacks.onVideo,
+      onRawEvent: ({ data }) => {
+        const json = data as { usage?: Record<string, unknown> };
+        const tapped = readUsageFromOpenAIResponse(json.usage);
+        if (recording?.recorder && tapped) {
+          recording.recorder.record({
+            messageId: options.messageId ?? null,
+            parentMessageId: options.parentMessageId ?? null,
+            sessionId: options.sessionId ?? null,
+            providerId: actualProviderId,
+            model: actualModel,
+            apiKeyId: recording.apiKeyId ?? null,
+            engineOrigin: 'completion',
+            usage: tapped,
+            rawUsage: json.usage,
+          });
         }
-      }
-
-      // Final callback
-      callbacks.onDone?.({
-        id: messageId,
-        role: 'assistant',
-        content,
-        timestamp: Date.now(),
-        thinking: reasoning ? { content: reasoning } : undefined
-      });
-    } finally {
-      reader.releaseLock();
-    }
+      },
+    });
+    if (result.error) return;
+    callbacks.onDone?.({
+      id: messageId,
+      role: 'assistant',
+      content: result.content,
+      timestamp: Date.now(),
+      thinking: result.reasoning || result.thinkingBlocks?.length
+        ? { content: result.reasoning, signature: result.thinkingSignature, blocks: result.thinkingBlocks } : undefined,
+      toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
+      providerMetadata: result.providerMetadata,
+      images: result.images.length ? result.images : undefined,
+      audios: result.audios.length ? result.audios : undefined,
+      videos: result.videos.length ? result.videos : undefined,
+    }, result.usage, result.metrics);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     callbacks.onError?.(message);

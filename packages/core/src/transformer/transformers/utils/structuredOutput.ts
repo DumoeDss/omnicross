@@ -99,7 +99,8 @@ export function downgradeJsonSchemaBody(body: JsonRecord): boolean {
 export function isResponseFormatRejection(status: number, errorText: string): boolean {
   if (status !== 400 || typeof errorText !== 'string' || !errorText) return false;
   if (!/response[ _-]?format|json_schema/i.test(errorText)) return false;
-  return /unavailable|unsupported|not\s+support|invalid|unrecognized|unknown/i.test(errorText);
+  return /unavailable|unsupported|not\s+support|unrecognized|unknown/i.test(errorText)
+    || /invalid\s+(?:response[ _-]?format\s+)?type/i.test(errorText);
 }
 
 /**

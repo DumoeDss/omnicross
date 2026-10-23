@@ -22,29 +22,16 @@ function maskedRead(overrides: Partial<SearchServerConfig> = {}): SearchServerCo
   };
 }
 
-describe('the provider catalog is closed at the eight built-ins', () => {
-  it('lists exactly the eight built-in ids in display order', () => {
-    expect(SEARCH_PROVIDER_CATALOG.map((entry) => entry.id)).toEqual([
-      'http-bing',
-      'http-duckduckgo',
-      'tavily',
-      'jina',
-      'searxng',
-      'zhipu',
-      'z.ai',
-      'deepseek',
+describe('API provider choices', () => {
+  it('preserves the established six-provider priority before the new providers', () => {
+    expect(SEARCH_PROVIDER_CATALOG.filter((entry) => entry.kind === 'api').map((entry) => entry.id)).toEqual([
+      'tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek',
+      'exa', 'parallel', 'firecrawl', 'brave', 'kagi', 'kimi', 'synthetic', 'ollama',
+      'tinyfish', 'perplexity', 'bocha', 'claude',
     ]);
   });
-
-  it('contains no local-*, grok, claude, exa, or bocha id anywhere', () => {
-    const serialized = JSON.stringify(SEARCH_PROVIDER_CATALOG).toLowerCase();
-    expect(serialized).not.toContain('local-');
-    expect(serialized).not.toContain('grok');
-    expect(serialized).not.toContain('claude');
-    expect(serialized).not.toContain('"exa"');
-    expect(serialized).not.toContain('bocha');
-  });
 });
+
 
 describe('createSearchSettingsDraft', () => {
   it('seeds from a masked read without any secret value', () => {
@@ -74,7 +61,11 @@ describe('createSearchSettingsDraft', () => {
   it('tolerates an absent section (pre-Phase-1 daemon) with defaults', () => {
     const draft = createSearchSettingsDraft(undefined);
     expect(draft.modes).toEqual({ codex: 'off', responses: 'native', anthropic: 'native' });
-    expect(Object.keys(draft.providers)).toEqual(['tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek']);
+    expect(draft.providers['http-bing']?.enabled).toBe(true);
+    expect(draft.providers['http-duckduckgo']?.enabled).toBe(true);
+    expect(draft.providers['http-startpage']?.enabled).toBe(false);
+    expect(draft.providers.public?.enabled).toBe(false);
+    expect(draft.providers.exa?.enabled).toBe(false);
     expect(draft.policy.fallbackEnabled).toBe(true);
   });
 });
@@ -228,6 +219,67 @@ describe('searchDraftToPayload', () => {
   });
 });
 
+describe('expanded provider configuration boundary', () => {
+  it.each(['exa', 'parallel', 'firecrawl'])('saves public and API modes for %s without copying markers', (id) => {
+    const draft = createSearchSettingsDraft(maskedRead());
+    draft.providers[id]!.enabled = true;
+    expect(searchDraftToPayload(draft).providers[id as 'exa']).toEqual({ authMode: 'public' });
+    draft.providers[id]!.authMode = 'api';
+    expect(() => searchDraftToPayload(draft)).toThrow('API mode requires a key');
+    draft.providers[id]!.apiKeyInput = ' NEW_KEY ';
+    expect(searchDraftToPayload(draft).providers[id as 'exa']).toEqual({ authMode: 'api', apiKey: 'NEW_KEY' });
+
+    const restored = createSearchSettingsDraft(maskedRead({
+      providers: { [id]: { apiKeyConfigured: true, authMode: 'api', apiHost: 'https://search.example.test' } },
+    }));
+    expect(restored.providers[id]!.apiKeyInput).toBe('');
+    expect(restored.providers[id]!.authMode).toBe('api');
+    expect(searchDraftToPayload(restored).providers[id as 'exa']).toEqual({
+      authMode: 'api', apiHost: 'https://search.example.test',
+    });
+    restored.providers[id]!.clearApiKey = true;
+    expect(() => searchDraftToPayload(restored)).toThrow();
+    restored.providers[id]!.authMode = 'public';
+    expect(searchDraftToPayload(restored).providers[id as 'exa']).toEqual({
+      authMode: 'public', apiHost: 'https://search.example.test', apiKey: null,
+    });
+  });
+
+  it.each(['http-bing', 'http-duckduckgo', 'http-startpage', 'http-ecosia', 'http-mojeek', 'public'])(
+    'saves and reloads explicit enablement and disablement for %s', (id) => {
+      const draft = createSearchSettingsDraft(maskedRead({ providers: { [id]: { enabled: false } } }));
+      expect(draft.providers[id]!.enabled).toBe(false);
+      draft.providers[id]!.enabled = true;
+      expect(searchDraftToPayload(draft).providers[id as 'public']).toEqual({ enabled: true });
+      const restored = createSearchSettingsDraft(maskedRead({ providers: { [id]: { enabled: true } } }));
+      expect(restored.providers[id]!.enabled).toBe(true);
+      restored.providers[id]!.enabled = false;
+      restored.policy.preferred = id;
+      restored.policy.allowed = [id];
+      expect(searchDraftToPayload(restored).providers[id as 'public']).toEqual({ enabled: false });
+    },
+  );
+
+  it('resolves omitted public/API modes using masked key presence only', () => {
+    const draft = createSearchSettingsDraft(maskedRead({
+      providers: { exa: { apiKeyConfigured: true }, parallel: {}, firecrawl: { authMode: 'public', apiKeyConfigured: true } },
+    }));
+    expect(draft.providers.exa!.authMode).toBe('api');
+    expect(draft.providers.parallel!.authMode).toBe('public');
+    expect(draft.providers.firecrawl!.authMode).toBe('public');
+  });
+
+  it('honors HTTP policy opt-ins but never overrides an explicit disabled entry', () => {
+    const draft = createSearchSettingsDraft(maskedRead({
+      providers: { 'http-mojeek': { enabled: false } },
+      policy: { fallbackEnabled: true, allowed: ['http-startpage', 'http-mojeek'] },
+    }));
+    expect(draft.providers['http-startpage']!.enabled).toBe(true);
+    expect(draft.providers['http-mojeek']!.enabled).toBe(false);
+    expect(searchDraftToPayload(draft).providers['http-mojeek']).toEqual({ enabled: false });
+  });
+});
+
 describe('client-side clamps', () => {
   it('clamps maxAttempts input', () => {
     expect(clampMaxAttemptsInput('0')).toBe(1);
@@ -300,9 +352,11 @@ describe('pendingRestartProviderIds', () => {
 describe('draftProviderConfigured', () => {
   const byId = new Map(SEARCH_PROVIDER_CATALOG.map((entry) => [entry.id, entry]));
 
-  it('is always true for the keyless http pair', () => {
+  it('tracks explicit HTTP disablement', () => {
     const draft = createSearchSettingsDraft(undefined);
-    expect(draftProviderConfigured(byId.get('http-bing')!, { ...draft.providers.tavily! })).toBe(true);
+    expect(draftProviderConfigured(byId.get('http-bing')!, draft.providers['http-bing']!)).toBe(true);
+    draft.providers['http-bing']!.enabled = false;
+    expect(draftProviderConfigured(byId.get('http-bing')!, draft.providers['http-bing']!)).toBe(false);
   });
 
   it('tracks unconfigured → configured via a typed key or host', () => {

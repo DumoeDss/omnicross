@@ -262,7 +262,12 @@ export class SubscriptionProviderRegistry {
               config?.modelMap?.[scenario] ??
               config?.modelMap?.default;
             if (explicit) {
-              return { resolvedModel: explicit.modelId, scenario };
+              return {
+                resolvedModel: explicit.modelId,
+                scenario,
+                temperature: explicit.temperature,
+                maxTokens: explicit.maxTokens,
+              };
             }
             // EXPLICIT-CHOICE PASSTHROUGH: an OpenCode-native model id
             // (glm-*/kimi-*/minimax-*/mimo-*/qwen*/deepseek-*) is a deliberate
@@ -284,7 +289,12 @@ export class SubscriptionProviderRegistry {
               // will most likely 4xx, surfacing a clear error.
               return { resolvedModel: sdkModel, scenario };
             }
-            return { resolvedModel: entry.modelId, scenario };
+            return {
+              resolvedModel: entry.modelId,
+              scenario,
+              temperature: entry.temperature,
+              maxTokens: entry.maxTokens,
+            };
           },
           // D2 CONSULT: skip both already-attempted models AND models whose
           // circuit is open. `breaker.allowRequest(modelId)` is the admission

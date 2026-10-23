@@ -31,17 +31,19 @@
  * @module provider-proxy/ingress/geminiGenerateContentIngress
  */
 
+import { resolveModelRedirect } from '@omnicross/contracts/canonical-models';
 import type http from 'node:http';
 
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
+import { OpenAIOperationError, writeOpenAIOperationError } from '../../openai-operation';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
-import { buildProviderApiUrl } from '../../completion';
+import { buildProviderApiUrl, resolveApiFormat } from '../../completion';
 import type { AuthSource } from '../../pipeline/AuthSource';
 import { executeProviderCall } from '../../pipeline/executeProviderCall';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
-import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
+import { resolveProviderChain, resolveRedirectedModelConfigs } from '../../pipeline/resolveProviderChain';
 import type {
   LLMProvider as TransformerLLMProvider,
   RequestConfig,
@@ -52,12 +54,14 @@ import { recordGeminiNonStreamUsage, recordGeminiStreamUsage } from '../usage/re
 
 import {
   type ByoRouteActivityMeta,
+  aggregateGeminiSseToJsonBody,
   buildByoRouteActivityMeta,
   getGeminiEndpointTransformer,
   getSharedExecutor,
   relayResponse,
   resolvePoolBoundKey,
   writeError,
+  sniffIsSseResponse,
 } from './providerProxyShared';
 
 /** Final-path-segment action suffix the Gemini REST surface uses. */
@@ -118,6 +122,7 @@ interface GeminiCallPlan {
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
   readonly isStream: boolean;
+  readonly nativeGemini: boolean;
   readonly resolveUrl: (config: RequestConfig) => string;
   readonly upstreamUrl: string;
   /** Route-activity metadata (provider row id + live key-id resolver). */
@@ -164,13 +169,22 @@ export async function handleGeminiGenerateContentRequest(
   try {
     const plan = await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
+    geminiBody.model = plan.resolvedModel;
 
-    const providerResponse = await runPipelineWithPoolReporting(geminiBody, plan);
+    let providerResponse = await runPipelineWithPoolReporting(geminiBody, plan);
+    if (!isStream && providerResponse.response.ok && await sniffIsSseResponse(providerResponse.response)) {
+      const body = await aggregateGeminiSseToJsonBody(providerResponse.response);
+      if (body === null) throw new Error('Upstream Gemini stream ended without a complete response');
+      providerResponse = {
+        ...providerResponse,
+        response: new Response(body, { headers: { 'Content-Type': 'application/json' } }),
+      };
+    }
 
     const usageAttribution = {
       sessionId: route.sessionId,
       providerId: route.providerId ?? 'gemini',
-      model: resolvedModel,
+      model: plan.resolvedModel,
       apiKeyId: route.apiKeyId ?? null,
       routeLease: route.routeLease,
       // request-audit-log: correlate this request's tokens/cost to its audit record.
@@ -201,6 +215,10 @@ export async function handleGeminiGenerateContentRequest(
       recordGeminiNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
+    if (err instanceof OpenAIOperationError) {
+      writeOpenAIOperationError(res, err);
+      return;
+    }
     const errMsg = serializeError(err);
     console.error('[ProviderProxy:gemini] Pipeline error:', errMsg);
     writeError(res, 502, errMsg);
@@ -255,13 +273,15 @@ async function buildByoPlan(
     });
 
   const { chain } = await resolveProviderChain(deps.llmConfig, providerId, resolvedModel);
+  const configuredModel = resolvedModel;
+  resolvedModel = resolveModelRedirect(resolvedModel);
 
   const transformerProvider: TransformerLLMProvider = {
     name: provider.name,
     baseUrl: provider.api_base_url,
     apiKey,
     models: provider.models || [],
-    modelConfigs: provider.modelConfigs,
+    modelConfigs: resolveRedirectedModelConfigs(provider.modelConfigs, configuredModel),
   };
 
   const byoUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
@@ -273,6 +293,7 @@ async function buildByoPlan(
     transformerProvider,
     resolvedModel,
     isStream,
+    nativeGemini: resolveApiFormat(provider) === 'google',
     resolveUrl: (config) => (config.url instanceof URL ? config.url.toString() : byoUrl),
     upstreamUrl: byoUrl,
     byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
@@ -310,6 +331,11 @@ async function runPipeline(
     chain,
     endpointTransformer,
     resolveUrl,
+    prepareBody: plan.nativeGemini ? (body) => {
+      // Same-format bypass keeps the native payload, not ingress transport hints.
+      const { model: _model, stream: _stream, ...wireBody } = body as Record<string, unknown>;
+      return wireBody;
+    } : undefined,
     buildHeaders: (config) => {
       const headers: Record<string, string> = { ...authHeaders };
       if (config.headers) {
@@ -345,6 +371,7 @@ async function runPipeline(
       });
     },
     runResponseChain: true,
+    preserveEndpointRequestForResponseChain: true,
   });
 
   return { response, rawStatus };

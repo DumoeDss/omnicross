@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Autentiseringsmodus",
+      "public": "Offentlig (begrenset, uten nøkkel)",
+      "api": "API (nøkkel kreves)",
+      "description": "Offentlig tilgang er begrenset og kan være utilgjengelig. API-modus krever nøkkel og går aldri tilbake til offentlig.",
+      "missingKey": "API-modus krever en nøkkel: {{providers}}",
+      "enableHint": "Aktiver offentlig modus eller velg API og skriv inn en nøkkel."
+    },
+    "providerDescription": {
+      "keyed": "Offisielt API med nøkkel; tilgjengelighet, fakturering og grenser avhenger av leverandørkontoen.",
+      "keyRequired": "En API-nøkkel kreves.",
+      "publicApi": "Begrenset offentlig tilgang eller API med nøkkel; ingen gratis kvote garanteres.",
+      "ollama": "Ollamas søke-API krever en nøkkel; egen vert betyr ikke lokal søkemotor uten nøkkel."
+    },
+    "http": {
+      "aggregateDescription": "Samler aktiverte og tillatte offentlige HTTP-motorer. Krever uttrykkelig aktivering; resultater garanteres ikke."
+    },
     "title": "Søkeleverandører",
     "description": "Konfigurasjon av nettlesesøks-kjøretiden: leverandørlegitimasjon, reservepolitikk, utgående nettverkstrafikk og kjøringsmoduser per frontend.",
     "unsupportedDaemon": "Denne daemon-versjonen støtter ikke søkekonfigurasjonsdelen.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Leverandører",
       "tavily": {
-        "description": "Søke-API med generøs gratis kvote; nøkkel kreves."
+        "description": "Søke-API; nøkkel kreves. Kvoter og fakturering avhenger av leverandøren."
       },
       "jina": {
         "description": "Søk kan kjøres uten nøkkel; en nøkkel hever grensene."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Nøkkelfri motor, alltid tilgjengelig. Krever ingen konfigurasjon."
+      "description": "Offentlig HTTP-søk uten nøkkel; kan blokkeres, begrenses eller være utilgjengelig."
     },
     "status": {
       "ready": "Klar",
@@ -943,6 +960,9 @@
       "deepseek": "Skriv inn en nøkkel, gjenbruk en DeepSeek-leverandørnøkkel, eller konfigurer en under Leverandører."
     },
     "field": {
+      "enabled": "Aktivert",
+      "model": "Modell",
+      "modelPlaceholder": "Valgfritt; tomt bruker leverandørens standard",
       "apiKey": "API-nøkkel",
       "apiKeyPlaceholder": "Tomt beholder den lagrede nøkkelen",
       "apiKeyNew": "Skriv inn API-nøkkel",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Månedlig",
       "codexRefreshConfirmTitle": "Bruke Luna til å oppdatere denne kvoten?",
       "codexRefreshConfirmDescription": "En reell forespørsel blir sendt til gpt-5.6-luna med denne Codex-kontoen for å hente den nyeste kvoten. Dette bruker en liten del av abonnementskvoten. Vil du fortsette?",

@@ -240,7 +240,7 @@ export async function parseCandidateCodexImageResponse(
   expectedCount: number,
   expectedFormat: ImageOutputFormat,
 ): Promise<ParsedCandidateCodexImageResponse> {
-  if (!body.trim() || /^s*</.test(body)) return protocolChanged();
+  if (!body.trim() || /^\s*</.test(body)) return protocolChanged();
   if (/^\s*(?:data|event):/u.test(body)) {
     return parseCandidateCodexImageSse(body, expectedCount, expectedFormat);
   }
@@ -252,6 +252,9 @@ export async function parseCandidateCodexImageResponse(
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return protocolChanged();
   const record = parsed as Record<string, unknown>;
+  if (record.error || (record.status !== undefined && record.status !== 'completed')) {
+    return protocolChanged();
+  }
   if (Array.isArray(record.data)) {
     if (record.data.length !== expectedCount) return protocolChanged();
     const rows = record.data.map((item) => {
@@ -294,7 +297,6 @@ async function parseCandidateCodexImageSse(
   expectedCount: number,
   expectedFormat: ImageOutputFormat,
 ): Promise<ParsedCandidateCodexImageResponse> {
-  const best = new Map<number, string>();
   const completedEventResults: string[] = [];
   let completedResponse: Record<string, unknown> | undefined;
 
@@ -305,24 +307,24 @@ async function parseCandidateCodexImageSse(
     let event: unknown;
     try {
       event = JSON.parse(payload);
-    } catch {
-      continue;
+    } catch (cause) {
+      return protocolChanged(cause);
     }
     if (!event || typeof event !== 'object' || Array.isArray(event)) continue;
     const record = event as Record<string, unknown>;
-    if (typeof record.partial_image_b64 === 'string') {
-      const index = record.partial_image_index === undefined ? 0 : record.partial_image_index;
-      if (!Number.isSafeInteger(index) || (index as number) < 0 || (index as number) >= expectedCount) continue;
-      const previous = best.get(index as number);
-      if (!previous || record.partial_image_b64.length >= previous.length) {
-        best.set(index as number, record.partial_image_b64);
-      }
+    if (record.type === 'error' || record.type === 'response.failed' ||
+      record.type === 'response.incomplete' || record.type === 'response.cancelled') {
+      return protocolChanged();
     }
     if (record.type === 'response.completed') {
       if (!record.response || typeof record.response !== 'object' || Array.isArray(record.response)) {
         return protocolChanged();
       }
       completedResponse = record.response as Record<string, unknown>;
+      if (completedResponse.error ||
+        (completedResponse.status !== undefined && completedResponse.status !== 'completed')) {
+        return protocolChanged();
+      }
     }
     if (record.type === 'response.output_item.done' &&
       record.item && typeof record.item === 'object' && !Array.isArray(record.item)) {
@@ -346,13 +348,13 @@ async function parseCandidateCodexImageSse(
     (call): call is Record<string, unknown> & { readonly result: string } =>
       call.status === 'completed' && typeof call.result === 'string',
   );
-  if (best.size !== expectedCount &&
-    completedEventResults.length !== expectedCount &&
-    finalResults.length !== expectedCount) {
+  // Preview indices identify successive previews, not output images. Only an
+  // explicit completed tool result can become the final generated image.
+  const results = calls.length > 0 ? finalResults.map((call) => call.result) : completedEventResults;
+  if (results.length !== expectedCount || (calls.length > 0 && calls.length !== expectedCount)) {
     return protocolChanged();
   }
-  const images = await Promise.all(Array.from({ length: expectedCount }, async (_unused, index) => {
-    const encoded = best.get(index) ?? completedEventResults[index] ?? finalResults[index]?.result;
+  const images = await Promise.all(results.map(async (encoded) => {
     if (!encoded) return protocolChanged();
     return createAsset(encoded, expectedFormat);
   }));

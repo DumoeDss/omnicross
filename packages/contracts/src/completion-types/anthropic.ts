@@ -72,6 +72,8 @@ export type AnthropicContentPart =
   | AnthropicToolUseContent
   | AnthropicToolResultContent
   | AnthropicThinkingContent
+  | { type: 'redacted_thinking'; data: string }
+  | { type: 'document'; title?: string; source: { type: 'base64'; media_type: string; data: string } | { type: 'url'; url: string } }
   | AnthropicAudioContent
   | AnthropicVideoContent;
 
@@ -92,11 +94,15 @@ export interface AnthropicChatRequest {
   system?: string | AnthropicSystemContent[];
   messages: AnthropicMessage[];
   tools?: AnthropicTool[];
-  tool_choice?: { type: 'auto' } | { type: 'any' } | { type: 'tool'; name: string };
+  tool_choice?: ({ type: 'auto' | 'any' | 'none' } | { type: 'tool'; name: string }) & {
+    disable_parallel_tool_use?: boolean;
+  };
   stream?: boolean;
   temperature?: number;
+  top_p?: number;
+  stop_sequences?: string[];
   thinking?: {
-    type: 'enabled' | 'disabled';
+    type: 'enabled' | 'disabled' | 'adaptive';
     budget_tokens?: number;
   };
 }
@@ -107,11 +113,13 @@ export interface AnthropicChatResponse {
   role: 'assistant';
   model: string;
   content: AnthropicContentPart[];
-  stop_reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence';
+  stop_reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence' | 'refusal';
   stop_sequence?: string;
   usage: {
     input_tokens: number;
     output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
   };
 }
 
