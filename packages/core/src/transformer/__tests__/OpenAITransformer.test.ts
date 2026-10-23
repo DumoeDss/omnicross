@@ -149,9 +149,17 @@ describe('OpenAITransformer — reasoning effort', () => {
     expect(out).not.toHaveProperty('reasoning');
   });
 
-  it("omits reasoning_effort for effort 'none' (the wire spells it by absence)", async () => {
-    const out = await encode(req({ reasoning: { effort: 'none', enabled: false } }));
-    expect(out).not.toHaveProperty('reasoning_effort');
+  it('serializes supported explicit off instead of relying on the upstream default', async () => {
+    const openai = {
+      name: 'OpenAI',
+      baseUrl: 'https://api.openai.com/v1',
+    } as LLMProvider;
+    const out = JSON.parse(JSON.stringify(await new OpenAITransformer().transformRequestIn(
+      req({ model: 'gpt-5.1', reasoning: { effort: 'none', enabled: false } }),
+      openai,
+      ctx,
+    )));
+    expect(out.reasoning_effort).toBe('none');
     expect(out).not.toHaveProperty('reasoning');
   });
 
@@ -365,13 +373,27 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
     expect(messages[2]?.reasoning_content).toBeUndefined();
   });
 
-  it('stays silent when the request does not engage thinking', async () => {
+  it('replays for DeepSeek default-on thinking even without an effort field', async () => {
     const out = await new OpenAITransformer().transformRequestIn(
       req({ model: 'deepseek-flash', messages: history as never }),
       deepseekProvider,
       replayContext(replay),
     );
     expect(out.reasoning_effort).toBeUndefined();
+    expect(out).not.toHaveProperty('thinking');
+    const messages = out.messages as Array<Record<string, unknown>>;
+    expect(messages[1]?.reasoning_content).toBe('thinking A');
+    expect(messages[3]?.reasoning_content).toBe('thinking B');
+  });
+
+  it('translates native explicit none into the actual disabled toggle and suppresses replay', async () => {
+    const out = await new OpenAITransformer().transformRequestIn(
+      req({ model: 'deepseek-flash', messages: history as never, reasoning_effort: 'none' }),
+      deepseekProvider,
+      replayContext(replay),
+    );
+    expect(out.thinking).toEqual({ type: 'disabled' });
+    expect(out).not.toHaveProperty('reasoning_effort');
     for (const message of out.messages as Array<Record<string, unknown>>) {
       expect(message.reasoning_content).toBeUndefined();
     }
@@ -393,7 +415,7 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
     }
   });
 
-  it('replays unconditionally once the provider is learned from a live rejection', async () => {
+  it('replays once the provider is learned from a live rejection and the wire is not off', async () => {
     try {
       markReasoningReplayRequired(reasoningReplayKey(zaiProvider));
       // No reasoning intent at all — the observed 400 proved the demand.
@@ -408,4 +430,40 @@ describe('OpenAITransformer — reasoning replay from a Responses client', () =>
       resetReasoningReplayStateForTests();
     }
   });
+
+  it.each(['disabled-toggle', 'native-none', 'unsupported-off'] as const)(
+    'gates learned replay on actual outgoing off controls: %s',
+    async (policy) => {
+      const provider = policy === 'disabled-toggle' ? deepseekProvider : zaiProvider;
+      try {
+        markReasoningReplayRequired(reasoningReplayKey(provider));
+        const out = JSON.parse(JSON.stringify(await new OpenAITransformer().transformRequestIn(
+          req({
+            model: policy === 'disabled-toggle' ? 'deepseek-flash' : 'glm-5.3',
+            messages: history as never,
+            ...(policy === 'native-none'
+              ? { reasoning_effort: 'none' }
+              : { reasoning: { enabled: false } }),
+          }),
+          provider,
+          replayContext(replay),
+        )));
+        if (policy === 'unsupported-off') {
+          expect(out).not.toHaveProperty('reasoning_effort');
+          expect(out).not.toHaveProperty('thinking');
+          expect(out.messages[1].reasoning_content).toBe('thinking A');
+        } else {
+          if (policy === 'disabled-toggle') {
+            expect(out.thinking).toEqual({ type: 'disabled' });
+            expect(out).not.toHaveProperty('reasoning_effort');
+          } else {
+            expect(out.reasoning_effort).toBe('none');
+          }
+          expect(out.messages[1]).not.toHaveProperty('reasoning_content');
+        }
+      } finally {
+        resetReasoningReplayStateForTests();
+      }
+    },
+  );
 });

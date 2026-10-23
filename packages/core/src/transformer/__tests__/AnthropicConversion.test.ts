@@ -676,14 +676,153 @@ describe('buildAnthropicRequestBody', () => {
     expect(body.temperature).toBe(1);
   });
 
-  it('does not promote disabled reasoning to adaptive or legacy thinking', () => {
-    const adaptive = buildAnthropicRequestBody({
+  it.each<NonNullable<UnifiedChatRequest['reasoning']>>([
+    { effort: 'none', enabled: false },
+    { effort: 'none' },
+    { effort: 'high', enabled: false },
+  ])('serializes explicit off instead of the default-on request policy: %j', (reasoning) => {
+    const defaultOn: UnifiedChatRequest = {
+      model: 'claude-sonnet-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 4096,
+      temperature: 0.4,
+      stream: true,
+      stop: ['done'],
+      metadata_user_id: 'role-request',
+      reasoning: { effort: 'high', enabled: true },
+    };
+    const enabledWire = JSON.parse(JSON.stringify(buildAnthropicRequestBody(defaultOn)));
+    const disabledWire = JSON.parse(JSON.stringify(buildAnthropicRequestBody({
+      ...defaultOn,
+      reasoning,
+    })));
+
+    expect(enabledWire.thinking).toEqual({ type: 'adaptive' });
+    expect(enabledWire.output_config).toEqual({ effort: 'high' });
+    expect(disabledWire).toEqual({
+      model: 'claude-sonnet-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 4096,
+      temperature: 0.4,
+      stream: true,
+      stop_sequences: ['done'],
+      metadata: { user_id: 'role-request' },
+      thinking: { type: 'disabled' },
+    });
+  });
+
+  it('preserves explicit disabled thinking through decode and serialized re-encoding', () => {
+    const incoming = {
       model: 'claude-opus-4-6',
       messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 4096,
+      temperature: 0.6,
+      stream: false,
+      thinking: { type: 'disabled' },
+    };
+    const unified = transformAnthropicRequestToUnified(JSON.parse(JSON.stringify(incoming)));
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody(unified)));
+
+    expect(unified.reasoning).toEqual({ effort: 'none', enabled: false });
+    expect(wire).toEqual(incoming);
+  });
+
+  it('keeps absent thinking policy absent through decode and serialized re-encoding', () => {
+    const incoming = {
+      model: 'claude-sonnet-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 4096,
+      temperature: 0.6,
+      stream: false,
+    };
+    const unified = transformAnthropicRequestToUnified(incoming);
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody(unified)));
+
+    expect(unified.reasoning).toBeUndefined();
+    expect(wire).toEqual(incoming);
+  });
+
+  it.each([
+    { model: 'claude-opus-4-6', thinking: { type: 'adaptive' }, output_config: { effort: 'high' } },
+    { model: 'legacy-claude', thinking: { type: 'enabled', budget_tokens: 2048 } },
+  ])('preserves existing enabled thinking on the serialized $model wire', (thinkingConfig) => {
+    const incoming = {
+      ...thinkingConfig,
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 4096,
+      temperature: 1,
+      stream: false,
+    };
+    const unified = transformAnthropicRequestToUnified(incoming);
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody(unified)));
+
+    expect(wire).toEqual(incoming);
+  });
+
+  it.each(['unknown-model', 'gpt-4o'])('does not infer off support for %s', (model) => {
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody({
+      model,
+      messages: [{ role: 'user', content: 'hi' }],
       reasoning: { effort: 'none', enabled: false },
-    });
-    expect(adaptive).not.toHaveProperty('thinking');
-    expect(adaptive).not.toHaveProperty('output_config');
+      temperature: 0.4,
+    })));
+
+    expect(wire).not.toHaveProperty('thinking');
+    expect(wire).not.toHaveProperty('output_config');
+    expect(wire.temperature).toBe(0.4);
+  });
+
+  it('encodes native Chat none for a provider-declared off-capable target', () => {
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody({
+      model: 'custom-anthropic',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning_effort: 'none',
+    }, {
+      modelConfigs: [{
+        id: 'custom-anthropic',
+        thinkingLevels: ['none', 'high'],
+      }],
+    })));
+
+    expect(wire.thinking).toEqual({ type: 'disabled' });
+    expect(wire).not.toHaveProperty('output_config');
+    expect(wire).not.toHaveProperty('temperature');
+  });
+
+  it('serializes disabled legacy thinking independently of its enabled minimum budget', () => {
+    const incoming = {
+      model: 'legacy-anthropic',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 4096,
+      temperature: 0.4,
+      stream: false,
+      thinking: { type: 'disabled' },
+    };
+    const unified = transformAnthropicRequestToUnified(incoming);
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody(unified, {
+      modelConfigs: [{
+        id: 'legacy-anthropic',
+        thinkingTokenLimit: { min: 1024, max: 4096 },
+      }],
+    })));
+
+    expect(wire).toEqual(incoming);
+  });
+
+  it('does not override a provider declaration that excludes disabled thinking', () => {
+    const wire = JSON.parse(JSON.stringify(buildAnthropicRequestBody({
+      model: 'claude-sonnet-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: { effort: 'none', enabled: false },
+    }, {
+      modelConfigs: [{
+        id: 'claude-sonnet-4-6',
+        thinkingLevels: ['low', 'high'],
+      }],
+    })));
+
+    expect(wire).not.toHaveProperty('thinking');
+    expect(wire).not.toHaveProperty('output_config');
   });
 
   it('converts image_url data URIs to Anthropic image source', () => {

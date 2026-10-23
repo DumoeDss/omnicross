@@ -33,6 +33,7 @@
  * @module transformer/transformers/utils/reasoningReplay
  */
 
+import { usesDeepSeekThinkingToggle } from '../../../reasoning/openai-chat-wire';
 import {
   resolveTargetModelCapabilities,
   type ReasoningProvider,
@@ -53,29 +54,23 @@ export interface ReasoningReplayProvider extends ReasoningProvider {
   baseUrl?: string;
 }
 
-function readsDeepSeek(provider: ReasoningReplayProvider | undefined): boolean {
-  if (!provider) return false;
-  return /deepseek/i.test(provider.name ?? '') || /deepseek/i.test(provider.baseUrl ?? '');
-}
-
 /**
- * Providers whose chat wire requires thinking-turn assistant messages back
- * WITH `reasoning_content`.
- *
- * Identity is provider-level (name/base URL reads DeepSeek), but the model
- * must ALSO be v4-era: the same endpoint still serves deepseek-reasoner
- * (R1), which is the opposite regime — it FORBIDS `reasoning_content` in
- * input. The catalog draws that line for us: the v4 family declares discrete
- * `thinkingLevels` while R1/v3 do not, so the capability check keeps legacy
- * models out of the replay.
+ * Providers whose Chat wire requires complete assistant history back
+ * WITH `reasoning_content`. DeepSeek's discrete-thinking family and Kimi's
+ * reasoning API require complete assistant tool-call continuations.
+ * Provider identity keeps aggregators out; resolved capabilities exclude
+ * legacy DeepSeek R1, which instead forbids reasoning_content in input.
  */
 export function isReasoningReplayProvider(
   provider: ReasoningReplayProvider | undefined,
   model: string,
 ): boolean {
-  if (!readsDeepSeek(provider)) return false;
-  const levels = resolveTargetModelCapabilities(model, provider).thinkingLevels;
-  return Array.isArray(levels) && levels.length > 0;
+  if (usesDeepSeekThinkingToggle(provider, model)) return true;
+  if (!provider || !(
+    /kimi|moonshot/i.test(provider.name ?? '') ||
+    /kimi|moonshot/i.test(provider.baseUrl ?? '')
+  )) return false;
+  return resolveTargetModelCapabilities(model, provider).reasoning === true;
 }
 
 /**

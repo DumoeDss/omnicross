@@ -36,13 +36,12 @@ export function resolveCompletionReasoningPlan(
   });
 }
 
-export function resolveOpenAIEffort(
+export function resolveOpenAIResponsesEffort(
   provider: LLMProvider,
   options: CompletionReasoningOptions,
-  target: 'openai-chat' | 'openai-responses',
 ): ThinkLevel | undefined {
-  const plan = resolveCompletionReasoningPlan(provider, options, target);
-  return plan?.kind === 'level' && plan.enabled ? plan.effort : undefined;
+  const plan = resolveCompletionReasoningPlan(provider, options, 'openai-responses');
+  return plan?.kind === 'level' ? plan.effort : undefined;
 }
 
 export interface AnthropicReasoningWire {
@@ -65,6 +64,14 @@ export function buildAnthropicReasoningWire(
     'anthropic',
     legacyBound,
   );
+
+  if (plan && plan.kind !== 'off' && !plan.enabled) {
+    return {
+      effectiveMaxTokens: configuredMaxTokens,
+      thinking: { type: 'disabled' },
+      legacyBudgetEnabled: false,
+    };
+  }
 
   if (plan?.kind === 'level' && plan.enabled) {
     return {

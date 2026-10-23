@@ -271,7 +271,9 @@ export function buildAnthropicRequestBody(
     target: 'anthropic',
     requestMaxTokens: request.max_tokens,
   });
-  if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+  if (reasoningPlan && reasoningPlan.kind !== 'off' && !reasoningPlan.enabled) {
+    body.thinking = { type: 'disabled' };
+  } else if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
     body.thinking = { type: 'adaptive' };
     body.output_config = { effort: reasoningPlan.effort };
   } else if (reasoningPlan?.kind === 'budget' && reasoningPlan.enabled) {

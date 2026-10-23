@@ -15,6 +15,7 @@ import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
 import { convertAnthropicToOpenAI, convertOpenAIToAnthropic } from '..';
 import type { Logger } from '../ports/logger';
+import { applyOpenAIChatReasoning } from '../reasoning/openai-chat-wire';
 
 import {
   buildProviderApiUrl,
@@ -28,7 +29,8 @@ import {
 import {
   buildAnthropicReasoningWire,
   buildGeminiThinkingConfig,
-  resolveOpenAIEffort,
+  resolveCompletionReasoningPlan,
+  resolveOpenAIResponsesEffort,
 } from './ReasoningRequestBuilder';
 
 /**
@@ -49,11 +51,12 @@ export async function callOpenAICompletion(
     stream: false, // For now, non-streaming only
   };
 
-  // Add reasoning_effort for OpenAI reasoning models (Chat Completions API format)
-  const effort = resolveOpenAIEffort(provider, options, 'openai-chat');
-  if (effort) {
-    (request as unknown as Record<string, unknown>).reasoning_effort = effort;
-  }
+  applyOpenAIChatReasoning(
+    request as unknown as Record<string, unknown>,
+    resolveCompletionReasoningPlan(provider, options, 'openai-chat'),
+    provider,
+    options.model,
+  );
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
   const headers = getProviderHeaders(provider, apiKey);
@@ -365,9 +368,11 @@ export async function callOpenAIResponseCompletion(
   };
 
   // Add reasoning effort for reasoning models (Response API format)
-  const responseEffort = resolveOpenAIEffort(provider, options, 'openai-responses');
+  const responseEffort = resolveOpenAIResponsesEffort(provider, options);
   if (responseEffort) {
-    request.reasoning = { effort: responseEffort, summary: 'auto' };
+    request.reasoning = responseEffort === 'none'
+      ? { effort: responseEffort }
+      : { effort: responseEffort, summary: 'auto' };
   }
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });

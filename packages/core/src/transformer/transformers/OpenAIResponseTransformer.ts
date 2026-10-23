@@ -240,12 +240,12 @@ export class OpenAIResponseTransformer implements Transformer {
       requestMaxTokens: request.max_tokens,
       preserveNativeEffort: context.reasoningSourceFormat === this.name,
     });
-    if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+    if (reasoningPlan?.kind === 'level') {
       body.reasoning = {
         effort: reasoningPlan.effort,
         summary: typeof context.responsesReasoningSummary === 'string'
           ? context.responsesReasoningSummary
-          : 'auto',
+          : reasoningPlan.enabled ? 'auto' : undefined,
       };
     }
 

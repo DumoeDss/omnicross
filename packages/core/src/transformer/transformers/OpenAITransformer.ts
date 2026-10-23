@@ -47,6 +47,7 @@
  * @module transformer/transformers/OpenAITransformer
  */
 
+import { applyOpenAIChatReasoning } from '../../reasoning/openai-chat-wire';
 import type {
   LLMProvider,
   MessageContent,
@@ -169,10 +170,9 @@ export class OpenAITransformer implements Transformer {
       });
     }
 
-    // `reasoning` → `reasoning_effort`. 'none' means "no thinking", which the
-    // chat wire spells by omitting the field entirely.
-    // A native Chat field with no decoded unified reasoning is already present
-    // in `out` and must remain byte/native-preserved on same-format paths.
+    // Encode explicit off using the target's actual Chat wire control.
+    // A native Chat effort without unified reasoning is preserved, except for
+    // DeepSeek's unsupported `none`, which requires its thinking toggle.
     const reasoningPlan = request.reasoning
       ? resolveReasoningPlan({
           intent: extractReasoningIntent(request),
@@ -180,13 +180,9 @@ export class OpenAITransformer implements Transformer {
           provider,
           target: 'openai-chat',
           requestMaxTokens: request.max_tokens,
-        })
+        }) ?? { kind: 'off' as const }
       : undefined;
-    if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
-      out.reasoning_effort = reasoningPlan.effort;
-    } else if (request.reasoning) {
-      delete out.reasoning_effort;
-    }
+    applyOpenAIChatReasoning(out, reasoningPlan, provider, request.model);
 
     // Reasoning replay: DeepSeek v4 thinking mode rejects a request whose
     // thinking-turn assistant history lacks `reasoning_content` (400 "The
@@ -195,19 +191,17 @@ export class OpenAITransformer implements Transformer {
     // shared context keyed by assistant-message index. Replay them only for
     // upstreams that demand it — for everyone else the field is at best noise
     // and at worst a rejection (classic deepseek-reasoner FORBIDS it in
-    // input). Statically classified providers replay when this request engages
-    // thinking (the demand is thinking-mode-scoped); a provider LEARNED from a
-    // live rejection replays unconditionally — the 400 proved the demand, and
-    // gating again would keep paying it on non-thinking turns.
+    // input). Omitted effort does not disable default-on upstream thinking.
+    // Both static and learned replay demands therefore remain active unless
+    // the outgoing wire actually switches reasoning off.
     const reasoningReplay = context.responsesReasoningReplay as
       | ReasoningReplayEntry[]
       | undefined;
-    if (reasoningReplay?.length) {
+    const thinking = out.thinking as { type?: unknown } | undefined;
+    const reasoningDisabled = thinking?.type === 'disabled' || out.reasoning_effort === 'none';
+    if (reasoningReplay?.length && !reasoningDisabled) {
       const replayLearned = isReasoningReplayLearned(reasoningReplayKey(provider));
-      const replayStatic =
-        isReasoningReplayProvider(provider, request.model) &&
-        out.reasoning_effort !== undefined;
-      if (replayLearned || replayStatic) {
+      if (replayLearned || isReasoningReplayProvider(provider, request.model)) {
         applyReasoningReplay(out, reasoningReplay);
       }
     }

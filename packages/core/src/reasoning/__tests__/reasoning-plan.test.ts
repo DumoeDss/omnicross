@@ -67,17 +67,6 @@ describe('resolveReasoningPlan discrete effort', () => {
     })).toEqual({ kind: 'level', effort: 'xhigh', enabled: true });
   });
 
-  it('does not create a plan for missing intent or promote disabled intent', () => {
-    expect(resolveReasoningPlan({
-      model: 'gpt-5.6',
-      target: 'openai-chat',
-    })).toBeUndefined();
-    expect(resolveReasoningPlan({
-      intent: { effort: 'none', enabled: false },
-      model: 'gpt-5.3-codex',
-      target: 'openai-chat',
-    })).toEqual({ kind: 'off' });
-  });
 
   it.each([
     'openai-chat',
