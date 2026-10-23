@@ -360,6 +360,14 @@ npm run typecheck -w @omnicross/subscriptions
 npm run typecheck -w @omnicross/daemon
 ```
 
+daemon 的官方 OpenAI SDK 端到端检查使用 Node.js 22，在仓库根目录运行：
+
+```powershell
+npm test -- packages/daemon/src/__tests__/image-daemon-openai-sdk.test.ts --maxWorkers=2 --testTimeout=30000 --hookTimeout=30000
+```
+
+参数校验、provider 失败、流式取消分别启动一套真实 daemon，避免三个独立行为累计占用同一个测试 deadline。取消检查必须同时观察 provider 已进入和 accepted SSE headers，再对真实 socket 执行 RST；不靠固定延时猜测生成仍在进行。随后验证 provider 收到 abort、资源 lease 已释放，以及队列和临时资源计数归零；失败和 runner 取消同样要释放协调门并销毁客户端连接。
+
 涉及 Codex 集成时还应覆盖：
 
 - `configAdapters` 生成与恢复；

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { openTerminal } from '../admin/cliLaunch';
 import {
@@ -33,26 +33,60 @@ async function waitFor(check: () => boolean, timeoutMs = 10_000): Promise<void> 
   throw new Error('timed out waiting for terminal launch state');
 }
 
-async function runLifecycleChild(
-  source: string,
-  watchdogMs = LIFECYCLE_CHILD_WATCHDOG_MS,
-): Promise<{ code: number | null; stdout: string; stderr: string; elapsedMs: number }> {
+interface LifecycleChildResult {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  elapsedMs: number;
+}
+
+interface LifecycleChild {
+  close(): Promise<void>;
+  run(source: string): Promise<LifecycleChildResult>;
+}
+
+async function startLifecycleChild(signal: AbortSignal): Promise<LifecycleChild> {
+  signal.throwIfAborted();
   const readyMarker = '\u001eomnicross-lifecycle-ready\u001f';
   const wrappedSource = `
     import * as net from 'node:net';
     import { openTerminal } from ${JSON.stringify(CLI_LAUNCH_MODULE_URL)};
+    let source = '';
+    process.stdin.setEncoding('utf8').on('data', (chunk) => { source += chunk; });
+    process.stdin.once('end', () => {
+      // The preparation pipe must not participate in the lifecycle under test.
+      process.stdin.unref?.();
+      process.stdin.destroy();
+      Promise.resolve().then(() => new Function('openTerminal', 'net', source)(openTerminal, net))
+        .catch((error) => { console.error(error); process.exitCode = 1; });
+    });
     process.stdout.write(${JSON.stringify(readyMarker)});
-    (async () => {${source}})().catch((error) => { console.error(error); process.exitCode = 1; });
   `;
+  const spawnAt = Date.now();
   // The tsx CLI adds a launcher process; on Windows killing it can leave the
   // evaluated Node process alive. Load tsx in the process the watchdog owns.
   const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', wrappedSource], {
     cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe'],
+    signal,
+    // An inherited Node compile cache writes hundreds of loader/dependency files
+    // after JS 'exit', delaying OS process exit without any live listener/socket.
+    // Keep that toolchain disk work outside this strict reference-lifetime test.
+    env: { ...process.env, NODE_DISABLE_COMPILE_CACHE: '1' },
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
   let stdout = '';
   let stderr = '';
   let readyAt: number | undefined;
+  let exitAt: number | undefined;
+  let closeAt: number | undefined;
+  let spawnError: Error | undefined;
+  let inputError: Error | undefined;
+  let markReady!: () => void;
+  const ready = new Promise<void>((resolve) => { markReady = resolve; });
+  let rejectAborted!: (reason: unknown) => void;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAborted = reject; });
+  const onAbort = () => rejectAborted(signal.reason);
+  signal.addEventListener('abort', onAbort, { once: true });
   // A stdout frame avoids an IPC channel adding a ref to the child under test.
   child.stdout.setEncoding('utf8').on('data', (chunk) => {
     stdout += chunk;
@@ -61,32 +95,75 @@ async function runLifecycleChild(
     if (markerIndex === -1) return;
     readyAt = Date.now();
     stdout = stdout.slice(0, markerIndex) + stdout.slice(markerIndex + readyMarker.length);
+    markReady();
   });
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
-  let watchdog: NodeJS.Timeout | undefined;
-  try {
-    const result = await Promise.race([
-      new Promise<{ code: number | null }>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('close', (code) => resolve({ code }));
-      }),
-      // A real watchdog bounds the independent Node event loop: fake timers
-      // cannot detect whether its listener or sockets keep that process alive.
-      new Promise<never>((_resolve, reject) => {
-        watchdog = setTimeout(() => {
-          const phase = readyAt === undefined ? 'startup' : 'listener lifecycle';
-          reject(new Error(`lifecycle child did not exit during ${phase}: stdout=${JSON.stringify(stdout)}, stderr=${JSON.stringify(stderr)}`));
-        }, watchdogMs);
-      }),
-    ]);
-    if (readyAt === undefined) {
-      throw new Error(`lifecycle child exited before module readiness: ${stderr}`);
-    }
-    return { ...result, stdout, stderr, elapsedMs: Date.now() - readyAt };
-  } finally {
-    if (watchdog) clearTimeout(watchdog);
+  child.stdin.on('error', (error) => { inputError = error; });
+  child.once('error', (error) => { spawnError = error; });
+  child.once('exit', () => { exitAt = Date.now(); });
+  const closed = new Promise<{ code: number | null }>((resolve) => {
+    child.once('close', (code) => {
+      signal.removeEventListener('abort', onAbort);
+      closeAt = Date.now();
+      resolve({ code });
+    });
+  });
+  const close = async (): Promise<void> => {
     if (child.exitCode === null && child.signalCode === null) child.kill();
+    await closed;
+  };
+  // Vitest owns the preparation deadline and aborts its context on hook timeout.
+  try {
+    await Promise.race([
+      ready,
+      closed.then(() => {
+        throw spawnError ?? new Error(`lifecycle child exited before module readiness: ${stderr}`);
+      }),
+      aborted,
+    ]);
+  } catch (error) {
+    await close();
+    throw error;
   }
+
+  return {
+    close,
+    async run(source: string): Promise<LifecycleChildResult> {
+      const runAt = Date.now();
+      let watchdog: NodeJS.Timeout | undefined;
+      try {
+        signal.throwIfAborted();
+        const result = await Promise.race([
+          closed,
+          aborted,
+          // Fake timers cannot detect another Node event loop staying alive.
+          // Start the real deadline at execution, not cold module loading.
+          new Promise<never>((_resolve, reject) => {
+            watchdog = setTimeout(() => {
+              const phase = exitAt === undefined ? 'listener lifecycle' : 'stdio close';
+              const processState = {
+                pid: child.pid,
+                exitAfterExecutionMs: exitAt === undefined ? null : exitAt - runAt,
+                closeAfterExecutionMs: closeAt === undefined ? null : closeAt - runAt,
+                exitCode: child.exitCode,
+                signalCode: child.signalCode,
+                stdout: { ended: child.stdout.readableEnded, destroyed: child.stdout.destroyed },
+                stderr: { ended: child.stderr.readableEnded, destroyed: child.stderr.destroyed },
+              };
+              reject(new Error(`lifecycle child did not exit during ${phase}: startupMs=${readyAt! - spawnAt}, executionMs=${Date.now() - runAt}, processState=${JSON.stringify(processState)}, stdout=${JSON.stringify(stdout)}, stderr=${JSON.stringify(stderr)}`));
+            }, LIFECYCLE_CHILD_WATCHDOG_MS);
+            child.stdin.end(source);
+          }),
+        ]);
+        if (spawnError) throw spawnError;
+        if (inputError) throw inputError;
+        return { ...result, stdout, stderr, elapsedMs: exitAt! - runAt };
+      } finally {
+        clearTimeout(watchdog);
+        await close();
+      }
+    },
+  };
 }
 
 const CLI_LAUNCH_MODULE_URL = pathToFileURL(join(process.cwd(), 'packages/daemon/src/admin/cliLaunch.ts')).href;
@@ -194,56 +271,77 @@ describe('POSIX terminal launch secret boundary', () => {
     },
   );
 
-  it('an unconsumed listener cannot keep a child process alive before its timeout', async () => {
-    const source = `
-      const cleanup = openTerminal(
-        { cli: 'codex', command: 'codex', extraArgs: [], env: { OMNICROSS_CODEX_ROUTE_TOKEN: 'child-canary' }, platform: 'darwin' },
-        () => ({ once() {}, unref() {} }),
-        {
-          socketPath: ${JSON.stringify(privatePipe('child-listener'))},
-          timeoutMs: 120000,
-          onListening: () => process.stdout.write('listening'),
-        },
-      );
-      process.once('beforeExit', cleanup);
-    `;
-    const result = await runLifecycleChild(source);
-    expect(result.code).toBe(0);
-    expect(result.stdout).toBe('listening');
-    expect(result.elapsedMs).toBeLessThan(LIFECYCLE_CHILD_WATCHDOG_MS);
-  }, LIFECYCLE_TEST_TIMEOUT_MS);
+  describe('natural child-process exit', () => {
+    let child: LifecycleChild | undefined;
 
-  it('a claimed non-closing peer cannot keep a child process alive', async () => {
-    const source = `
-      const socketPath = ${JSON.stringify(privatePipe('child-peer'))};
-      let cleanup;
-      const claimWatchdog = setTimeout(() => {
-        process.stderr.write('timed out waiting for claimed peer');
-        process.exitCode = 1;
-      }, 2000);
-      cleanup = openTerminal(
-        { cli: 'codex', command: 'codex', extraArgs: [], env: { OMNICROSS_CODEX_ROUTE_TOKEN: 'child-canary' }, platform: 'darwin' },
-        () => ({ once() {}, unref() {} }),
-        {
-          socketPath,
-          timeoutMs: 120000,
-          onListening: () => {
-            const peer = net.createConnection(socketPath);
-            peer.pause();
-            peer.unref();
+    // Preparing the real Node/tsx process is separate from the strict lifecycle
+    // deadline, and applies only to the two process-exit regressions.
+    beforeEach(async (context) => {
+      child = await startLifecycleChild(context.signal);
+    });
+
+    afterEach(async () => {
+      await child?.close();
+      child = undefined;
+    });
+
+    it('an unconsumed listener cannot keep a child process alive before its timeout', async () => {
+      const source = `
+        const cleanup = openTerminal(
+          { cli: 'codex', command: 'codex', extraArgs: [], env: { OMNICROSS_CODEX_ROUTE_TOKEN: 'child-canary' }, platform: 'darwin' },
+          () => ({ once() {}, unref() {} }),
+          {
+            socketPath: ${JSON.stringify(privatePipe('child-listener'))},
+            timeoutMs: 120000,
+            onListening: () => process.stdout.write('listening'),
           },
-          onClaimed: () => {
-            clearTimeout(claimWatchdog);
-            cleanup();
+        );
+        process.once('beforeExit', cleanup);
+      `;
+      const result = await child!.run(source);
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe('listening');
+      expect(result.elapsedMs).toBeLessThan(LIFECYCLE_CHILD_WATCHDOG_MS);
+    }, LIFECYCLE_TEST_TIMEOUT_MS);
+
+    it('a claimed non-closing peer cannot keep a child process alive', async () => {
+      const source = `
+        const socketPath = ${JSON.stringify(privatePipe('child-peer'))};
+        let cleanup;
+        let claimWatchdog;
+        cleanup = openTerminal(
+          { cli: 'codex', command: 'codex', extraArgs: [], env: { OMNICROSS_CODEX_ROUTE_TOKEN: 'child-canary' }, platform: 'darwin' },
+          () => ({ once() {}, unref() {} }),
+          {
+            socketPath,
+            timeoutMs: 120000,
+            onListening: () => {
+              process.stdout.write('listening');
+              // A real child watchdog bounds OS-pipe claim; parent fake timers
+              // cannot advance this independent Node event loop.
+              claimWatchdog = setTimeout(() => {
+                process.stderr.write('timed out waiting for claimed peer');
+                process.exitCode = 1;
+              }, 2000);
+              const peer = net.createConnection(socketPath);
+              peer.pause();
+              peer.unref();
+            },
+            onClaimed: () => {
+              clearTimeout(claimWatchdog);
+              cleanup();
+              process.stdout.write('claimed-cleaned');
+            },
           },
-        },
-      );
-    `;
-    const result = await runLifecycleChild(source);
-    expect(result.stderr).toBe('');
-    expect(result.code).toBe(0);
-    expect(result.elapsedMs).toBeLessThan(LIFECYCLE_CHILD_WATCHDOG_MS);
-  }, LIFECYCLE_TEST_TIMEOUT_MS);
+        );
+      `;
+      const result = await child!.run(source);
+      expect(result.stderr).toBe('');
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe('listeningclaimed-cleaned');
+      expect(result.elapsedMs).toBeLessThan(LIFECYCLE_CHILD_WATCHDOG_MS);
+    }, LIFECYCLE_TEST_TIMEOUT_MS);
+  });
 
   it('explicitly destroys a claimed non-closing accepted socket during cleanup', async () => {
     const socketPath = privatePipe('claimed-destroy');
