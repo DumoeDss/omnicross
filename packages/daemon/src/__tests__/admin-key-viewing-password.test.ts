@@ -66,6 +66,7 @@ describe('protected admin reads', () => {
     expect(readFileSync(join(directory, 'config.json.key-viewing.json'), 'utf8')).not.toContain('view');
   });
 
+  // Rotation/recovery performs multiple real scrypt and durable-store operations.
   it('requires the current password for disable/rotation and clears old credentials before recovery', async () => {
     await request('POST', '/providers/fixture/reveal-key', { viewingPassword: 'view' });
     expect((await request('PUT', '/key-viewing-password', { newPassword: null })).status).toBe(403);
@@ -93,5 +94,5 @@ describe('protected admin reads', () => {
     expect(plaintext).not.toContain('fixture-mode-secret');
     expect(plaintext).not.toContain('fixture-plan-secret');
     expect((await request('PUT', '/key-viewing-password', { currentPassword: 'reco', newPassword: null })).status).toBe(200);
-  });
+  }, 30_000);
 });

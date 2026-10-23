@@ -8,7 +8,9 @@ Part of the [omnicross](https://github.com/Dumoedss/omnicross) monorepo — see 
 npm install @omnicross/core @omnicross/contracts
 ```
 
-The published core runtime remains supported on Node.js `>=20.9`. The monorepo's
+The published core runtime requires Node.js `>=20.10`: Sharp's ESM entry uses
+import attributes that Node.js 20.9 cannot parse. CJS and ESM consumers share this
+minimum; switching module format is not a compatibility workaround. The monorepo's
 official OpenAI JavaScript SDK contract suite is contributor tooling, uses
 `openai@7.8.x`, and requires Node.js 22 or newer. Run it from the repository root
 with `npm run test:images-sdk-contract`; the command checks the Node major before

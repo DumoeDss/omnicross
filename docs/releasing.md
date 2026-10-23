@@ -25,8 +25,8 @@ line endings:
 - the Tauri application version.
 
 Use Node.js 22 or newer for contributor/release tooling; the official OpenAI
-SDK development dependency requires it. This does not raise the published
-core runtime minimum of Node.js 20.9.
+SDK development dependency requires it. The published core runtime minimum is
+Node.js 20.10; verify both installed CJS and ESM entrypoints at that minimum.
 
 `audit:codex-sessions` replays the maintainer's OWN recent codex session
 history (`~/.codex/sessions`, last 7 days by default) through the
