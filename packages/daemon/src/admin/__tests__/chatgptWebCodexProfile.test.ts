@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveAskProServerEntry } from '@omnicross/chatgpt-web/askpro/askProServer';
+import { resolveAskProServerEntry } from '@omnicross/chatgpt-web/askpro/askProCore';
 
 // The fs-glue tests redirect homedir to a temp dir so the REAL ~/.codex and
 // ~/.omnicross are never touched.

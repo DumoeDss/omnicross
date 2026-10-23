@@ -27,6 +27,8 @@ const DEVELOPMENT_ONLY_PATHS = {
   hasown: ['.github'],
   'iconv-lite': ['.github'],
   'math-intrinsics': ['test', '.github'],
+  'requires-port': ['test.js'],
+  'safer-buffer': ['tests.js'],
   streamsearch: ['test', '.github'],
   zod: [
     'src/v3/benchmarks',

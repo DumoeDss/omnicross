@@ -37,7 +37,7 @@ jobs:
       - name: Setup Node.js for release validation
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Validate stable tag and protected signing configuration
         id: release
@@ -155,7 +155,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Setup Rust
@@ -208,7 +208,7 @@ jobs:
       - name: Setup Node.js for npm publication
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
 
@@ -240,7 +240,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Rust signature verifier
         uses: dtolnay/rust-toolchain@stable

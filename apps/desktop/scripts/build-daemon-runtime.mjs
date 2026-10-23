@@ -6,11 +6,11 @@
  * must carry the daemon's JS + its node_modules (esbuild-style single-file
  * bundling is off the table: cli-launcher depends on node-pty, a NATIVE addon).
  *
- * Strategy: `npm pack` every workspace package into tarballs, then run a real
- * `npm install` in `src-tauri/daemon-runtime/` with `overrides` pinning all
- * @omnicross/* to the local tarballs — third-party deps (jsdom, node-pty, zod,
- * …) resolve from the registry exactly as a published install would. The
- * resulting tree ships as a Tauri resource; the shell resolves
+ * Strategy: `npm pack` the six public workspace packages into tarballs, then run
+ * a real `npm install` in `src-tauri/daemon-runtime/` with `overrides` pinning
+ * public @omnicross/* packages to local tarballs. The daemon tarball already
+ * bundles private ChatGPT Web and its production dependencies.
+ * The resulting tree ships as a Tauri resource; the shell resolves
  * `daemon-runtime/node_modules/@omnicross/daemon/dist/cli.js`.
  *
  * Run via `npm run build` in apps/desktop (wired before `tauri build`), or
@@ -34,7 +34,7 @@ const repo = resolve(here, '..', '..', '..');
 const staging = resolve(here, '..', 'src-tauri', 'daemon-runtime');
 const tarballDir = join(staging, 'tarballs');
 
-const PACKAGES = ['contracts', 'core', 'subscriptions', 'cli-launcher', 'chatgpt-web', 'ui', 'daemon'];
+const PACKAGES = ['contracts', 'core', 'subscriptions', 'cli-launcher', 'ui', 'daemon'];
 
 function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit' });

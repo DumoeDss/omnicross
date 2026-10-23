@@ -5,9 +5,8 @@ import { defineConfig } from 'tsup';
 // loopback Responses bridge) and `session` (CDP/ChatGPT probe helpers).
 //
 // Two build configs:
-//  1. Library entries, dual format (ESM + CJS). These MUST stay free of
-//     `import.meta` — esbuild leaves the token verbatim in CJS output, which
-//     crashes on require().
+//  1. Library entries, dual format (ESM + CJS). Translate import.meta.url to
+//     the current output file URL for CJS; leaving it verbatim crashes require().
 //  2. Standalone child entries the OS spawns with node (the tunnel's MCP
 //     server, the ask_pro advisor), ESM ONLY — they use import.meta for entry
 //     guards and module-path resolution. Nothing requires these subpaths.
@@ -24,6 +23,8 @@ export default defineConfig([
       session: 'src/chatgpt/session.ts',
       'chatgpt/turn': 'src/chatgpt/turn.ts',
       'chatgpt/harnessTurn': 'src/chatgpt/harnessTurn.ts',
+      // Library-safe resolver; the standalone askProServer stays ESM-only.
+      'askpro/askProCore': 'src/askpro/askProCore.ts',
       // Consumed as a subpath by the daemon harness command.
       'tunnel/harnessConfig': 'src/tunnel/harnessConfig.ts',
       // Subpath the daemon admin API imports statically (chatgptWebApi) — without
@@ -49,6 +50,18 @@ export default defineConfig([
     clean: false,
     splitting: true,
     external: ['ws'],
+    esbuildOptions(options, { format }) {
+      if (format === 'cjs') {
+        options.define = {
+          ...options.define,
+          'import.meta.url': '__omnicrossImportMetaUrl',
+        };
+        options.banner = {
+          ...options.banner,
+          js: `${options.banner?.js ?? ''}\nconst __omnicrossImportMetaUrl = require('node:url').pathToFileURL(__filename).href;`,
+        };
+      }
+    },
     // Ship the Electron host main script beside the compiled host module.
     onSuccess: async () => {
       mkdirSync('dist/browserHost', { recursive: true });

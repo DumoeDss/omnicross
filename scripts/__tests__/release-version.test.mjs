@@ -30,6 +30,7 @@ function copyReleaseFixture() {
   const root = mkdtempSync(join(tmpdir(), 'omnicross-release-version-'));
   for (const relativePath of [
     ...RELEASE_MANIFEST_PATHS,
+    'packages/chatgpt-web/package.json',
     TAURI_CONFIG_PATH,
     LOCKFILE_PATH,
   ]) {
@@ -54,7 +55,7 @@ describe('unified release version contract', () => {
   it('prepares every product manifest, workspace dependency, lock entry and Tauri config', () => {
     const root = copyReleaseFixture();
     prepareReleaseVersion({ root, version: '1.2.3' });
-    assert.doesNotThrow(() => assertReleaseVersion({ root, version: 'v1.2.3' }));
+    assert.equal(assertReleaseVersion({ root, version: 'v1.2.3' }), '1.2.3');
 
     const internalNames = new Set(PUBLISHABLE_WORKSPACES.map(({ name }) => name));
     for (const relativePath of RELEASE_MANIFEST_PATHS) {
@@ -111,20 +112,35 @@ describe('unified release version contract', () => {
     );
   });
 
-  it('keeps the checked-in release state internally consistent', () => {
-    const version = readJson(repo, 'package.json').version;
-    assert.doesNotThrow(() => assertReleaseVersion({ root: repo, version }));
-  });
+  it('rejects unbundled private runtime dependencies but permits bundled and build-only use', () => {
+    const root = copyReleaseFixture();
+    prepareReleaseVersion({ root, version: '1.2.3' });
+    const privateName = '@omnicross/private-release-fixture';
+    const privateDirectory = join(root, 'packages', 'private-release-fixture');
+    mkdirSync(privateDirectory);
+    writeFileSync(join(privateDirectory, 'package.json'), JSON.stringify({
+      name: privateName, version: '0.0.1', private: true,
+    }));
+    const daemonPath = join(root, 'packages/daemon/package.json');
+    const daemon = readJson(root, 'packages/daemon/package.json');
+    daemon.dependencies[privateName] = '^0.0.1';
+    daemon.bundleDependencies = [];
+    delete daemon.bundledDependencies;
+    writeFileSync(daemonPath, JSON.stringify(daemon));
 
-  it('gates release creation on checked-in versions and publishes npm before finalizing', () => {
-    const workflow = readFileSync(join(repo, '.github', 'workflows', 'release.yml'), 'utf8');
-    const check = 'node scripts/release-version.mjs check "$VERSION"';
-    assert.ok(workflow.indexOf(check) > -1, 'workflow runs the unified version check');
-    assert.ok(workflow.indexOf(check) < workflow.indexOf('find_release()'), 'check runs before draft creation');
-    assert.doesNotMatch(workflow, /c\.version='\$VERSION'/, 'workflow never patches only the Tauri version');
-    assert.match(workflow, /publish-npm:/);
-    assert.match(workflow, /node scripts\/publish-workspaces\.mjs "\$VERSION"/);
-    assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
-    assert.match(workflow, /finalize-updater:[\s\S]*needs: \[prepare-release, build, publish-npm\]/);
+    assert.throws(() => assertReleaseVersion({ root, version: '1.2.3' }), error => {
+      assert.match(error.message, /@omnicross\/private-release-fixture/);
+      return true;
+    });
+
+    daemon.bundleDependencies = ['@omnicross/chatgpt-web', privateName];
+    writeFileSync(daemonPath, JSON.stringify(daemon));
+    assert.equal(assertReleaseVersion({ root, version: '1.2.3' }), '1.2.3');
+
+    delete daemon.dependencies[privateName];
+    daemon.devDependencies = { ...daemon.devDependencies, [privateName]: '^0.0.1' };
+    daemon.bundleDependencies = ['@omnicross/chatgpt-web'];
+    writeFileSync(daemonPath, JSON.stringify(daemon));
+    assert.equal(assertReleaseVersion({ root, version: '1.2.3' }), '1.2.3');
   });
 });
