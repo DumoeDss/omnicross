@@ -25,8 +25,8 @@ line endings:
 - the Tauri application version.
 
 Use Node.js 22 or newer for contributor/release tooling; the official OpenAI
-SDK development dependency requires it. This does not raise the published
-core runtime minimum of Node.js 20.9.
+SDK development dependency requires it. The published core runtime minimum is
+Node.js 20.10; verify both installed CJS and ESM entrypoints at that minimum.
 
 `audit:codex-sessions` replays the maintainer's OWN recent codex session
 history (`~/.codex/sessions`, last 7 days by default) through the
@@ -38,6 +38,17 @@ therefore adds no signal, which is why it gates the maintainer's release
 sequence rather than the workflow. A failure names the exact JSON path of the
 rejected shape; fix the gate before tagging, the same way a `release:check`
 failure is treated.
+
+The audit streams JSONL records, detaches abbreviated samples from large source
+strings, and fails on unreadable selected files rather than silently skipping
+them. Do not restore whole-file reads: individual recordings can exceed V8's
+maximum string length and otherwise disappear from the release evidence.
+
+Grammar declarations are compiled from their complete source during this audit;
+the audit must not truncate grammar definitions along with long prompt examples.
+Keep the grammar engine and converted-wire regressions green without changing
+the audit target or waiving rejected shapes. See the core README for the exact
+grammar dialect and generated-output failure policy.
 
 Review and commit the resulting diff, then create and push the matching tag:
 
@@ -73,6 +84,16 @@ separate private-package tarball or registry access to that package.
 they are bundled. `test:release-contract` also checks the staging transaction's
 junction protection, rollback, and post-commit cleanup failures. The desktop
 runtime uses the same six public tarballs and the bundled private closure.
+
+The grammar runtime is a public, exact-pinned core dependency with inline WASM.
+The fresh consumer must exercise valid and invalid Lark/regex tools through
+packed CJS/ESM entrypoints, not only import the modules. Do not install a model,
+HuggingFace, Python, or Rust to make this verification pass.
+
+This behavior check also runs automatically during the core build via
+`npm run check:grammar-runtime -w @omnicross/core`. Preserve native dynamic import
+and shared CJS chunks when changing the bundler; an import-only smoke misses the
+lazy ESM-only grammar engine load.
 
 ## Automated publication
 

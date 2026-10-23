@@ -9,6 +9,7 @@
 
 import type { ModelConfig } from '@omnicross/contracts/llm-config';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
+import type { CompiledCustomToolGrammar, CustomToolGrammarFormat } from './grammars/customToolGrammar';
 
 export type { ThinkLevel } from '@omnicross/contracts/completion-types';
 
@@ -251,6 +252,12 @@ export interface UnifiedChatRequestMeta {
     customToolNames?: string[];
     /** Tool name → codex namespace, restored onto `function_call` items. */
     toolNamespaces?: Record<string, string>;
+    /** Original custom format; restored verbatim when encoding a native tool. */
+    customToolFormats?: Record<string, CustomToolGrammarFormat | { type: 'text' }>;
+    customToolDescriptions?: Record<string, string>;
+    /** Internal-only validators for newly generated calls, never history. */
+    grammarValidators?: Record<string, CompiledCustomToolGrammar>;
+    customToolCallIds?: string[];
   };
 }
 

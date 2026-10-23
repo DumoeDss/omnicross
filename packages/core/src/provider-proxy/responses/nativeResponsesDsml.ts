@@ -56,7 +56,7 @@ import {
   encodeToolCallItem,
   resolveDeclaredWireName,
   type CodexToolDeclarations,
-} from '../../transformer/transformers/OpenAIResponseTransformer';
+} from '../../transformer/transformers/utils/codexToolProtocol';
 
 /**
  * Decide whether the native relay should wrap this response, and with what

@@ -85,3 +85,15 @@ by and adapted from the oh-my-pi search implementations.
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
+
+--------------------------------------------------------------------------------
+4. transformers-llguidance / guidance-ai/llguidance  (MIT License)
+--------------------------------------------------------------------------------
+
+Grammar-constrained custom-tool validation uses transformers-llguidance 0.2.1
+(Copyright 2026 Delton Ding), which distributes an inline WASM build of llguidance
+(Copyright (c) Microsoft Corporation). These are runtime dependencies, not
+vendored binaries; their package-shipped licenses remain with the dependency.
+
+    https://github.com/dsh0416/transformers-llguidance
+    https://github.com/guidance-ai/llguidance

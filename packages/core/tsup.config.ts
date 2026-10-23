@@ -14,7 +14,7 @@ const pkg = JSON.parse(
 // import (relative to the package root); tsup writes each to dist/<key>.{js,cjs,d.ts}
 // so the package.json "./*" exports wildcard resolves every subpath. Directory-index
 // subpaths (completion, outbound-api, provider-proxy) flatten to dist/<name>.js.
-// splitting:false keeps each entry self-contained; external deps stay external.
+// Splitting keeps shared runtime state across subpaths; dependencies stay external.
 export default defineConfig({
   define: {
     __OMNICROSS_VERSION__: JSON.stringify(pkg.version),
@@ -129,12 +129,13 @@ export default defineConfig({
   dts: true,
   sourcemap: false,
   clean: true,
-  // ESM code-splitting is REQUIRED for correctness, not an optimization:
+  // Code-splitting is REQUIRED for correctness, not an optimization:
   // without it every entry inlines its own copy of shared internal modules,
   // which duplicates MODULE-LEVEL SINGLETONS (e.g. the outbound-api
   // subscriptionRegistryPort slot, shared executors) — a setter reached via
   // one entry becomes invisible to a reader inlined into another entry.
-  // esbuild only supports splitting for ESM; the CJS output keeps per-entry
-  // inlining (known limitation — every supported runtime here consumes ESM).
+  // Rollup must render CJS: tsup's default Sucrase splitting lowers native
+  // import() to require(), which cannot load ESM-only runtime dependencies.
   splitting: true,
+  treeshake: 'safest',
 });

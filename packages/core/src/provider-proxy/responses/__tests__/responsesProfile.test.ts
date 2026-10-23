@@ -368,6 +368,7 @@ describe('validateReducedResponsesRequest', () => {
     ['unknown item type', { input: [{ type: 'future_item', role: 'user', content: 'x' }] }, '$.input[0].type'],
     ['bad reasoning shape', { input: 'x', reasoning: { effort: 7 } }, '$.reasoning.effort'],
     ['invalid function namespace', { input: [{ type: 'function_call', call_id: 'call_1', name: 'f', arguments: '{}', namespace: 7 }] }, '$.input[0].namespace'],
+    ['invalid custom namespace', { input: [{ type: 'custom_tool_call', call_id: 'call_1', name: 'f', input: 'raw', namespace: 7 }] }, '$.input[0].namespace'],
     ['missing call id', { input: [{ type: 'function_call', name: 'f', arguments: '{}' }] }, '$.input[0].call_id'],
     // Top-level namespace (dropped by the gate) + nothing else executable.
     ['top-level namespace declaration', { input: 'x', tools: [{ type: 'namespace', name: 'ns', tools: [] }] }, '$.tools'],
@@ -385,17 +386,6 @@ describe('validateReducedResponsesRequest', () => {
     },
   );
 
-  it('rejects custom grammar contracts but admits explicit free text', () => {
-    expect(() => validateReducedResponsesRequest({
-      input: 'x', tools: [{ type: 'custom', name: 'exec', format: { type: 'grammar', syntax: 'lark', definition: 'start: "x"' } }],
-    }, chatCapabilities)).toThrow(expect.objectContaining({
-      code: 'unsupported_capability', status: 400,
-      message: expect.stringContaining('$.tools[0].format'),
-    }));
-    expect(() => validateReducedResponsesRequest({
-      input: 'x', tools: [{ type: 'custom', name: 'exec', format: { type: 'text' } }],
-    }, chatCapabilities)).not.toThrow();
-  });
 
   it('a tools array of ONLY hosted declarations fails loudly with the honest reason', () => {
     expect(() => validateReducedResponsesRequest({
