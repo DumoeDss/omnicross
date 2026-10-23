@@ -43,6 +43,12 @@ export type OutboundEndpoint = 'chat' | 'responses' | 'messages' | 'gemini';
 /** Named-key authorization vocabulary. Images is deliberately not a text route. */
 export type OutboundPermission = OutboundEndpoint | 'images';
 
+export type HttpSearchProviderId =
+  | 'http-bing' | 'http-duckduckgo' | 'http-startpage'
+  | 'http-ecosia' | 'http-mojeek' | 'public';
+
+export type SearchHttpProviderConfigs = Partial<Record<HttpSearchProviderId, { enabled?: boolean }>>;
+
 /**
  * The persisted `search` section (plan §6.3).
  *
@@ -70,8 +76,8 @@ export interface SearchServerConfig {
    * prints this distinction rather than leaving an operator to discover it.
    */
   modes: SearchFrontendModes;
-  /** Configured API providers. A provider absent here is UNCONFIGURED, not broken. */
-  providers: SearchApiProviderConfigs;
+  /** Absent API providers and new HTTP engines are unconfigured; the original HTTP pair stays enabled. */
+  providers: SearchApiProviderConfigs & SearchHttpProviderConfigs;
   /** SSRF egress policy knobs. */
   egress: {
     /**

@@ -605,6 +605,19 @@ export interface DeepseekProviderConfig {
   apiHost?: string;
 }
 
+/** Public mode is limited and unauthenticated; API mode requires a stored key. */
+export interface PublicApiSearchProviderConfig extends TavilyProviderConfig {
+  authMode?: 'public' | 'api';
+}
+
+export interface KeyedSearchProviderConfig extends TavilyProviderConfig {
+  model?: string;
+}
+
+export interface HttpSearchProviderConfig {
+  enabled?: boolean;
+}
+
 /**
  * The masked admin view of `server.search.providers`. The daemon NEVER sends
  * `apiKey` / `basicAuthPassword` values — only the `*Configured` markers (the
@@ -618,6 +631,24 @@ export interface SearchApiProviderConfigs {
   zhipu?: ZhipuProviderConfig;
   'z.ai'?: ZhipuProviderConfig;
   deepseek?: DeepseekProviderConfig;
+  exa?: PublicApiSearchProviderConfig;
+  parallel?: PublicApiSearchProviderConfig;
+  firecrawl?: PublicApiSearchProviderConfig;
+  brave?: KeyedSearchProviderConfig;
+  kagi?: KeyedSearchProviderConfig;
+  kimi?: KeyedSearchProviderConfig;
+  synthetic?: KeyedSearchProviderConfig;
+  ollama?: KeyedSearchProviderConfig;
+  tinyfish?: KeyedSearchProviderConfig;
+  perplexity?: KeyedSearchProviderConfig;
+  bocha?: KeyedSearchProviderConfig;
+  claude?: KeyedSearchProviderConfig;
+  'http-bing'?: HttpSearchProviderConfig;
+  'http-duckduckgo'?: HttpSearchProviderConfig;
+  'http-startpage'?: HttpSearchProviderConfig;
+  'http-ecosia'?: HttpSearchProviderConfig;
+  'http-mojeek'?: HttpSearchProviderConfig;
+  public?: HttpSearchProviderConfig;
 }
 
 /**

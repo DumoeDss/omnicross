@@ -133,9 +133,14 @@ describe('search settings end-to-end smoke (task 6.2)', () => {
     // Runtime rows: only the keyless pair runs (tavily/searxng were saved
     // after boot); the unconfigured rows name the API providers the persisted
     // config omits (searxng IS persisted, so it has no row until restart).
-    expect(diagnostics.rows.map((row) => row.providerId).sort()).toEqual([
-      'deepseek', 'http-bing', 'http-duckduckgo', 'jina', 'z.ai', 'zhipu',
-    ]);
+    expect(diagnostics.rows.filter((row) => row.status !== 'unconfigured').map((row) => row.providerId))
+      .toEqual(['http-bing', 'http-duckduckgo']);
+    expect(diagnostics.rows.some((row) => row.providerId === 'tavily' || row.providerId === 'searxng'))
+      .toBe(false);
+    expect(diagnostics.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ providerId: 'exa', status: 'unconfigured' }),
+      expect.objectContaining({ providerId: 'claude', status: 'unconfigured' }),
+    ]));
     // The REAL model comparison names the pending-restart providers → the
     // banner renders them.
     expect(pendingRestartProviderIds(masked, { ...diagnostics, rows: diagnostics.rows } as never))

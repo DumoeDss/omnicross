@@ -3,9 +3,8 @@
  * (search-settings-tab, design D2/D3; moved from api-service/SearchSection).
  *
  * Edits the masked `server.search` segment end-to-end: the three per-frontend
- * modes, the six keyed provider cards (write-only secrets — blank keeps the
- * stored value, `null` clears the optional ones, entry removal clears required
- * ones), the default policy, and the egress allowlist. DeepSeek additionally
+ * modes, provider cards (write-only secrets — blank keeps the stored value,
+ * `null` clears optional keys, entry removal clears required ones). DeepSeek
  * offers key REUSE: an entry with no key borrows the official key from a
  * configured DeepSeek provider row, so the same credential is never stored
  * twice. Save PUTs the WHOLE
@@ -22,8 +21,7 @@
  *
  * Honesty rules baked into the layout:
  * - unconfigured is an EMPTY STATE naming the missing field, never an error;
- * - the keyless HTTP pair is always-available — no config fields, no fake
- *   enable toggle (configure-state IS enablement);
+ * - HTTP engines are explicitly editable; only the original pair defaults on;
  * - after saving, the codex mode applies immediately; everything else needs a daemon restart
  *   — labeled statically, plus a pending-restart banner when the persisted
  *   provider set diverges from the running runtime;
@@ -58,6 +56,7 @@ import {
   createSearchSettingsDraft,
   draftProviderConfigured,
   isUsableHostString,
+  invalidSearchAuthProviderIds,
   pendingRestartProviderIds,
   SEARCH_PROVIDER_CATALOG,
   searchDraftToPayload,
@@ -132,6 +131,7 @@ export function SearchSettingsSection({ config, diagnostics, busy, onUpdate, onQ
   const rowFor = (providerId: string) => diagnostics?.rows.find((row) => row.providerId === providerId);
   const pendingRestart = pendingRestartProviderIds(config, diagnostics);
   const disabled = busy || saving;
+  const invalidAuthProviders = invalidSearchAuthProviderIds(draft);
 
   if (!config) {
     return (
@@ -147,10 +147,15 @@ export function SearchSettingsSection({ config, diagnostics, busy, onUpdate, onQ
           heading on the standalone page. */}
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-surface-0 px-3 py-2">
         <p className="text-xs text-muted-foreground">{t('search.modes.description')}</p>
-        <Button size="sm" className="shrink-0" disabled={disabled} onClick={() => void save()}>
+        <Button size="sm" className="shrink-0" disabled={disabled || invalidAuthProviders.length > 0} onClick={() => void save()}>
           {t('search.action.save')}
         </Button>
       </div>
+      {invalidAuthProviders.length > 0 ? (
+        <p role="alert" className="text-xs text-warning">
+          {t('search.authMode.missingKey', { providers: invalidAuthProviders.join(', ') })}
+        </p>
+      ) : null}
       {pendingRestart.length > 0 ? (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning" role="status">
           <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" aria-hidden="true" />
@@ -275,16 +280,16 @@ function ProviderCard({
 }) {
   const t = useTranslation();
 
-  // The static keyless pair: always available, nothing to edit, panel always
-  // live.
+  const provider = draft!;
   if (entry.kind === 'http') {
+    const enabled = provider.enabled;
     return (
       <div className="rounded-lg border border-border/60 bg-surface-0/60 p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">{entry.name}</span>
             <Badge variant="outline">{entry.kind}</Badge>
-            <Badge variant="success">{t('search.status.ready')}</Badge>
+            <Badge variant={enabled ? 'success' : 'secondary'}>{t(enabled ? 'search.status.ready' : 'search.status.unconfigured')}</Badge>
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -297,19 +302,28 @@ function ProviderCard({
             </a>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">{t('search.keyless.description')}</p>
-        <SearchTestPanel
-          providerId={entry.id}
-          providerName={entry.name}
-          onQuery={onQuery}
-          saveFirst={false}
-          disabled={disabled}
-        />
+        <p className="text-xs text-muted-foreground">{t(entry.id === 'public' ? 'search.http.aggregateDescription' : 'search.keyless.description')}</p>
+        <SettingRow label={t('search.field.enabled')}>
+          <Switch
+            aria-label={t('search.field.enabled')}
+            checked={enabled}
+            disabled={disabled}
+            onCheckedChange={(value) => onPatch({ enabled: value })}
+          />
+        </SettingRow>
+        {enabled ? (
+          <SearchTestPanel
+            providerId={entry.id}
+            providerName={entry.name}
+            onQuery={onQuery}
+            saveFirst={!provider.initialEnabled}
+            disabled={disabled}
+          />
+        ) : null}
       </div>
     );
   }
 
-  const provider = draft!;
   const configured = draftProviderConfigured(entry, provider);
   // Reuse-only entry (no stored/typed key) whose catalog key is known to be
   // absent: it will be SAVED as an enabled-but-keyless provider, so calling it
@@ -324,7 +338,8 @@ function ProviderCard({
   // The unconfigured state names the missing FIELD (the doctor's reason carries
   // it when diagnostics exist; the catalog knows it otherwise).
   const missingReason = status === 'unconfigured'
-    ? t(`search.unconfiguredReason.${entry.i18nSlug}`)
+    ? t(entry.supportsAuthMode ? 'search.authMode.enableHint' :
+      entry.unconfiguredReasonKey ?? `search.unconfiguredReason.${entry.i18nSlug}`)
     : undefined;
 
   // THE KEY FIX (D3): the entry fields render in EVERY state (removed swaps to
@@ -370,7 +385,8 @@ function ProviderCard({
       ) : (
         <>
           <p className="text-xs text-muted-foreground">
-            {t(`search.providers.${entry.i18nSlug}.description`)}
+            {t(entry.supportsAuthMode ? 'search.providerDescription.publicApi' :
+              entry.descriptionKey ?? `search.providers.${entry.i18nSlug}.description`)}
             {!configured && missingReason ? (
               <>
                 {' '}
@@ -380,6 +396,43 @@ function ProviderCard({
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
+            {entry.supportsAuthMode ? (
+              <div className="space-y-2 sm:col-span-2">
+                <SettingRow label={t('search.field.enabled')}>
+                  <Switch
+                    aria-label={t('search.field.enabled')}
+                    checked={provider.enabled}
+                    disabled={disabled}
+                    onCheckedChange={(value) => onPatch({ enabled: value })}
+                  />
+                </SettingRow>
+                <SettingRow label={t('search.authMode.label')}>
+                  <Select
+                    id={`search-auth-mode-${entry.id}`}
+                    value={provider.authMode}
+                    options={[
+                      { value: 'public', label: t('search.authMode.public') },
+                      { value: 'api', label: t('search.authMode.api') },
+                    ]}
+                    disabled={disabled}
+                    onChange={(value) => onPatch({ authMode: value === 'api' ? 'api' : 'public', enabled: true })}
+                  />
+                </SettingRow>
+                <p className="text-[11px] text-muted-foreground">{t('search.authMode.description')}</p>
+              </div>
+            ) : null}
+            {entry.supportsModel ? (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">{t('search.field.model')}</p>
+                <Input
+                  value={provider.model}
+                  disabled={disabled}
+                  placeholder={t('search.field.modelPlaceholder')}
+                  onChange={(e) => onPatch({ model: e.target.value })}
+                  aria-label={t('search.field.model')}
+                />
+              </div>
+            ) : null}
             {entry.reusesProviderKey ? (
               <div className="space-y-1 sm:col-span-2">
                 <label className="flex items-center gap-2">
@@ -429,10 +482,13 @@ function ProviderCard({
                       ? t('search.field.apiKeyPlaceholder')
                       : t('search.field.apiKeyNew')
                   }
-                  onChange={(e) => onPatch({ apiKeyInput: e.target.value, clearApiKey: false })}
+                  onChange={(e) => onPatch({
+                    apiKeyInput: e.target.value, clearApiKey: false,
+                    ...(entry.supportsAuthMode ? { enabled: true } : {}),
+                  })}
                   aria-label={t('search.field.apiKey')}
                 />
-                {entry.keyOptional && provider.hasStoredApiKey && provider.apiKeyInput.length === 0 ? (
+                {entry.keyOptional && (!entry.supportsAuthMode || provider.authMode === 'public') && provider.hasStoredApiKey && provider.apiKeyInput.length === 0 ? (
                   <button
                     type="button"
                     className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
@@ -511,12 +567,8 @@ function ProviderCard({
 }
 
 /**
- * Test-panel availability (D3): keyless pair → always (rendered by the http
- * branch); keyed providers → the panel exists when the PERSISTED config names
- * the provider (the daemon probes persisted config). A typed-but-unsaved draft
- * shows the panel with a "save first" hint instead of a silently-failing
- * probe; a provider with neither persisted entry nor draft input shows no
- * affordance that cannot run (the unconfigured badge + hint already say why).
+ * Probes use saved configuration. New configuration prompts a save first;
+ * disabled/removed drafts must not offer a misleading live probe.
  */
 function testPanelFor({
   entry,
@@ -531,6 +583,7 @@ function testPanelFor({
   onQuery: (providerId: string, query: string) => Promise<SearchQueryOutcome>;
   disabled: boolean;
 }): React.ReactNode {
+  if (!configured) return null;
   if (provider.persistedConfigured) {
     return (
       <SearchTestPanel
@@ -572,7 +625,7 @@ function PolicyEditor({
   const t = useTranslation();
   const preferredOptions: SelectOption[] = [
     { value: '', label: t('search.policy.preferredNone') },
-    ...SEARCH_PROVIDER_CATALOG.filter((entry) => entry.kind === 'api').map((entry) => ({
+    ...SEARCH_PROVIDER_CATALOG.map((entry) => ({
       value: entry.id,
       label: entry.name,
     })),
@@ -595,7 +648,7 @@ function PolicyEditor({
       </SettingRow>
       <SettingRow label={t('search.policy.allowed')} description={t('search.policy.allowedDescription')}>
         <div className="flex max-w-md flex-wrap justify-end gap-1.5">
-          {SEARCH_PROVIDER_CATALOG.filter((entry) => entry.kind === 'api').map((entry) => {
+          {SEARCH_PROVIDER_CATALOG.map((entry) => {
             const on = draft.policy.allowed.includes(entry.id);
             return (
               <button

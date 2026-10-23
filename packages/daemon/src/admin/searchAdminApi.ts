@@ -40,8 +40,8 @@
 import http from 'node:http';
 
 import { DEFAULT_SEARCH_SERVER_CONFIG, loadServerConfig } from '@omnicross/core/outbound-api';
-import { apiSearchContributions } from '@omnicross/core/search/api';
-import { builtinHttpSearchContributions, createSearchHttpTransport } from '@omnicross/core/search/http';
+import { ADDITIONAL_API_PROVIDER_IDS, apiSearchContributions } from '@omnicross/core/search/api';
+import { createSearchHttpTransport } from '@omnicross/core/search/http';
 import { createSearchRuntime, type SearchFrontendModes, type SearchRuntime } from '@omnicross/core/search';
 import type {
   SearchProviderContribution,
@@ -62,16 +62,19 @@ import {
   type SearchDoctorRow,
 } from '../search/searchDoctorProjection';
 import {
+  HTTP_SEARCH_PROVIDER_IDS,
+  httpSearchContributionsFrom,
+  isHttpSearchProviderEnabled,
   searchContributionsFrom,
   searchEgressPolicyFrom,
   searchPolicyFrom,
 } from '../search/SearchAssembly';
 
-/** The two provider ids that need no configuration entry to be testable. */
-const KEYLESS_HTTP_PROVIDER_IDS: ReadonlySet<string> = new Set(['http-bing', 'http-duckduckgo']);
+const KEYLESS_HTTP_PROVIDER_IDS: ReadonlySet<string> = new Set(HTTP_SEARCH_PROVIDER_IDS);
 /** Every API provider id the persisted config may name. */
 const API_PROVIDER_IDS: ReadonlySet<string> = new Set([
   'tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek',
+  ...ADDITIONAL_API_PROVIDER_IDS,
 ]);
 
 /**
@@ -330,7 +333,8 @@ function persistedSearchContributions(
   if (fetchImpl) {
     const egressPolicy = searchEgressPolicyFrom(search);
     return [
-      ...builtinHttpSearchContributions(
+      ...httpSearchContributionsFrom(
+        search,
         createSearchHttpTransport({ fetch: fetchImpl, egressPolicy }),
       ),
       ...apiSearchContributions(search.providers, { egressPolicy, fetchImpl, ...reuse }),
@@ -363,6 +367,11 @@ async function handleSearchTest(
   const persisted = await loadServerConfig(deps.settingsStore);
   const search = persisted.search ?? DEFAULT_SEARCH_SERVER_CONFIG;
   const providers = search.providers as Record<string, unknown>;
+  if (KEYLESS_HTTP_PROVIDER_IDS.has(providerId) &&
+      (!isHttpSearchProviderEnabled(search, providerId as typeof HTTP_SEARCH_PROVIDER_IDS[number]) ||
+       (search.policy.allowed !== undefined && !search.policy.allowed.includes(providerId)))) {
+    return writeErr(res, 400, `search provider '${providerId}' is disabled by search policy`);
+  }
   if (!KEYLESS_HTTP_PROVIDER_IDS.has(providerId) && providers[providerId] === undefined) {
     // Structured refusal, no fabricated `config_missing` probe, no upstream
     // request performed.
@@ -370,8 +379,8 @@ async function handleSearchTest(
   }
 
   const fetchImpl = status.testFetch;
-  // Same construction the doctor probes with: the builtin http pair plus the
-  // configured API providers. The ONLY provider exercised is the requested one.
+  // Use the daemon's enabled HTTP and configured API inventory. The ONLY
+  // provider exercised is the requested one; aggregate children obey policy.
   const contributions = persistedSearchContributions(search, fetchImpl, status);
   const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
   if (!contribution) {
@@ -444,6 +453,11 @@ async function handleSearchQuery(
   const persisted = await loadServerConfig(deps.settingsStore);
   const search = persisted.search ?? DEFAULT_SEARCH_SERVER_CONFIG;
   const providers = search.providers as Record<string, unknown>;
+  if (KEYLESS_HTTP_PROVIDER_IDS.has(providerId) &&
+      (!isHttpSearchProviderEnabled(search, providerId as typeof HTTP_SEARCH_PROVIDER_IDS[number]) ||
+       (search.policy.allowed !== undefined && !search.policy.allowed.includes(providerId)))) {
+    return writeErr(res, 400, `search provider '${providerId}' is disabled by search policy`);
+  }
   if (!KEYLESS_HTTP_PROVIDER_IDS.has(providerId) && providers[providerId] === undefined) {
     // Structured refusal, no fabricated probe, no upstream request.
     return writeErr(res, 400, `search provider '${providerId}' is not configured`);

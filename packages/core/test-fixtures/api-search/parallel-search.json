@@ -1,0 +1,17 @@
+{
+  "search_id": "search_fixture",
+  "results": [
+    {
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+      "title": "HTTP headers - MDN Web Docs",
+      "publish_date": "2026-09-12",
+      "excerpts": ["HTTP headers pass additional information.", "Request and response headers have different contexts."]
+    },
+    {
+      "url": "https://httpwg.org/specs/",
+      "title": null,
+      "publish_date": null,
+      "excerpts": ["HTTP Working Group specifications."]
+    }
+  ]
+}

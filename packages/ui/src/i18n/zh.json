@@ -1527,6 +1527,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "认证模式",
+      "public": "公开（受限，无需密钥）",
+      "api": "API（需要密钥）",
+      "description": "公开访问受限且可能不可用。API 模式需要密钥，绝不会回退至公开模式。",
+      "missingKey": "API 模式需要密钥：{{providers}}",
+      "enableHint": "启用公开模式，或选择 API 模式并填写密钥。"
+    },
+    "providerDescription": {
+      "keyed": "官方密钥 API；可用性、计费和限额取决于提供方账户。",
+      "keyRequired": "需要 API 密钥。",
+      "publicApi": "可选择受限公开访问或密钥 API；不保证免费额度。",
+      "ollama": "Ollama 搜索 API 需要密钥；自定义主机不代表支持免密钥的本地搜索引擎。"
+    },
+    "http": {
+      "aggregateDescription": "聚合已启用且策略允许的公开 HTTP 引擎。需明确启用，不保证结果。"
+    },
     "title": "搜索提供方",
     "description": "网页搜索运行时配置：提供方凭据、回退策略、网络出口与各前端执行模式。",
     "unsupportedDaemon": "当前守护进程版本不支持搜索配置分区。",
@@ -1549,7 +1566,7 @@
     "providers": {
       "title": "提供方",
       "tavily": {
-        "description": "搜索 API，免费额度充足；需要密钥。"
+        "description": "搜索 API；需要密钥。限额和计费由提供方决定。"
       },
       "jina": {
         "description": "支持免密钥的搜索；配置密钥可提升限额。"
@@ -1568,7 +1585,7 @@
       }
     },
     "keyless": {
-      "description": "免密钥引擎，始终可用，无需配置。"
+      "description": "无需密钥的公开 HTTP 搜索；可能受阻、限流或不可用。"
     },
     "status": {
       "ready": "就绪",
@@ -1587,6 +1604,9 @@
       "deepseek": "请填写密钥、复用 DeepSeek 服务商密钥，或先在服务商设置中配置。"
     },
     "field": {
+      "enabled": "启用",
+      "model": "模型",
+      "modelPlaceholder": "可选；留空使用提供方默认值",
       "apiKey": "API 密钥",
       "apiKeyPlaceholder": "留空保留已存密钥",
       "apiKeyNew": "输入 API 密钥",

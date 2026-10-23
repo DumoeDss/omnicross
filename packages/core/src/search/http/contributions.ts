@@ -19,6 +19,8 @@ import type {
 
 import { HttpBingProvider, HTTP_BING_PROVIDER_ID } from './HttpBingProvider';
 import { HttpDuckDuckGoProvider, HTTP_DUCKDUCKGO_PROVIDER_ID } from './HttpDuckDuckGoProvider';
+import type { HttpPublicSearchOptions } from './HttpPublicSearchProvider';
+import { extendedHttpSearchContributions } from './extendedContributions';
 import { MAX_RESULTS } from './engine';
 import type { SearchHttpTransport } from './types';
 
@@ -40,13 +42,14 @@ export const HTTP_SEARCH_CAPABILITIES: Readonly<SearchProviderCapabilities> = Ob
 });
 
 /**
- * Both builtin HTTP providers, ready to hand to a registry.
+ * Builtin HTTP providers, with the original Bing/DDG order preserved.
  *
- * @param transport - optional shared transport for both providers (tests, or a
- *   future alternative client). Omit for the production undici transport.
+ * @param transport - optional shared transport for all providers.
+ * @param options - public aggregate child allow-list; omitted means no children.
  */
 export function builtinHttpSearchContributions(
   transport?: SearchHttpTransport,
+  options: HttpPublicSearchOptions = {},
 ): SearchProviderContribution[] {
   return [
     {
@@ -63,5 +66,6 @@ export function builtinHttpSearchContributions(
       provider: new HttpDuckDuckGoProvider(transport),
       capabilities: { ...HTTP_SEARCH_CAPABILITIES },
     },
+    ...extendedHttpSearchContributions(transport, options),
   ];
 }

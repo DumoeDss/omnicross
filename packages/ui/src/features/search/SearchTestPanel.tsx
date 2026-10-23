@@ -2,9 +2,9 @@
  * SearchTestPanel — the Elftia-style per-provider INTERACTIVE test panel
  * (search-settings-tab, design D6).
  *
- * The owner-typed query goes to `POST /admin/api/search/query` (the daemon
- * probes the PERSISTED config — one provider, no fallback walk), and the
- * returned results render inline. Untrusted-input discipline (plan §11.1) is
+ * The owner-typed query goes to `POST /admin/api/search/query`, which uses
+ * PERSISTED configuration and the active fallback policy. Results render
+ * inline. Untrusted-input discipline (plan §11.1) is
  * the SECOND layer here on top of the daemon's per-field sanitization:
  *
  * - title/content render as plain React text nodes (no markup can execute —
@@ -17,7 +17,8 @@
  * blocked/degraded diagnostic line with the doctor's reason (an observation
  * about the network, not a malfunction), explicit empty notice (an empty
  * result list is a SUCCESS — never a fabricated list), provider-used + count.
- * No attempts trail: this panel probes ONE provider, there is no walk.
+ * Interactive queries follow the configured policy; report the serving provider
+ * and fallback count rather than attributing fallback results to this card.
  */
 
 import { Loader2, Search } from 'lucide-react';
@@ -116,7 +117,7 @@ export function SearchTestPanel({
       ) : null}
 
       {outcome && outcome.ok ? (
-        <QueryOutcomeView outcome={outcome} providerName={providerName} />
+        <QueryOutcomeView outcome={outcome} providerId={providerId} providerName={providerName} />
       ) : null}
     </div>
   );
@@ -125,14 +126,18 @@ export function SearchTestPanel({
 /** The success/failure diagnostic + results of one interactive query. */
 function QueryOutcomeView({
   outcome,
+  providerId,
   providerName,
 }: {
   outcome: Extract<SearchQueryOutcome, { ok: true }>;
+  providerId: string;
   providerName: string;
 }) {
   const t = useTranslation();
   const { result } = outcome;
   const { diagnostic, resultCount, results } = result;
+  const servingId = result.providerUsed ?? diagnostic.providerId;
+  const servingName = servingId === providerId ? providerName : servingId;
 
   // A failed upstream is a diagnostic line (the taxonomy label + reason), not
   // a fabricated empty list.
@@ -166,7 +171,10 @@ function QueryOutcomeView({
   return (
     <div className="space-y-2" role="status">
       <p className="text-xs text-muted-foreground">
-        <span className="text-primary">{t('search.test.providerUsed', { provider: providerName })}</span>
+        <span className="text-primary">{t('search.test.providerUsed', { provider: servingName })}</span>
+        {result.fallbackCount
+          ? ` · ${t('search.policy.fallbackEnabled')}: ${result.fallbackCount}`
+          : ''}
         {resultCount !== undefined
           ? ` · ${t('search.testOutcome.count', { count: String(resultCount) })}`
           : ''}

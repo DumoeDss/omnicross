@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Kimlik doğrulama modu",
+      "public": "Herkese açık (sınırlı, anahtarsız)",
+      "api": "API (anahtar gerekli)",
+      "description": "Açık erişim sınırlıdır ve kullanılamayabilir. API modu anahtar gerektirir ve açık moda geri dönmez.",
+      "missingKey": "API modu anahtar gerektirir: {{providers}}",
+      "enableHint": "Açık modu etkinleştirin veya API seçip anahtar girin."
+    },
+    "providerDescription": {
+      "keyed": "Resmî anahtarlı API; kullanılabilirlik, faturalandırma ve sınırlar sağlayıcı hesabına bağlıdır.",
+      "keyRequired": "API anahtarı gereklidir.",
+      "publicApi": "Sınırlı açık erişim veya anahtarlı API; ücretsiz kota garantisi yoktur.",
+      "ollama": "Ollama arama API’si anahtar gerektirir; özel sunucu anahtarsız yerel arama anlamına gelmez."
+    },
+    "http": {
+      "aggregateDescription": "Etkin ve ilkenin izin verdiği açık HTTP motorlarını birleştirir. Açıkça etkinleştirme gerekir; sonuç garantisi yoktur."
+    },
     "title": "Arama sağlayıcıları",
     "description": "Web arama çalışma zamanı yapılandırması: sağlayıcı kimlik bilgileri, yedek politika, giden ağ trafiği ve ön yüz başına yürütme modları.",
     "unsupportedDaemon": "Bu daemon sürümü arama yapılandırma bölümünü desteklemiyor.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Sağlayıcılar",
       "tavily": {
-        "description": "Cömert ücretsiz kotalı arama API'si; anahtar gerekir."
+        "description": "Arama API’si; anahtar gerekli. Kotalar ve faturalandırma sağlayıcıya bağlıdır."
       },
       "jina": {
         "description": "Anahtarsız da çalışan arama; anahtar hız sınırlarını yükseltir."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Anahtarsız motor, her zaman kullanılabilir. Yapılandırma gerektirmez."
+      "description": "Anahtarsız açık HTTP araması; engellenebilir, sınırlanabilir veya kullanılamayabilir."
     },
     "status": {
       "ready": "Hazır",
@@ -943,6 +960,9 @@
       "deepseek": "Bir anahtar girin, bir DeepSeek sağlayıcı anahtarını yeniden kullanın veya Sağlayıcılar altında yapılandırın."
     },
     "field": {
+      "enabled": "Etkin",
+      "model": "Model",
+      "modelPlaceholder": "İsteğe bağlı; boşsa sağlayıcı varsayılanı",
       "apiKey": "API anahtarı",
       "apiKeyPlaceholder": "Boş bırakılırsa kayıtlı anahtar korunur",
       "apiKeyNew": "API anahtarını girin",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Aylık",
       "codexRefreshConfirmTitle": "Bu kotayı yenilemek için Luna kullanılsın mı?",
       "codexRefreshConfirmDescription": "En güncel kotayı almak için bu Codex hesabıyla gpt-5.6-luna modeline gerçek bir istek gönderilecek. Bu işlem abonelik kotasının küçük bir kısmını tüketir. Devam edilsin mi?",

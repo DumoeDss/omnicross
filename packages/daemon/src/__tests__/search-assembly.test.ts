@@ -23,6 +23,7 @@ import {
   formatSearchEvent,
   searchContributionsFrom,
   searchEgressPolicyFrom,
+  httpSearchContributionsFrom,
   searchPolicyFrom,
 } from '../search/SearchAssembly';
 
@@ -37,6 +38,47 @@ describe('contribution assembly', () => {
     const contributions = searchContributionsFrom(config());
 
     expect(contributions.map((entry) => entry.id)).toEqual(['http-bing', 'http-duckduckgo']);
+  });
+
+  it('enables new HTTP engines only through explicit config or policy, never preference alone', () => {
+    for (const id of ['http-startpage', 'http-ecosia', 'http-mojeek', 'public']) {
+      expect(searchContributionsFrom(config({ policy: { preferred: id } })).map((entry) => entry.id))
+        .not.toContain(id);
+      expect(searchContributionsFrom(config({ providers: { [id]: { enabled: true } } })).map((entry) => entry.id))
+        .toContain(id);
+      expect(searchContributionsFrom(config({ policy: { allowed: [id] } })).map((entry) => entry.id))
+        .toContain(id);
+      expect(searchContributionsFrom(config({
+        providers: { [id]: { enabled: false } }, policy: { preferred: id, allowed: [id] },
+      })).map((entry) => entry.id)).not.toContain(id);
+    }
+  });
+
+  it('keeps the complete API contribution order after the original six providers', () => {
+    const ids = ['tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek',
+      'exa', 'parallel', 'firecrawl', 'brave', 'kagi', 'kimi', 'synthetic', 'ollama',
+      'tinyfish', 'perplexity', 'bocha', 'claude'];
+    const providers = Object.fromEntries(ids.map((id) =>
+      [id, id === 'searxng' ? { apiHost: 'https://search.example.test' } : { apiKey: 'fixture-key' }]));
+    expect(searchContributionsFrom(config({ providers })).map((entry) => entry.id))
+      .toEqual(['http-bing', 'http-duckduckgo', ...ids]);
+  });
+
+  it('does not let public aggregate invoke a disabled or policy-excluded child', async () => {
+    const transport = vi.fn(async () => { throw new Error('unexpected HTTP request'); });
+    const section = config({
+      providers: {
+        public: { enabled: true },
+        'http-bing': { enabled: false },
+        'http-duckduckgo': { enabled: false },
+        'http-startpage': { enabled: true },
+        'http-mojeek': { enabled: true },
+      },
+      policy: { allowed: ['public'] },
+    });
+    const aggregate = httpSearchContributionsFrom(section, transport).find((entry) => entry.id === 'public')!;
+    await expect(aggregate.provider.search('fixture query')).rejects.toMatchObject({ code: 'config_missing' });
+    expect(transport).not.toHaveBeenCalled();
   });
 
   it('adds exactly the configured API providers, in registry order', () => {

@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "id": "fixture_request",
+  "data": {
+    "web": [
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+        "title": "HTTP headers - MDN Web Docs",
+        "description": "HTTP headers pass additional information.",
+        "markdown": "Do not prefer this full page over the search description."
+      },
+      {
+        "url": "https://httpwg.org/specs/",
+        "title": "N/A",
+        "description": "HTTP Working Group specifications."
+      }
+    ],
+    "images": [{"url": "https://example.org/image.png", "title": "Not a web result"}]
+  }
+}

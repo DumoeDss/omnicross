@@ -182,6 +182,53 @@ describe('admin server-config search secret discipline', () => {
     expect(diagnostics.text).not.toContain(PASSWORD_SENTINEL);
   });
 
+  it('persists every expanded provider and preserves masked keys under mode, model and HTTP edits', async () => {
+    await bootDaemon();
+    const keyedIds = ['brave', 'kagi', 'kimi', 'synthetic', 'ollama', 'tinyfish', 'perplexity', 'bocha', 'claude'];
+    const publicIds = ['exa', 'parallel', 'firecrawl'];
+    const httpIds = ['http-bing', 'http-duckduckgo', 'http-startpage', 'http-ecosia', 'http-mojeek', 'public'];
+    const providers = Object.fromEntries([
+      ...keyedIds.map((id) => [id, { apiKey: KEY_SENTINEL, model: 'search-model' }]),
+      ...publicIds.map((id) => [id, { authMode: 'api', apiKey: KEY_SENTINEL }]),
+      ...httpIds.map((id) => [id, { enabled: true }]),
+    ]);
+    const put = await adminFetch('PUT', '/admin/api/server', { search: { providers } });
+    expect(put.status).toBe(200);
+    expect(put.text).not.toContain(KEY_SENTINEL);
+    const masked = (await getServer()).search!;
+    expect(JSON.stringify(masked)).not.toContain(KEY_SENTINEL);
+    for (const id of [...keyedIds, ...publicIds]) {
+      expect(persistedSearch().providers?.[id]?.apiKey).toBe(KEY_SENTINEL);
+      expect(masked.providers).toMatchObject({ [id]: { apiKeyConfigured: true } });
+    }
+    expect(masked.providers).toMatchObject({
+      claude: { model: 'search-model' }, exa: { authMode: 'api' }, public: { enabled: true },
+    });
+    const edited = await adminFetch('PUT', '/admin/api/server', {
+      search: { ...masked, providers: { ...masked.providers,
+        exa: { ...masked.providers.exa, authMode: 'public' },
+        claude: { ...masked.providers.claude, model: 'another-model' },
+        public: { enabled: false },
+      } },
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.text).not.toContain(KEY_SENTINEL);
+    for (const id of [...keyedIds, ...publicIds]) {
+      expect(persistedSearch().providers?.[id]?.apiKey).toBe(KEY_SENTINEL);
+    }
+    expect(persistedSearch().providers).toMatchObject({
+      exa: { authMode: 'public', apiKey: KEY_SENTINEL },
+      claude: { model: 'another-model', apiKey: KEY_SENTINEL },
+      public: { enabled: false },
+    });
+    const after = (await getServer()).search!;
+    const invalid = await adminFetch('PUT', '/admin/api/server', {
+      search: { ...after, providers: { ...after.providers, parallel: { authMode: 'api', apiKey: null } } },
+    });
+    expect(invalid.status).toBe(400);
+    expect((await getServer()).search).toEqual(after);
+  });
+
   it('rejects an invalid search segment with 400 and changes nothing (atomicity)', async () => {
     await bootDaemon();
 

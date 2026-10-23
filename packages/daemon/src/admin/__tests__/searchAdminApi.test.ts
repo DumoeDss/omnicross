@@ -173,6 +173,30 @@ describe('POST /admin/api/search/test', () => {
     });
   }
 
+  it.each(['http-startpage', 'http-ecosia', 'http-mojeek', 'public'])(
+    'refuses a disabled %s probe before any network request',
+    async (providerId) => {
+      const testFetch = vi.fn(async () => jsonResponse(200, {}));
+      const out = response();
+      await handleAdminApi(searchRequest('POST', { providerId }), out.res, '/admin/api/search/test',
+        testDeps(testFetch, { ...PERSISTED, providers: { [providerId]: { enabled: false } },
+          policy: { allowed: [providerId], preferred: providerId, fallbackEnabled: true } }));
+      expect(out.status()).toBe(400);
+      expect(testFetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not let an enabled aggregate call children outside persisted policy', async () => {
+    const testFetch = vi.fn(async () => jsonResponse(200, {}));
+    const out = response();
+    await handleAdminApi(searchRequest('POST', { providerId: 'public' }), out.res, '/admin/api/search/test',
+      testDeps(testFetch, { ...PERSISTED, providers: { public: { enabled: true }, 'http-startpage': { enabled: true } },
+        policy: { allowed: ['public'], fallbackEnabled: true } }));
+    expect(out.status()).toBe(200);
+    expect(out.json()).toMatchObject({ result: { diagnostic: { error: { code: 'config_missing' } } } });
+    expect(testFetch).not.toHaveBeenCalled();
+  });
+
   it('sends exactly the FIXED public doctor query and reports healthy without result content', async () => {
     const calls: Array<{ url: string; body: string }> = [];
     const testFetch = vi.fn(async (url: string, init: RequestInit) => {

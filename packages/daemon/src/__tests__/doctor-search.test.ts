@@ -151,7 +151,8 @@ describe('runSearchLiveChecks', () => {
     };
 
     const diagnostics = await runSearchLiveChecks(
-      builtinHttpSearchContributions(transport),
+      builtinHttpSearchContributions(transport)
+        .filter(({ id }) => id === 'http-bing' || id === 'http-duckduckgo'),
       () => CHECKED_AT,
     );
 

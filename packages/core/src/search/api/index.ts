@@ -1,26 +1,26 @@
 /**
- * `@omnicross/core/search/api` — the reliable API search providers (plan 阶段4).
- *
- * Five adapters under six ids (`tavily`, `jina`, `searxng`, `zhipu`, `z.ai`,
- * `deepseek`) implementing `SearchProvider` from
- * `@omnicross/contracts/search-types`, on one shared undici transport that owns
- * egress validation, redirect walking, taxonomy error mapping and secret
- * redaction. Pure Node: no Elftia, no Electron, no host runtime.
- *
- * Deliberately absent, with reasons:
- *
- * - `exa` and `bocha` — declared-but-dead ids in Elftia with NO adapter files.
- *   There is nothing to port, and inventing wire contracts from vendor docs
- *   would fail the plan's 经契约核对 gate. Deferred.
- * - `grok` and `claude` — not registered in Phase 1 (plan hard constraint 5).
- *
- * Nothing here auto-registers into a runtime. 阶段5's daemon assembly supplies
- * real configuration and decides what to expose; a runtime holding unconfigured
- * providers would advertise capabilities it cannot honor.
- *
- * @module search/api
+ * API search providers on a shared bounded, redacting and egress-checked
+ * transport. Configuration controls registration; public mode never consumes
+ * a stored credential and no provider is enabled by importing this module.
  */
 
+export {
+  ADDITIONAL_API_CAPABILITIES,
+  ADDITIONAL_API_PROVIDER_IDS,
+  KEYLESS_API_PROVIDER_IDS,
+} from './additionalContributions';
+export { BochaSearchProvider, BOCHA_CAPABILITIES } from './BochaSearchProvider';
+export { BraveSearchProvider, BRAVE_CAPABILITIES } from './BraveSearchProvider';
+export { ClaudeSearchProvider, CLAUDE_CAPABILITIES } from './ClaudeSearchProvider';
+export { ExaSearchProvider, EXA_CAPABILITIES } from './ExaSearchProvider';
+export { FirecrawlSearchProvider, FIRECRAWL_CAPABILITIES } from './FirecrawlSearchProvider';
+export { KagiSearchProvider, KAGI_CAPABILITIES } from './KagiSearchProvider';
+export { KimiSearchProvider, KIMI_CAPABILITIES } from './KimiSearchProvider';
+export { OllamaSearchProvider, OLLAMA_CAPABILITIES } from './OllamaSearchProvider';
+export { ParallelSearchProvider, PARALLEL_CAPABILITIES } from './ParallelSearchProvider';
+export { PerplexitySearchProvider, PERPLEXITY_CAPABILITIES } from './PerplexitySearchProvider';
+export { SyntheticSearchProvider, SYNTHETIC_CAPABILITIES } from './SyntheticSearchProvider';
+export { TinyfishSearchProvider, TINYFISH_CAPABILITIES } from './TinyfishSearchProvider';
 export {
   apiSearchContributions,
   DEEPSEEK_CAPABILITIES,
@@ -77,6 +77,20 @@ export {
 export { SEARCH_API_TRANSPORT_ID } from './types';
 export type {
   DeepseekProviderConfig,
+  KeyedSearchProviderConfig,
+  KeylessSearchProviderConfig,
+  ExaProviderConfig,
+  ParallelProviderConfig,
+  FirecrawlProviderConfig,
+  BraveProviderConfig,
+  KagiProviderConfig,
+  KimiProviderConfig,
+  SyntheticProviderConfig,
+  OllamaProviderConfig,
+  TinyfishProviderConfig,
+  PerplexityProviderConfig,
+  BochaProviderConfig,
+  ClaudeProviderConfig,
   JinaProviderConfig,
   SearchApiFetch,
   SearchApiProviderConfigs,

@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Todennustila",
+      "public": "Julkinen (rajoitettu, ilman avainta)",
+      "api": "API (avain vaaditaan)",
+      "description": "Julkinen käyttö on rajoitettua eikä aina saatavilla. API-tila vaatii avaimen eikä vaihda julkiseen tilaan.",
+      "missingKey": "API-tila vaatii avaimen: {{providers}}",
+      "enableHint": "Ota julkinen tila käyttöön tai valitse API ja anna avain."
+    },
+    "providerDescription": {
+      "keyed": "Virallinen avaimellinen API; saatavuus, laskutus ja rajat riippuvat tarjoajan tilistä.",
+      "keyRequired": "API-avain vaaditaan.",
+      "publicApi": "Rajoitettu julkinen käyttö tai avaimellinen API; ilmaista kiintiötä ei taata.",
+      "ollama": "Ollaman hakurajapinta vaatii avaimen; oma palvelin ei tarkoita avaimetonta paikallishakua."
+    },
+    "http": {
+      "aggregateDescription": "Yhdistää käytössä olevat ja sallitut julkiset HTTP-hakukoneet. Vaatii erillisen käyttöönoton; tuloksia ei taata."
+    },
     "title": "Hakupalveluntarjoajat",
     "description": "Verkkohaun ajonaikaisen ympäristön asetukset: palveluntarjoajien tunnukset, varapolitiikka, verkon lähtevä liikenne ja suoritustilat per frontend.",
     "unsupportedDaemon": "Tämä daemon-versio ei tue hakuasetusten osiota.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "Palveluntarjoajat",
       "tavily": {
-        "description": "Haku-API anteliaalla ilmaisella kiintiöllä; vaatii avaimen."
+        "description": "Hakurajapinta; avain vaaditaan. Kiintiöt ja laskutus riippuvat tarjoajasta."
       },
       "jina": {
         "description": "Haku toimii ilman avainta; avain nostaa rajoituksia."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "Aviton hakukone, aina käytettävissä. Ei vaadi asetuksia."
+      "description": "Julkinen HTTP-haku ilman avainta; voi estyä, rajoittua tai olla poissa käytöstä."
     },
     "status": {
       "ready": "Valmis",
@@ -943,6 +960,9 @@
       "deepseek": "Syötä avain, käytä uudelleen DeepSeek-tarjoajan avainta tai määritä sellainen Tarjoajat-asetuksissa."
     },
     "field": {
+      "enabled": "Käytössä",
+      "model": "Malli",
+      "modelPlaceholder": "Valinnainen; tyhjä käyttää tarjoajan oletusta",
       "apiKey": "API-avain",
       "apiKeyPlaceholder": "Tyhjä säilyttää tallennetun avaimen",
       "apiKeyNew": "Syötä API-avain",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "Kuukausittain",
       "codexRefreshConfirmTitle": "Käytetäänkö Lunaa tämän käyttörajan päivittämiseen?",
       "codexRefreshConfirmDescription": "Tällä Codex-tilillä lähetetään oikea pyyntö osoitteeseen gpt-5.6-luna uusimpien käyttörajatietojen hakemiseksi. Tämä kuluttaa pienen osan tilauksen käyttökiintiöstä. Jatketaanko?",

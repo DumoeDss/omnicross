@@ -883,6 +883,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "인증 모드",
+      "public": "공개 (제한됨, 키 불필요)",
+      "api": "API (키 필수)",
+      "description": "공개 액세스는 제한되며 사용하지 못할 수 있습니다. API 모드는 키가 필요하며 공개 모드로 전환되지 않습니다.",
+      "missingKey": "API 모드에 키가 필요합니다: {{providers}}",
+      "enableHint": "공개 모드를 활성화하거나 API 모드를 선택하고 키를 입력하세요."
+    },
+    "providerDescription": {
+      "keyed": "공식 키 인증 API입니다. 가용성, 요금 및 한도는 공급자 계정에 따라 다릅니다.",
+      "keyRequired": "API 키가 필요합니다.",
+      "publicApi": "제한된 공개 액세스 또는 키 인증 API를 선택하세요. 무료 할당량은 보장되지 않습니다.",
+      "ollama": "Ollama 검색 API는 키가 필요합니다. 사용자 지정 호스트가 키 없는 로컬 검색을 의미하지는 않습니다."
+    },
+    "http": {
+      "aggregateDescription": "활성화되고 정책에서 허용된 공개 HTTP 엔진을 통합합니다. 명시적 활성화가 필요하며 결과는 보장되지 않습니다."
+    },
     "title": "검색 공급자",
     "description": "웹 검색 런타임 구성: 공급자 자격 증명, 폴백 정책, 네트워크 이그레스, 프론트엔드별 실행 모드.",
     "unsupportedDaemon": "이 데몬 버전은 검색 구성 섹션을 지원하지 않습니다.",
@@ -905,7 +922,7 @@
     "providers": {
       "title": "공급자",
       "tavily": {
-        "description": "검색 API. 넉넉한 무료 할당량, 키 필요."
+        "description": "검색 API로 키가 필요합니다. 할당량과 요금은 공급자에 따라 다릅니다."
       },
       "jina": {
         "description": "키 없이 사용 가능한 검색. 키로 속도 제한 완화."
@@ -924,7 +941,7 @@
       }
     },
     "keyless": {
-      "description": "키가 필요 없는 엔진으로 항상 사용 가능합니다. 구성이 필요 없습니다."
+      "description": "키 없는 공개 HTTP 검색입니다. 차단되거나 속도가 제한되거나 사용할 수 없을 수 있습니다."
     },
     "status": {
       "ready": "준비됨",
@@ -943,6 +960,9 @@
       "deepseek": "키를 입력하거나 DeepSeek 공급자 키를 재사용하거나 공급자 설정에서 구성하세요."
     },
     "field": {
+      "enabled": "활성화",
+      "model": "모델",
+      "modelPlaceholder": "선택 사항; 비워 두면 공급자 기본값 사용",
       "apiKey": "API 키",
       "apiKeyPlaceholder": "비워 두면 저장된 키 유지",
       "apiKeyNew": "API 키 입력",
@@ -1226,7 +1246,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+
         "monthly": "월간",
       "codexRefreshConfirmTitle": "Luna를 사용해 이 한도를 새로 고칠까요?",
       "codexRefreshConfirmDescription": "이 Codex 계정으로 gpt-5.6-luna에 실제 요청을 보내 최신 한도를 가져옵니다. 구독 할당량이 소량 사용됩니다. 계속할까요?",

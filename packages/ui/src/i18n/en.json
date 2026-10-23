@@ -1524,6 +1524,23 @@
     }
   },
   "search": {
+    "authMode": {
+      "label": "Authentication mode",
+      "public": "Public (limited, no key)",
+      "api": "API (key required)",
+      "description": "Public access is limited and may be unavailable. API mode requires a key and never falls back to public.",
+      "missingKey": "API mode requires a key: {{providers}}",
+      "enableHint": "Enable public mode, or select API mode and enter a key."
+    },
+    "providerDescription": {
+      "keyed": "Official keyed API; availability, billing and limits depend on your provider account.",
+      "keyRequired": "Requires an API key.",
+      "publicApi": "Choose limited public access or a keyed API; no free quota is guaranteed.",
+      "ollama": "Ollama search API requires a key; a custom host does not imply a keyless local search engine."
+    },
+    "http": {
+      "aggregateDescription": "Aggregates enabled and policy-allowed public HTTP engines. Requires explicit opt-in; results are not guaranteed."
+    },
     "title": "Search providers",
     "description": "Web search runtime configuration: provider credentials, fallback policy, network egress, and per-frontend execution modes.",
     "unsupportedDaemon": "This daemon version does not support the search configuration section.",
@@ -1546,7 +1563,7 @@
     "providers": {
       "title": "Providers",
       "tavily": {
-        "description": "Search API with a generous free tier; key required."
+        "description": "Search API; key required. Quotas and billing depend on the provider."
       },
       "jina": {
         "description": "Keyless-capable search; a key raises rate limits."
@@ -1565,7 +1582,7 @@
       }
     },
     "keyless": {
-      "description": "Keyless engine, always available. No configuration required."
+      "description": "Public HTTP search without a key; may be blocked, rate-limited or unavailable."
     },
     "status": {
       "ready": "Ready",
@@ -1584,6 +1601,9 @@
       "deepseek": "Enter a key, reuse a DeepSeek provider key, or configure one under Providers."
     },
     "field": {
+      "enabled": "Enabled",
+      "model": "Model",
+      "modelPlaceholder": "Optional; provider default when blank",
       "apiKey": "API key",
       "apiKeyPlaceholder": "Blank keeps the stored key",
       "apiKeyNew": "Enter API key",

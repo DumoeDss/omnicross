@@ -162,30 +162,6 @@ describe('open provider identifiers', () => {
     expect(isKnownSearchProviderId(shipped)).toBe(true);
   });
 
-  it('knows exactly the seven ids Omnicross ships in Phase 1', () => {
-    const shipped: KnownSearchProviderId[] = [
-      'http-bing',
-      'http-duckduckgo',
-      'tavily',
-      'jina',
-      'searxng',
-      'zhipu',
-      'z.ai',
-    ];
-
-    expect(new Set(shipped).size).toBe(7);
-    expect(shipped.every((id) => isKnownSearchProviderId(id))).toBe(true);
-
-    // Deliberately unregistered in Phase 1 (plan §9): local browser providers
-    // stay with the host, and these four are declared-but-dead upstream.
-    for (const id of ['local-bing', 'local-duckduckgo', 'grok', 'claude', 'exa', 'bocha']) {
-      expect(isKnownSearchProviderId(id)).toBe(false);
-    }
-
-    // @ts-expect-error a host contribution is not one of the shipped ids
-    const notShipped: KnownSearchProviderId = 'local-google';
-    expect(notShipped).toBe('local-google');
-  });
 
   it('narrows to the known union without closing the id space', () => {
     const id: SearchProviderId = 'searxng';

@@ -103,6 +103,45 @@ describe('normalizeSearchServerConfig', () => {
     expect(normalizeSearchApiProviderConfigs({ tavily: { apiKey: withControl } }).tavily)
       .toBeUndefined();
   });
+
+  it.each(['exa', 'parallel', 'firecrawl'] as const)('preserves explicit %s auth modes without downgrading missing or corrupt API keys', (id) => {
+    const publicConfig = { providers: { [id]: { authMode: 'public' } } };
+    expect(validateSearchServerConfig(publicConfig)).toEqual([]);
+    expect(normalizeSearchServerConfig(publicConfig).providers[id]).toEqual({ authMode: 'public' });
+    for (const apiKey of [undefined, 'bad\nkey']) {
+      const apiConfig = { providers: { [id]: { authMode: 'api', apiKey } } };
+      expect(validateSearchServerConfig(apiConfig)).toContain(`$.search.providers.${id}.apiKey: missing or unusable`);
+      expect(normalizeSearchServerConfig(apiConfig).providers[id]).toBeUndefined();
+    }
+    expect(normalizeSearchApiProviderConfigs({ [id]: { apiKey: 'bad\nkey' } })[id]).toBeUndefined();
+    expect(normalizeSearchApiProviderConfigs({ [id]: { apiKey: 'stored-key' } })[id])
+      .toEqual({ authMode: 'api', apiKey: 'stored-key' });
+  });
+
+  it.each(['brave', 'kagi', 'kimi', 'synthetic', 'ollama', 'tinyfish', 'perplexity', 'bocha', 'claude'] as const)(
+    'round-trips %s key, host and model while requiring its key',
+    (id) => {
+      const entry = { apiKey: 'fixture-secret', apiHost: 'https://search.example.test', model: 'search-model' };
+      const section = { providers: { [id]: entry } };
+      expect(validateSearchServerConfig(section)).toEqual([]);
+      expect(normalizeSearchServerConfig(section).providers[id]).toEqual(entry);
+      expect(validateSearchServerConfig({ providers: { [id]: {} } }))
+        .toContain(`$.search.providers.${id}.apiKey: missing or unusable`);
+    },
+  );
+
+  it.each(['http-bing', 'http-duckduckgo', 'http-startpage', 'http-ecosia', 'http-mojeek', 'public'] as const)(
+    'persists explicit %s HTTP opt-in and opt-out',
+    (id) => {
+      for (const enabled of [true, false]) {
+        const section = { providers: { [id]: { enabled } } };
+        expect(validateSearchServerConfig(section)).toEqual([]);
+        expect(normalizeSearchServerConfig(section).providers[id]).toEqual({ enabled });
+      }
+      expect(validateSearchServerConfig({ providers: { [id]: { enabled: 'yes' } } }))
+        .toContain(`$.search.providers.${id}.enabled: expected a boolean`);
+    },
+  );
 });
 
 describe('validateSearchServerConfig', () => {

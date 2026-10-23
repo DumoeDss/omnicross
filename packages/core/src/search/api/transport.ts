@@ -128,9 +128,9 @@ export function createSearchApiTransport(
         context,
       );
 
-      const rawText = await readJsonBodyWithLimit(response, context);
+      const rawText = await readBodyWithLimit(response, context, controller.signal);
       assertStatusOk(response.status, rawText, context);
-      return parseJsonPayload(rawText, context);
+      return request.responseMode === 'text' ? rawText : parseJsonPayload(rawText, context);
     } catch (error) {
       // A denial outranks even cancellation: it is a statement about what this
       // process REFUSED to do, and that stays true whether or not the caller
@@ -299,14 +299,9 @@ async function fetchWithValidatedRedirects(
     // controlled input, so it is validated exactly like the initial URL.
     assertEgressAllowed(nextUrl, policy, context);
 
-    // The other half of what `redirect: 'follow'` did for free. The fetch
-    // standard removes `Authorization`, `Cookie` and `Proxy-Authorization` when
-    // a redirect crosses origins, and undici implements that; hand-rolling the
-    // walk to get per-hop egress validation silently dropped it. Without this a
-    // hostile — or, over plain http, merely MITM'd — upstream answers
-    // `302 Location: https://collector.attacker.example/` and the next request
-    // carries the provider's Bearer or Basic credential straight to it. Egress
-    // validation does not help: that target is a perfectly ordinary public host.
+    // Egress validation does not prevent credential disclosure to a different
+    // public origin. Strip standard auth and provider-specific key headers on
+    // every origin change, including HTTPS-to-HTTP downgrades.
     //
     // Removal is permanent for the rest of the walk, as in the standard: a
     // redirect back to the original origin does not restore the credential.
@@ -316,6 +311,20 @@ async function fetchWithValidatedRedirects(
       method = 'GET';
       body = undefined;
     }
+    const redirectBody = body;
+    if (
+      nextUrl.origin !== currentUrl.origin &&
+      redirectBody !== undefined &&
+      context.secrets.some((secret) =>
+        secret ? redirectBody.includes(secret) || redirectBody.includes(JSON.stringify(secret).slice(1, -1)) : false,
+      )
+    ) {
+      throw apiError(
+        'policy_denied',
+        `${context.label} refused a cross-origin redirect carrying body credentials`,
+        { stage: 'redirect', context, retryable: false },
+      );
+    }
     currentUrl = nextUrl;
   }
 
@@ -323,7 +332,7 @@ async function fetchWithValidatedRedirects(
 }
 
 /**
- * Headers the fetch standard removes on a cross-origin redirect.
+ * Credential headers removed on a cross-origin redirect.
  *
  * Compared case-insensitively: HTTP header names are case-insensitive, and an
  * adapter (or a future caller) writing `authorization` in any casing must get
@@ -333,6 +342,8 @@ const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
   'authorization',
   'cookie',
   'proxy-authorization',
+  'x-api-key',
+  'x-subscription-token',
 ]);
 
 /** Remove every credential-bearing header, in place. */
@@ -381,39 +392,48 @@ function tooManyRedirects(maxRedirects: number, context: ApiContext): SearchProv
 }
 
 /** Read the body as text, failing the moment it outgrows the cap. */
-async function readJsonBodyWithLimit(response: Response, context: ApiContext): Promise<string> {
+async function readBodyWithLimit(
+  response: Response,
+  context: ApiContext,
+  signal: AbortSignal,
+): Promise<string> {
+  signal.throwIfAborted();
   const reader = response.body?.getReader();
   if (!reader) return '';
-
-  const chunks: Uint8Array[] = [];
+  const onAbort = (): void => {
+    void reader.cancel().catch(() => undefined);
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+  const decoder = new TextDecoder('utf-8');
+  const chunks: string[] = [];
   let totalBytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.byteLength;
-    if (totalBytes > API_RESPONSE_BYTES) {
-      await reader.cancel().catch(() => undefined);
-      throw apiError(
-        'upstream_unavailable',
-        `${context.label} response exceeded the ${API_RESPONSE_BYTES} byte cap`,
-        {
-          stage: 'body-cap',
-          context,
-          retryable: false,
-          details: { maxResponseBytes: String(API_RESPONSE_BYTES) },
-        },
-      );
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > API_RESPONSE_BYTES) {
+        void reader.cancel().catch(() => undefined);
+        throw apiError(
+          'upstream_unavailable',
+          `${context.label} response exceeded the ${API_RESPONSE_BYTES} byte cap`,
+          {
+            stage: 'body-cap',
+            context,
+            retryable: false,
+            details: { maxResponseBytes: String(API_RESPONSE_BYTES) },
+          },
+        );
+      }
+      chunks.push(decoder.decode(value, { stream: true }));
     }
-    chunks.push(value);
+    chunks.push(decoder.decode());
+    return chunks.join('');
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+    reader.releaseLock();
   }
-
-  const merged = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0));
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder('utf-8').decode(merged);
 }
 
 /**

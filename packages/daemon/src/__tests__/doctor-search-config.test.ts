@@ -62,6 +62,52 @@ describe('resolveSearchApiConfigs — config first, env fallback', () => {
       .toEqual({ tavily: { apiKey: ENV_KEY } });
     expect(resolveSearchApiConfigs(undefined, {})).toEqual({});
   });
+
+  it.each(['exa', 'parallel', 'firecrawl'] as const)(
+    'does not replace %s API mode without a key with public environment configuration',
+    (id) => {
+      const prefix = `OMNICROSS_SEARCH_${id.toUpperCase()}`;
+      expect(resolveSearchApiConfigs(
+        { [id]: { authMode: 'api' as const } },
+        {
+          [`${prefix}_AUTH_MODE`]: 'public',
+          [`${prefix}_API_KEY`]: ENV_KEY,
+          [`${prefix}_API_HOST`]: 'https://env.example',
+        },
+      )).toEqual({ [id]: { authMode: 'api' } });
+    },
+  );
+
+  it.each([
+    'brave', 'kagi', 'kimi', 'synthetic', 'ollama',
+    'tinyfish', 'perplexity', 'bocha', 'claude',
+  ] as const)('preserves the whole configured %s entry including model', (id) => {
+    const entry = { apiKey: CONFIG_KEY, model: 'configured-model' };
+    const prefix = `OMNICROSS_SEARCH_${id.toUpperCase()}`;
+    const resolved = resolveSearchApiConfigs({ [id]: entry }, {
+      [`${prefix}_API_KEY`]: ENV_KEY,
+      [`${prefix}_API_HOST`]: 'https://env.example',
+      [`${prefix}_MODEL`]: 'environment-model',
+    });
+    expect(resolved[id]).toBe(entry);
+    expect(resolved[id]).toEqual({ apiKey: CONFIG_KEY, model: 'configured-model' });
+  });
+
+  it('fills absent new providers from env in the declared API order', () => {
+    const resolved = resolveSearchApiConfigs(
+      { claude: { apiKey: CONFIG_KEY } },
+      {
+        OMNICROSS_SEARCH_EXA_AUTH_MODE: 'public',
+        OMNICROSS_SEARCH_BRAVE_API_KEY: ENV_KEY,
+      },
+    );
+    expect(Object.keys(resolved)).toEqual(['exa', 'brave', 'claude']);
+    expect(resolved).toEqual({
+      exa: { authMode: 'public' },
+      brave: { apiKey: ENV_KEY },
+      claude: { apiKey: CONFIG_KEY },
+    });
+  });
 });
 
 describe('runSearchDoctor with a daemon config', () => {
