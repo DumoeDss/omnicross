@@ -110,7 +110,7 @@ export class LlmConfigProviderAuth implements AuthSource {
    *    `newKey` the session was re-bound, so we adopt it (`this.apiKey`) and
    *    return `{ rebound: true, newKey }`. When no key is available it returns
    *    `{ rebound: false }` (the session is still cooled/disabled by the report).
-   *  - success / any 2xx → `reportSuccess(sessionId)`; `{ rebound: false }`.
+   *  - success / any 2xx → `reportSuccess(providerId, sessionId)`; `{ rebound: false }`.
    *  - non-reportable, non-success, or non-pool request → no-op
    *    `{ rebound: false }`.
    *
@@ -141,7 +141,7 @@ export class LlmConfigProviderAuth implements AuthSource {
 
     // Treat any 2xx as success (mirrors `result.success` → reportSuccess).
     if (status !== null && status >= 200 && status < 300) {
-      pool.reportSuccess(sessionId);
+      pool.reportSuccess(providerId, sessionId);
     }
     return { rebound: false };
   }

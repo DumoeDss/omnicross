@@ -104,7 +104,7 @@ function makePoolStub(reportErrorResults: Array<string | null>): {
     callIdx += 1;
     return result;
   });
-  const reportSuccess = vi.fn((_sessionId: string) => undefined);
+  const reportSuccess = vi.fn((_providerId: string, _sessionId: string) => undefined);
   // Seed the binding (gate 2): return a stable per-session pool key.
   const getKeyForSession = vi.fn(async (_providerId: string, _sessionId: string) => 'sk-pool-seed');
   const pool = { reportError, reportSuccess, getKeyForSession } as unknown as ApiKeyPoolService;
@@ -221,7 +221,7 @@ describe('ProviderProxy BYO ApiKeyPool failover wiring (auth.onResult)', () => {
     }
   });
 
-  it('Responses BYO: 200 first call → reportSuccess(sessionId), no reportError, single fetch', async () => {
+  it('Responses BYO: 200 first call → reportSuccess(providerId, sessionId), no reportError, single fetch', async () => {
     const { pool, reportError, reportSuccess } = makePoolStub([]);
     await startProxy({ llmConfig: makeLlmConfig(), apiKeyPool: pool });
     const { upstreamCalls, restore } = stubFetchSequence([200]);
@@ -247,7 +247,7 @@ describe('ProviderProxy BYO ApiKeyPool failover wiring (auth.onResult)', () => {
       expect(upstreamCalls()).toBe(1);
       expect(reportError).not.toHaveBeenCalled();
       expect(reportSuccess).toHaveBeenCalledTimes(1);
-      expect(reportSuccess.mock.calls[0][0]).toBe('sess-resp-success');
+      expect(reportSuccess).toHaveBeenCalledWith('openai-prov', 'sess-resp-success');
     } finally {
       restore();
     }

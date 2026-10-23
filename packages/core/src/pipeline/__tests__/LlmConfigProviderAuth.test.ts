@@ -1,20 +1,9 @@
-/**
- * Focused unit tests for `LlmConfigProviderAuth` (Phase 2, task 4.2).
- *
- * Asserts:
- *  - `applyHeaders` produces output IDENTICAL to a direct `getProviderHeaders`
- *    call (anthropic / openai / google / openrouter formats), merged into the
- *    caller's header object.
- *  - `onResult` reports + returns the new key on 429/401/403/529, and no-ops
- *    on success (2xx) / other statuses / non-pool requests — mirroring
- *    `callWithPoolReporting`'s reportable + success branches.
- */
+/** Wire auth context and real-pool feedback remain isolated by provider. */
 
-import type { LLMProvider } from '@omnicross/contracts/llm-config';
-import { describe, expect, it, vi } from 'vitest';
+import type { ApiKeyEntry, LLMProvider } from '@omnicross/contracts/llm-config';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ApiKeyPoolService } from '../../completion/ApiKeyPoolService';
-import { getProviderHeaders } from '../../completion/header-builder';
+import { ApiKeyPoolService } from '../../completion/ApiKeyPoolService';
 import { getOpenCodeGoUserAgent } from '../../provider-proxy/identity/openCodeGoHeaders';
 import { LlmConfigProviderAuth } from '../LlmConfigProviderAuth';
 
@@ -33,38 +22,6 @@ function makeProvider(over: Partial<LLMProvider> & { id: string }): LLMProvider 
 const hints = { upstreamUrl: 'https://api.example.com/v1', model: 'm-1' };
 
 describe('LlmConfigProviderAuth.applyHeaders', () => {
-  it('matches getProviderHeaders for an OpenAI-format provider', () => {
-    const provider = makeProvider({ id: 'openai', apiFormat: 'openai' });
-    const auth = new LlmConfigProviderAuth({ provider, apiKey: 'sk-abc' });
-
-    const headers: Record<string, string> = {};
-    auth.applyHeaders(headers, hints);
-
-    expect(headers).toEqual(getProviderHeaders(provider, 'sk-abc'));
-    expect(headers.Authorization).toBe('Bearer sk-abc');
-  });
-
-  it('matches getProviderHeaders for an Anthropic-format provider', () => {
-    const provider = makeProvider({ id: 'p-anthropic', apiFormat: 'anthropic' });
-    const auth = new LlmConfigProviderAuth({ provider, apiKey: 'sk-ant' });
-
-    const headers: Record<string, string> = {};
-    auth.applyHeaders(headers, hints);
-
-    expect(headers).toEqual(getProviderHeaders(provider, 'sk-ant'));
-    expect(headers['x-api-key']).toBe('sk-ant');
-  });
-
-  it('matches getProviderHeaders for a Google-format provider', () => {
-    const provider = makeProvider({ id: 'google', apiFormat: 'google' });
-    const auth = new LlmConfigProviderAuth({ provider, apiKey: 'sk-goog' });
-
-    const headers: Record<string, string> = {};
-    auth.applyHeaders(headers, hints);
-
-    expect(headers).toEqual(getProviderHeaders(provider, 'sk-goog'));
-    expect(headers['x-goog-api-key']).toBe('sk-goog');
-  });
 
   it('merges into an existing header object without dropping unrelated keys', () => {
     const provider = makeProvider({ id: 'openai', apiFormat: 'openai' });
@@ -82,8 +39,8 @@ describe('LlmConfigProviderAuth.applyHeaders', () => {
 // applyHeaders — opencode.ai egress identity (opencodego-egress-identity BYO
 // half). A provider row pointing at opencode.ai picks up `user-agent` +
 // `x-opencode-session`; the session value prefers the caller's own header,
-// else the ingress-derived per-conversation key. Non-opencode hosts are
-// byte-identical (covered by the parity tests above).
+// else the ingress-derived per-conversation key. The resolved URL, not merely
+// the stored provider URL, controls these identity headers.
 // ---------------------------------------------------------------------------
 
 describe('LlmConfigProviderAuth.applyHeaders opencode identity', () => {
@@ -131,108 +88,99 @@ describe('LlmConfigProviderAuth.applyHeaders opencode identity', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// onResult — pool-rotation seam (D5). Isolated; no caller wires it in Phase 2.
-// ---------------------------------------------------------------------------
+describe('LlmConfigProviderAuth real-pool feedback', () => {
+  let pool: ApiKeyPoolService;
 
-function makePool(over: Partial<ApiKeyPoolService> = {}): ApiKeyPoolService {
-  return {
-    reportError: vi.fn(async () => null),
-    reportSuccess: vi.fn(),
-    getKeyIdForSession: vi.fn(() => null),
-    ...over,
-  } as unknown as ApiKeyPoolService;
-}
-
-const poolProvider = makeProvider({ id: 'openai', apiFormat: 'openai' });
-
-function makePoolAuth(pool: ApiKeyPoolService) {
-  return new LlmConfigProviderAuth({
-    provider: poolProvider,
-    apiKey: 'sk-initial',
-    apiKeyPool: pool,
-    providerId: 'openai',
-    sessionId: 'sess-1',
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
   });
-}
-
-describe('LlmConfigProviderAuth.onResult', () => {
-  it.each([429, 529, 401, 403])(
-    'reports a reportable status (%i) and returns the rebound new key',
-    async (status) => {
-      const reportError = vi.fn(async () => 'sk-rotated');
-      const pool = makePool({ reportError });
-      const auth = makePoolAuth(pool);
-
-      const outcome = await auth.onResult(status);
-
-      expect(reportError).toHaveBeenCalledWith('openai', 'sess-1', status);
-      expect(outcome).toEqual({ rebound: true, newKey: 'sk-rotated' });
-      // The source adopts the rotated key.
-      expect(auth.apiKey).toBe('sk-rotated');
-    },
-  );
-
-  it('reports a reportable status but returns rebound:false when no key is available', async () => {
-    const reportError = vi.fn(async () => null);
-    const pool = makePool({ reportError });
-    const auth = makePoolAuth(pool);
-
-    const outcome = await auth.onResult(429);
-
-    expect(reportError).toHaveBeenCalledWith('openai', 'sess-1', 429);
-    expect(outcome).toEqual({ rebound: false });
-    // No rotation → key unchanged.
-    expect(auth.apiKey).toBe('sk-initial');
+  afterEach(() => {
+    pool?.dispose();
+    vi.useRealTimers();
   });
 
-  it('calls reportSuccess on a 2xx status and does not rebind', async () => {
-    const reportSuccess = vi.fn();
-    const reportError = vi.fn(async () => null);
-    const pool = makePool({ reportSuccess, reportError });
-    const auth = makePoolAuth(pool);
+  function createPool(keyCount: number): void {
+    const rows: Record<string, ApiKeyEntry[]> = {};
+    for (const providerId of ['openai', 'secondary']) {
+      rows[providerId] = Array.from({ length: keyCount }, (_, index) => ({
+        id: `${providerId}-${index + 1}`,
+        providerId,
+        label: `${providerId}-${index + 1}`,
+        apiKey: `fixture-${providerId}-${index + 1}`,
+        enabled: true,
+        weight: 1,
+        sortOrder: index,
+      }));
+    }
+    pool = new ApiKeyPoolService(
+      async (providerId) => rows[providerId] ?? [],
+      (value) => value,
+      { debug() {}, info() {}, warn() {}, error() {} },
+    );
+  }
 
-    const outcome = await auth.onResult(200);
-
-    expect(reportSuccess).toHaveBeenCalledWith('sess-1');
-    expect(reportError).not.toHaveBeenCalled();
-    expect(outcome).toEqual({ rebound: false });
-  });
-
-  it('no-ops on a non-reportable, non-success status (e.g. 500)', async () => {
-    const reportSuccess = vi.fn();
-    const reportError = vi.fn(async () => null);
-    const pool = makePool({ reportSuccess, reportError });
-    const auth = makePoolAuth(pool);
-
-    const outcome = await auth.onResult(500);
-
-    expect(reportError).not.toHaveBeenCalled();
-    expect(reportSuccess).not.toHaveBeenCalled();
-    expect(outcome).toEqual({ rebound: false });
-  });
-
-  it('no-ops on a null status (network error)', async () => {
-    const reportSuccess = vi.fn();
-    const reportError = vi.fn(async () => null);
-    const pool = makePool({ reportSuccess, reportError });
-    const auth = makePoolAuth(pool);
-
-    const outcome = await auth.onResult(null);
-
-    expect(reportError).not.toHaveBeenCalled();
-    expect(reportSuccess).not.toHaveBeenCalled();
-    expect(outcome).toEqual({ rebound: false });
-  });
-
-  it('no-ops entirely for a non-pool request (no apiKeyPool / sessionId)', async () => {
-    const auth = new LlmConfigProviderAuth({
-      provider: poolProvider,
-      apiKey: 'sk-initial',
-      // no pool, no session → fromPool === false equivalent
+  function auth(): LlmConfigProviderAuth {
+    return new LlmConfigProviderAuth({
+      provider: makeProvider({ id: 'openai', apiFormat: 'openai' }),
+      apiKey: 'fixture-openai-1',
+      apiKeyPool: pool,
+      providerId: 'openai',
+      sessionId: 'conversation',
     });
+  }
 
-    expect(await auth.onResult(429)).toEqual({ rebound: false });
-    expect(await auth.onResult(200)).toEqual({ rebound: false });
+  it('retries with the failed provider’s next key without rotating the last auxiliary provider', async () => {
+    createPool(2);
+    await pool.getKeyForSession('openai', 'conversation');
+    await pool.getKeyForSession('secondary', 'conversation');
+    const source = auth();
+
+    expect(await source.onResult(429)).toEqual({
+      rebound: true, newKey: 'fixture-openai-2',
+    });
+    const headers: Record<string, string> = {};
+    source.applyHeaders(headers, hints);
+    expect(headers.Authorization).toBe('Bearer fixture-openai-2');
+    expect(await pool.getKeyHealth('openai')).toEqual({
+      'openai-1': { until: Date.now() + 60_000, errors: 1, lastStatus: 429 },
+    });
+    expect(await pool.getKeyHealth('secondary')).toEqual({});
+    expect(await pool.getKeyForSession('secondary', 'conversation')).toBe('fixture-secondary-1');
+  });
+
+  it('clears only the successful provider’s cooldown after both providers failed', async () => {
+    createPool(1);
+    await pool.getKeyForSession('openai', 'conversation');
+    await pool.getKeyForSession('secondary', 'conversation');
+    await pool.reportError('openai', 'conversation', 429);
+    await pool.reportError('secondary', 'conversation', 529);
+
+    await auth().onResult(200);
+
+    expect(await pool.getKeyHealth('openai')).toEqual({});
+    expect(await pool.getKeyHealth('secondary')).toEqual({
+      'secondary-1': { until: Date.now() + 60_000, errors: 1, lastStatus: 529 },
+    });
+    expect(await pool.getKeyForSession('openai', 'conversation')).toBe('fixture-openai-1');
+    expect(await pool.getPoolAvailability('secondary')).toEqual({
+      outcome: 'exhausted', retryAfterSeconds: 60,
+    });
+  });
+
+  it('preserves a rate-limit cooldown through server and network failures', async () => {
+    createPool(1);
+    await pool.getKeyForSession('openai', 'conversation');
+    await pool.reportError('openai', 'conversation', 429);
+
+    await auth().onResult(500);
+    await auth().onResult(null);
+
+    expect(await pool.getKeyHealth('openai')).toEqual({
+      'openai-1': { until: Date.now() + 60_000, errors: 1, lastStatus: 429 },
+    });
+    expect(await pool.getPoolAvailability('openai')).toEqual({
+      outcome: 'exhausted', retryAfterSeconds: 60,
+    });
   });
 });

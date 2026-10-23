@@ -92,12 +92,22 @@ export class CompletionService {
     this.apiKeyPool = pool;
   }
 
+  /** Share the host-injected pool with alternate execution adapters. */
+  getApiKeyPool(): ApiKeyPoolService | null {
+    return this.apiKeyPool;
+  }
+
   /**
    * Set the usage recorder so completion paths can persist token/cost stats.
    * Optional — when unset, all calls succeed but nothing is recorded.
    */
   setUsageRecorder(recorder: UsageSink): void {
     this.usageRecorder = recorder;
+  }
+
+  /** Share the host-injected usage recorder without creating a second sink. */
+  getUsageRecorder(): UsageSink | null {
+    return this.usageRecorder;
   }
 
   /**
@@ -109,6 +119,11 @@ export class CompletionService {
    */
   setUsageEventSink(sink: UsageEventSink): void {
     this.usageEventSink = sink;
+  }
+
+  /** Share the host-injected live usage sink with alternate execution adapters. */
+  getUsageEventSink(): UsageEventSink | null {
+    return this.usageEventSink;
   }
 
   /**
@@ -186,7 +201,7 @@ export class CompletionService {
 
       // Report success to pool for cooldown reset
       if (result.success && this.apiKeyPool && options.sessionId) {
-        this.apiKeyPool.reportSuccess(options.sessionId);
+        this.apiKeyPool.reportSuccess(actualProviderId, options.sessionId);
       }
 
       // Emit usage to the in-process hub so live indicators (context-meter,
@@ -310,7 +325,7 @@ export class CompletionService {
             callbacks.onError?.(error);
           },
           onDone: (message, usage, metrics) => {
-            this.apiKeyPool!.reportSuccess(options.sessionId!);
+            this.apiKeyPool!.reportSuccess(actualProviderId, options.sessionId!);
             callbacks.onDone?.(message, usage, metrics);
           },
         };
