@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,6 +50,68 @@ const DEVELOPMENT_FILE_NAME = /\.(?:test|spec)\.(?:[cm]?[jt]sx?)(?:\.map)?$/i;
 // Exact staging-relative paths, with a reason explaining their runtime use.
 // Unknown matches fail packaging; they are never deleted by the generic scan.
 const REVIEWED_RUNTIME_PATHS = {};
+
+// Whole package copies that are REDUNDANT in the staged runtime: an
+// identical-version copy sits earlier on Node's module-resolution walk, so the
+// nested copy ships duplicate bytes — and, on deep private-runtime layouts,
+// paths past the Windows MAX_PATH cliff that makensis cannot open (the 0.7.1
+// NSIS failure: chatgpt-web's bundled jsdom closure reached 261 chars).
+//
+// Deletion is CONDITIONAL per entry: the replacement must exist and carry the
+// SAME version, or packaging fails — a future version drift between the
+// nested copy and its replacement must never silently break resolution.
+// Paths are exact and layout-specific (the full daemon-runtime prefix), so the
+// daemon tarball's own staging — which reuses this prune from a different
+// root, where the closure legitimately sits at `node_modules/jsdom` — never
+// matches these keys.
+const REDUNDANT_RUNTIME_PACKAGES = {
+  'node_modules/@omnicross/daemon/node_modules/@omnicross/chatgpt-web/node_modules/jsdom': {
+    replacement: 'node_modules/jsdom',
+    reason:
+      'The chatgpt-web private-runtime closure bundles jsdom 24.1.3 nested under the daemon package, ' +
+      'while the staging install provides the identical version at the runtime root (via @omnicross/core); ' +
+      'Node resolution walks up from chatgpt-web to it. The nested copy alone exceeds 253 chars per file.',
+  },
+};
+
+function readStagedVersion(stagingRoot, relativePath) {
+  const manifestPath = join(stagingRoot, relativePath, 'package.json');
+  if (!existsSync(manifestPath)) return undefined;
+  return JSON.parse(readFileSync(manifestPath, 'utf8')).version;
+}
+
+function redundantRuntimePackages(stagingRoot) {
+  const targets = [];
+  for (const [relativePath, rule] of Object.entries(REDUNDANT_RUNTIME_PACKAGES)) {
+    const target = join(stagingRoot, relativePath);
+    if (!existsSync(target)) continue;
+    // Same safety envelope as the dev-path rules: a real, staging-local tree.
+    const info = lstatSync(target);
+    const resolvedTarget = realpathSync(target);
+    const withinRoot = relative(stagingRoot, resolvedTarget);
+    if ((!info.isDirectory() && !info.isFile()) || info.isSymbolicLink() || relative(target, resolvedTarget) !== '' || !withinRoot ||
+        withinRoot === '..' || withinRoot.startsWith(`..${sep}`) || isAbsolute(withinRoot)) {
+      throw new Error(`Refusing to prune a redundant runtime package at an unsafe path: ${target}`);
+    }
+    const nestedVersion = readStagedVersion(stagingRoot, relativePath);
+    const replacementVersion = readStagedVersion(stagingRoot, rule.replacement);
+    if (!replacementVersion) {
+      throw new Error(
+        `Redundant runtime package ${relativePath} has no replacement at ${rule.replacement}: ` +
+        'review REDUNDANT_RUNTIME_PACKAGES in scripts/prune-daemon-runtime.mjs before packaging.',
+      );
+    }
+    if (nestedVersion !== replacementVersion) {
+      throw new Error(
+        `Redundant runtime package ${relativePath} (${nestedVersion}) differs from its replacement ` +
+        `${rule.replacement} (${replacementVersion}); refusing to prune. ` +
+        'Review REDUNDANT_RUNTIME_PACKAGES in scripts/prune-daemon-runtime.mjs.',
+      );
+    }
+    targets.push({ target, relativePath, replacementVersion });
+  }
+  return targets;
+}
 
 function developmentPaths(staging) {
   const stagingRoot = realpathSync(staging);
@@ -119,8 +181,10 @@ function directorySize(directory) {
 }
 
 export function pruneDaemonRuntime(staging = defaultStaging) {
+  const stagingRoot = realpathSync(staging);
   // Resolve and validate every target before performing any recursive removal.
-  const targets = developmentPaths(staging);
+  const targets = developmentPaths(stagingRoot);
+  const redundant = redundantRuntimePackages(stagingRoot);
   let directories = 0;
   let files = 0;
   let bytes = 0;
@@ -131,6 +195,16 @@ export function pruneDaemonRuntime(staging = defaultStaging) {
     files += size.files;
     bytes += size.bytes;
     rmSync(target, { recursive: true });
+  }
+  for (const { target, relativePath, replacementVersion } of redundant) {
+    const size = directorySize(target);
+    directories += 1;
+    files += size.files;
+    bytes += size.bytes;
+    rmSync(target, { recursive: true });
+    console.info(
+      `[daemon-runtime] pruned redundant ${relativePath} (identical ${replacementVersion} resolves from the runtime root)`,
+    );
   }
   return { directories, files, bytes };
 }
