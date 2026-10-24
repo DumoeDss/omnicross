@@ -19,9 +19,12 @@
  * generic kernel of a direct Anthropic request/pass-through MINUS the
  * OAuth-token-swap and the 5h/7d window taps.
  *
- * NO SDK quirk (probe-mock, local web-search interception, callbacks,
- * attribution) lives here — those stay exclusively in any delegated
- * host-injected factory.
+ * NO SDK quirk (probe-mock, callbacks, attribution) lives here — those stay
+ * exclusively in any delegated host-injected factory. The ONE search behavior
+ * on this path is the MANAGED IN-BAND lane (`anthropicManagedInbandSearch.ts`),
+ * mode-gated (`search.modes.anthropic === "managed"`), which rewrites the
+ * request and drives its own upstream turns through the same pool-reporting
+ * wrapper — see that module for the full contract.
  *
  * `authMode: 'subscription'` IS served on this built-in path via a sibling
  * `anthropicSubscriptionPlan.ts`: `buildSubscriptionPlan` +
@@ -43,6 +46,14 @@ import { getSharedAccountRouteActivity } from '../../pipeline/AccountRouteActivi
 import { getSharedAccountHealth } from '../../pipeline/SubscriptionAccountHealth';
 import { getSharedOverloadCounter } from '../../pipeline/ServerOverloadCounter';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
+
+import { DEFAULT_SEARCH_FRONTEND_MODES } from '../../search/frontends';
+import {
+  hasManagedInbandSearchWork,
+  prepareManagedInbandSearch,
+  runManagedInbandSearch,
+  type ManagedInbandSearchPreparation,
+} from './anthropicManagedInbandSearch';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
@@ -128,6 +139,36 @@ export async function handleAnthropicMessagesByo(
   const resolvedModel = route.model;
   anthropicBody.model = resolvedModel;
 
+  // ── MANAGED IN-BAND SEARCH (plan 阶段5 second half) ─────────────────────────
+  // A request that merely DECLARES a `web_search_*` server tool among its tools
+  // is the Claude Code shape; with `search.modes.anthropic = "managed"` the
+  // search-only lane has already stood down (its predicate does not claim this
+  // request), and the in-band lane takes the WHOLE exchange: swap the hosted
+  // declaration for a selector function tool, run the turn(s), execute searches
+  // on the shared runtime, splice `server_tool_use` + `web_search_tool_result`
+  // blocks into the client stream, and continue the conversation upstream with
+  // the results until the model answers. Subscription routes and a missing
+  // runtime keep today's behavior (this lane stands down).
+  // `deps.searchRuntime` must hold for the WHOLE exchange, so it is narrowed
+  // once here and threaded below.
+  const inbandSearchRuntime =
+    (deps.searchFrontendModes?.anthropic ?? DEFAULT_SEARCH_FRONTEND_MODES.anthropic) === 'managed' &&
+    route.authMode !== 'subscription' &&
+    hasManagedInbandSearchWork(anthropicBody)
+      ? (deps.searchRuntime ?? null)
+      : null;
+  let inbandSearch: ManagedInbandSearchPreparation | null = null;
+  if (inbandSearchRuntime) {
+    inbandSearch = prepareManagedInbandSearch(anthropicBody);
+    // The engine consumes the REWRITTEN body from here on (including the
+    // forced `stream: true`); every downstream consumer — the plan, the
+    // translate pre-pass, the pipeline — reads it from this variable.
+    anthropicBody = inbandSearch.upstreamBody;
+  }
+  // The upstream turn is always streamed when the lane engages, whatever the
+  // client asked for (a non-streaming client is aggregated at the end).
+  const upstreamIsStream = inbandSearch !== null || isStream;
+
   try {
     const plan =
       route.authMode === 'subscription'
@@ -137,7 +178,7 @@ export async function handleAnthropicMessagesByo(
             route,
             deps,
             resolvedModel,
-            isStream,
+            upstreamIsStream,
             // opencodego-egress-identity (BYO half): the same body-anchor session
             // key the subscription path derives — feeds `x-opencode-session` when
             // the provider row points at opencode.ai and the caller sent none.
@@ -231,6 +272,57 @@ export async function handleAnthropicMessagesByo(
           },
         }
       : undefined;
+    // ── MANAGED IN-BAND SEARCH: the lane owns the whole exchange ─────────────
+    // Every upstream turn flows through the SAME pool-reporting wrapper the
+    // normal path uses (failover preserved); the same-format override posts the
+    // engine's rewritten body instead of the raw client bytes. The engine fires
+    // the usage tap on its synthesized client events, so both the streaming and
+    // the aggregated recorder paths below keep working unchanged.
+    if (inbandSearch && inbandSearchRuntime) {
+      let clientBodyText: string | null = null;
+      try {
+        clientBodyText = await runManagedInbandSearch(
+          res,
+          inbandSearch,
+          (body) =>
+            runPipelineWithPoolReporting(
+              body,
+              rawBody,
+              plan,
+              options,
+              plan.sameFormat ? JSON.stringify(body) : undefined,
+            ),
+          {
+            runtime: inbandSearchRuntime,
+            isClientStream: isStream,
+            requestedModel: route.requestedModel,
+            resolvedModel: plan.resolvedModel,
+            signal: options.signal,
+            usageTap,
+          },
+        );
+      } catch (error) {
+        if (options.signal?.aborted) return;
+        // Before any client byte, a lane failure is an ordinary request failure
+        // (the outer catch answers it). After the stream started, an in-band
+        // `error` event is the only honest terminal — writeError would try to
+        // writeHead twice onto a stream already answering.
+        if (!res.headersSent) throw error;
+        res.write(
+          `event: error\ndata: ${JSON.stringify({
+            type: 'error',
+            error: { type: 'api_error', message: serializeError(error) },
+          })}\n\n`,
+        );
+        res.end();
+        return;
+      }
+      if (clientBodyText && deps.usageRecorder) {
+        recordAnthropicNonStreamUsage(deps.usageRecorder, clientBodyText, usageAttribution);
+      }
+      return;
+    }
+
     // ── Mid-stream event observers (claude-api-transform-fidelity) ───────────
     // R8: on the SUBSCRIPTION TRANSLATE plan mirror the responses ingress's
     // overload detector — a Codex `response.failed` overload event inside a 200
@@ -621,12 +713,19 @@ async function runPipelineWithPoolReporting(
   rawBody: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions,
+  /**
+   * The body the same-format verbatim path should POST, when the caller has
+   * ALREADY rewritten it (the managed in-band search lane: every upstream turn
+   * derives from its selector-swapped body, not the raw client bytes). Absent ⇒
+   * the D5 verbatim-or-remap resolution below, byte-identical to before.
+   */
+  sameFormatBodyOverride?: string,
 ): Promise<AnthropicRunResult> {
   // D5: on the verbatim same-format path, POST the resolved provider model when
   // the route remapped it (else the raw client bytes verbatim). Computed once so
   // an ApiKeyPool rebind retry re-sends the identical body.
   const sameFormatBody = plan.sameFormat
-    ? resolveSameFormatBody(anthropicBody, rawBody, plan)
+    ? (sameFormatBodyOverride ?? resolveSameFormatBody(anthropicBody, rawBody, plan))
     : rawBody;
   const runOnce = (keyOverride?: string): Promise<AnthropicRunResult> =>
     plan.sameFormat
