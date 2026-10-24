@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Paralelně",
       "fallbackDescription": "Po neúspěšném kandidátovi může následovat další.",
-      "parallelDescription": "Všichni kandidáti běží souběžně; vyhrává první odpověď.",
+      "parallelDescription": "Povolení poskytovatelé běží souběžně; vyhrává první odpověď. Max. pokusy omezují, kolik soupeří.",
       "maxAttempts": "Max. pokusů",
-      "maxAttemptsDescription": "Horní limit poskytovatelů na jedno vyhledávání (1–32)."
+      "maxAttemptsDescription": "Horní limit poskytovatelů na vyhledávání (1–32); při paralelním režimu kolik soupeří najednou."
     },
     "egress": {
       "title": "Povolený výstupní provoz",

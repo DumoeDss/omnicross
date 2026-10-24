@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Yedek",
       "parallel": "Paralel",
       "fallbackDescription": "Başarısız bir adayın ardından sıradaki denenebilir.",
-      "parallelDescription": "Tüm adaylar eşzamanlı çalışır; ilk yanıt kazanır.",
+      "parallelDescription": "İzin verilen sağlayıcılar eşzamanlı çalışır; ilk yanıt kazanır. Maksimum deneme sayısı kaç tanesinin yarışacağını sınırlar.",
       "maxAttempts": "Azami deneme",
-      "maxAttemptsDescription": "Arama başına denenecek sağlayıcı üst sınırı (1–32)."
+      "maxAttemptsDescription": "Bir arama için denenecek sağlayıcı üst sınırı (1–32); paralel modda aynı anda kaçının yarışacağını sınırlar."
     },
     "egress": {
       "title": "Giden izin listesi",

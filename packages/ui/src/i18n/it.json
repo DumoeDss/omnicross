@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Parallelo",
       "fallbackDescription": "Dopo un candidato non riuscito può seguire il successivo.",
-      "parallelDescription": "Tutti i candidati girano in simultanea; vince la prima risposta.",
+      "parallelDescription": "I fornitori consentiti girano in simultanea; vince la prima risposta. I tentativi massimi limitano quanti gareggiano.",
       "maxAttempts": "Tentativi max",
-      "maxAttemptsDescription": "Limite superiore di provider provati per ricerca (1–32)."
+      "maxAttemptsDescription": "Limite superiore di fornitori per ricerca (1–32); in parallelo limita quanti gareggiano insieme."
     },
     "egress": {
       "title": "Elenco uscita consentita",

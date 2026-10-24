@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Paralel",
       "fallbackDescription": "Kandidat yang gagal boleh diikuti kandidat berikutnya.",
-      "parallelDescription": "Semua kandidat berjalan bersamaan; jawaban tercepat menang.",
+      "parallelDescription": "Penyedia yang diizinkan berjalan bersamaan; jawaban tercepat menang. Maksimum percobaan membatasi berapa yang berlomba.",
       "maxAttempts": "Maks. percobaan",
-      "maxAttemptsDescription": "Batas atas penyedia yang dicoba per pencarian (1–32)."
+      "maxAttemptsDescription": "Batas atas penyedia per pencarian (1–32); saat paralel aktif, membatasi berapa yang berlomba sekaligus."
     },
     "egress": {
       "title": "Daftar izin lalu lintas keluar",

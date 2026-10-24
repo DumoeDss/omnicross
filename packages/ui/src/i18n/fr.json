@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Repli",
       "parallel": "Parallèle",
       "fallbackDescription": "Un candidat en échec peut être suivi par le suivant.",
-      "parallelDescription": "Tous les candidats s'exécutent en parallèle ; la première réponse l'emporte.",
+      "parallelDescription": "Les fournisseurs autorisés s'exécutent en parallèle ; la première réponse l'emporte. Le nombre max de tentatives limite combien courent.",
       "maxAttempts": "Tentatives max.",
-      "maxAttemptsDescription": "Limite de fournisseurs essayés par recherche (1–32)."
+      "maxAttemptsDescription": "Limite de fournisseurs par recherche (1–32) ; en mode parallèle, combien courent à la fois."
     },
     "egress": {
       "title": "Liste de sortie autorisée",

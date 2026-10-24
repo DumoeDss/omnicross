@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Parallell",
       "fallbackDescription": "Efter en misslyckad kandidat får nästa följa.",
-      "parallelDescription": "Alla kandidater körs samtidigt; det snabbaste svaret vinner.",
+      "parallelDescription": "Tillåtna leverantörer körs samtidigt; det snabbaste svaret vinner. Max försök begränsar hur många som tävlar.",
       "maxAttempts": "Max försök",
-      "maxAttemptsDescription": "Övre gräns för leverantörer per sökning (1–32)."
+      "maxAttemptsDescription": "Övre gräns för leverantörer per sökning (1–32); i parallellläget hur många som tävlar samtidigt."
     },
     "egress": {
       "title": "Tillåten utgående lista",

@@ -1644,9 +1644,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Parallel",
       "fallbackDescription": "A failed candidate may be followed by the next one.",
-      "parallelDescription": "Race every candidate provider concurrently; the first to answer wins.",
+      "parallelDescription": "Race the allowed providers concurrently; the first to answer wins. Max attempts caps how many race.",
       "maxAttempts": "Max attempts",
-      "maxAttemptsDescription": "Upper bound on providers tried for one search (1–32)."
+      "maxAttemptsDescription": "Providers tried for one search (1–32); with parallel on, this caps how many race at once."
     },
     "egress": {
       "title": "Egress allowlist",

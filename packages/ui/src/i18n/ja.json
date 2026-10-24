@@ -1323,9 +1323,9 @@
       "fallbackEnabled": "フォールバック",
       "parallel": "並列",
       "fallbackDescription": "失敗した候選の次を試行できます。",
-      "parallelDescription": "候選プロバイダーを同時実行し、最初に応答した結果を採用します。",
+      "parallelDescription": "許可したプロバイダーを同時実行し、最初に応答した結果を採用します。「最大試行数」が同時実行数の上限になります。",
       "maxAttempts": "最大試行数",
-      "maxAttemptsDescription": "1 回の検索で試すプロバイダーの上限（1〜32）。"
+      "maxAttemptsDescription": "1回の検索で試行するプロバイダーの上限（1〜32）。並列時は同時実行数の上限になります。"
     },
     "egress": {
       "title": "出口許可リスト",

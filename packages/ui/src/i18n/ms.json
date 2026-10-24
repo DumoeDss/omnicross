@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Selari",
       "fallbackDescription": "Calon yang gagal boleh diikuti calon seterusnya.",
-      "parallelDescription": "Semua calon berjalan serentak; jawapan terpantas menang.",
+      "parallelDescription": "Penyedia yang dibenarkan berjalan serentak; jawapan terpantas menang. Cubaan maksimum mengehadkan berapa banyak bersaing.",
       "maxAttempts": "Cubaan maks.",
-      "maxAttemptsDescription": "Had atas penyedia dicuba setiap carian (1–32)."
+      "maxAttemptsDescription": "Had bilangan penyedia setiap carian (1–32); bila selari aktif, had berapa banyak bersaing serentak."
     },
     "egress": {
       "title": "Senarai benar trafik keluar",

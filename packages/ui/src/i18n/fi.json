@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Vara",
       "parallel": "Rinnakkainen",
       "fallbackDescription": "Epäonnistuneen ehdokkaan jälkeen saa seurata seuraava.",
-      "parallelDescription": "Kaikki ehdokkaat ajetaan yhtä aikaa; nopein vastaus voittaa.",
+      "parallelDescription": "Sallitut palveluntarjoajat ajetaan yhtä aikaa; nopein vastaus voittaa. Enimmäisyritykset rajoittavat, kuinka monta kilpailee.",
       "maxAttempts": "Enimmäisyritykset",
-      "maxAttemptsDescription": "Yläraja haussa kokeiltaville palveluntarjoajille (1–32)."
+      "maxAttemptsDescription": "Palveluntarjoajien yläraja per haku (1–32); rinnakkaisuudessa kuinka monta kilpailee kerralla."
     },
     "egress": {
       "title": "Sallittujen lähtevien luettelo",

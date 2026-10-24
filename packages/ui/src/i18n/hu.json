@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Tartalék",
       "parallel": "Párhuzamos",
       "fallbackDescription": "Egy sikertelen jelölt után jöhet a következő.",
-      "parallelDescription": "Minden jelölt egyszerre fut; az első válasz nyer.",
+      "parallelDescription": "Az engedélyezett szolgáltatók egyszerre futnak; az első válasz nyer. A maximális próbálkozás korlátozza, hány versenyez.",
       "maxAttempts": "Max. próbálkozás",
-      "maxAttemptsDescription": "Keresésenként kipróbált szolgáltatók felső határa (1–32)."
+      "maxAttemptsDescription": "Szolgáltatók felső határa keresésenként (1–32); párhuzamos módban hány versenyez egyszerre."
     },
     "egress": {
       "title": "Kimenő forgalom engedélyezési listája",

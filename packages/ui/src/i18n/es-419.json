@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Respaldo",
       "parallel": "Paralelo",
       "fallbackDescription": "Tras un candidato fallido puede seguir el siguiente.",
-      "parallelDescription": "Todos los candidatos se ejecutan a la vez; gana la primera respuesta.",
+      "parallelDescription": "Los proveedores permitidos se ejecutan a la vez; gana la primera respuesta. Los intentos máximos limitan cuántos compiten.",
       "maxAttempts": "Intentos máximos",
-      "maxAttemptsDescription": "Límite de proveedores probados por búsqueda (1–32)."
+      "maxAttemptsDescription": "Límite de proveedores por búsqueda (1–32); en paralelo limita cuántos compiten a la vez."
     },
     "egress": {
       "title": "Lista de salida permitida",

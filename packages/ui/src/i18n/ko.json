@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "폴백",
       "parallel": "병렬",
       "fallbackDescription": "실패한 후보 뒤에 다음 후보를 시도할 수 있습니다.",
-      "parallelDescription": "모든 후보 제공자를 동시에 실행하고 가장 빠른 응답을 채택합니다.",
+      "parallelDescription": "허용된 제공자를 동시에 실행하고 가장 빠른 응답을 채택합니다. 최대 시도 횟수가 동시 실행 수를 제한합니다.",
       "maxAttempts": "최대 시도 횟수",
-      "maxAttemptsDescription": "한 번의 검색에서 시도하는 공급자 상한(1–32)."
+      "maxAttemptsDescription": "한 번의 검색에서 시도하는 제공자 상한(1–32). 병렬 시 동시 실행 수 상한입니다."
     },
     "egress": {
       "title": "이그레스 허용 목록",

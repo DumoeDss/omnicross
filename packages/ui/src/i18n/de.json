@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Parallel",
       "fallbackDescription": "Nach einem fehlgeschlagenen Kandidaten darf der nächste folgen.",
-      "parallelDescription": "Alle Kandidaten laufen gleichzeitig; die erste Antwort gewinnt.",
+      "parallelDescription": "Erlaubte Anbieter laufen gleichzeitig; die erste Antwort gewinnt. Max. Versuche begrenzt, wie viele starten.",
       "maxAttempts": "Maximale Versuche",
-      "maxAttemptsDescription": "Obergrenze der Anbieter pro Suche (1–32)."
+      "maxAttemptsDescription": "Obergrenze der Anbieter pro Suche (1–32); bei Parallel begrenzt, wie viele gleichzeitig starten."
     },
     "egress": {
       "title": "Egress-Zulassungsliste",

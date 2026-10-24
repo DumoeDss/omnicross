@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Dự phòng",
       "parallel": "Song song",
       "fallbackDescription": "Sau một ứng viên thất bại có thể thử ứng viên tiếp theo.",
-      "parallelDescription": "Tất cả ứng viên chạy đồng thời; câu trả lời nhanh nhất thắng.",
+      "parallelDescription": "Các nhà cung cấp được phép chạy đồng thời; câu trả lời nhanh nhất thắng. Số lần thử tối đa giới hạn bao nhiêu cùng đua.",
       "maxAttempts": "Số lần thử tối đa",
-      "maxAttemptsDescription": "Giới hạn trên số nhà cung cấp thử cho mỗi lần tìm (1–32)."
+      "maxAttemptsDescription": "Giới hạn trên số nhà cung cấp mỗi lượt tìm (1–32); ở chế độ song song giới hạn bao nhiêu cùng đua."
     },
     "egress": {
       "title": "Danh sách cho phép lưu lượng đi",

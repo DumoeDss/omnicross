@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Parallel",
       "fallbackDescription": "En mislykket kandidat kan efterfølges af den næste.",
-      "parallelDescription": "Alle kandidater kører samtidig; det første svar vinder.",
+      "parallelDescription": "Tilladte udbydere kører samtidig; det første svar vinder. Maks. forsøg begrænser, hvor mange der deltager.",
       "maxAttempts": "Maks. forsøg",
-      "maxAttemptsDescription": "Øvre grænse for udbydere pr. søgning (1–32)."
+      "maxAttemptsDescription": "Øvre grænse for udbydere pr. søgning (1–32); i paralleltilstand hvor mange der deltager samtidig."
     },
     "egress": {
       "title": "Tilladt udgående liste",

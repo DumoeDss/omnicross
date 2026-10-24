@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Awaryjnie",
       "parallel": "Równolegle",
       "fallbackDescription": "Po nieudanym kandydacie może nastąpić kolejny.",
-      "parallelDescription": "Wszyscy kandydaci działają jednocześnie; wygrywa pierwsza odpowiedź.",
+      "parallelDescription": "Dozwoleni dostawcy działają jednocześnie; wygrywa pierwsza odpowiedź. Maksymalna liczba prób ogranicza, ilu startuje.",
       "maxAttempts": "Maks. prób",
-      "maxAttemptsDescription": "Górna granica dostawców na jedno wyszukiwanie (1–32)."
+      "maxAttemptsDescription": "Górny limit dostawców na jedno wyszukiwanie (1–32); w trybie równoległym — ilu startuje naraz."
     },
     "egress": {
       "title": "Lista dozwolonego ruchu wychodzącego",

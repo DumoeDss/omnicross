@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Parallel",
       "fallbackDescription": "Na een mislukte kandidaat mag de volgende volgen.",
-      "parallelDescription": "Alle kandidaten draaien tegelijk; het eerste antwoord wint.",
+      "parallelDescription": "Toegestane aanbieders draaien tegelijk; het eerste antwoord wint. Max pogingen begrenst hoeveel er meedoen.",
       "maxAttempts": "Max. pogingen",
-      "maxAttemptsDescription": "Bovengrens van providers per zoekopdracht (1–32)."
+      "maxAttemptsDescription": "Bovengrens van aanbieders per zoekopdracht (1–32); bij parallel hoeveel er tegelijk meedoen."
     },
     "egress": {
       "title": "Uitgaande toestaan-lijst",

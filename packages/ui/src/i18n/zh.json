@@ -1647,9 +1647,9 @@
       "fallbackEnabled": "回退",
       "parallel": "并行",
       "fallbackDescription": "一个候选失败后可以尝试下一个。",
-      "parallelDescription": "所有候选搜索源并行竞速，最快返回结果者胜出。",
+      "parallelDescription": "名单内的搜索源并行竞速，最快返回结果者胜出；「最大尝试次数」限制同时参赛的数量。",
       "maxAttempts": "最大尝试次数",
-      "maxAttemptsDescription": "单次搜索尝试的提供方上限（1–32）。"
+      "maxAttemptsDescription": "单次搜索尝试的提供方上限（1–32）；开启并行后即同时竞速的数量上限。"
     },
     "egress": {
       "title": "出口允许列表",

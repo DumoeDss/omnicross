@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Fallback",
       "parallel": "Paralelo",
       "fallbackDescription": "Após um candidato com falha, o próximo pode ser tentado.",
-      "parallelDescription": "Todos os candidatos rodam simultaneamente; vence a primeira resposta.",
+      "parallelDescription": "Os fornecedores permitidos rodam simultaneamente; vence a primeira resposta. O máximo de tentativas limita quantos rodam.",
       "maxAttempts": "Tentativas máx.",
-      "maxAttemptsDescription": "Limite de provedores tentados por pesquisa (1–32)."
+      "maxAttemptsDescription": "Limite de fornecedores tentados por busca (1–32); em paralelo, limita quantos rodam ao mesmo tempo."
     },
     "egress": {
       "title": "Lista de saída permitida",

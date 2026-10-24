@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Rezervă",
       "parallel": "Paralel",
       "fallbackDescription": "După un candidat eșuat poate urma următorul.",
-      "parallelDescription": "Toți candidații rulează simultan; câștigă primul răspuns.",
+      "parallelDescription": "Furnizorii permiși rulează simultan; câștigă primul răspuns. Numărul maxim de încercări limitează câți concurează.",
       "maxAttempts": "Încercări max.",
-      "maxAttemptsDescription": "Limita superioară a furnizorilor per căutare (1–32)."
+      "maxAttemptsDescription": "Limita superioară de furnizori per căutare (1–32); în mod paralel, câți concurează simultan."
     },
     "egress": {
       "title": "Lista de ieșire permisă",

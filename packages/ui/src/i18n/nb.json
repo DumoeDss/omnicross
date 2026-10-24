@@ -1003,9 +1003,9 @@
       "fallbackEnabled": "Reserve",
       "parallel": "Parallell",
       "fallbackDescription": "En mislykket kandidat kan etterfølges av den neste.",
-      "parallelDescription": "Alle kandidater kjører samtidig; det første svaret vinner.",
+      "parallelDescription": "Tillatte leverandører kjører samtidig; det første svaret vinner. Maks forsøk begrenser hvor mange som deltar.",
       "maxAttempts": "Maks. forsøk",
-      "maxAttemptsDescription": "Øvre grense for leverandører pr. søk (1–32)."
+      "maxAttemptsDescription": "Øvre grense for leverandører per søk (1–32); i parallell modus hvor mange som deltar samtidig."
     },
     "egress": {
       "title": "Tillatt utgående liste",
