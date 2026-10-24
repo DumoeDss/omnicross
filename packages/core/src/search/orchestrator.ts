@@ -150,6 +150,17 @@ export class SearchOrchestrator {
       ? undefined
       : { allowedProviderIds: policy.allowed };
 
+    if (policy.parallel === true && plan.candidates.length > 1) {
+      return this.searchParallel(request, policy, plan, {
+        requestId,
+        queryHash,
+        startedAt,
+        attempts,
+        emitComplete,
+        executionContext,
+      });
+    }
+
     for (const candidate of plan.candidates) {
       const attemptStartedAt = Date.now();
       try {
@@ -240,6 +251,136 @@ export class SearchOrchestrator {
 
     emitComplete(undefined, 0);
     throw exhaustionError(attempts, lastError);
+  }
+
+  /**
+   * Race every planned candidate concurrently (`policy.parallel`).
+   *
+   * The same three semantics that govern the serial walk, restated for a race:
+   * an EMPTY result set still wins (it is a success); cancellation — the
+   * caller's or the race's — is the signal's verdict, never a provider's; and
+   * the first settled success ends the race with its losers cancelled, so a
+   * slow-but-fine provider can lose to a fast one. That last trade-off is what
+   * the operator opted into by enabling parallel mode.
+   */
+  private async searchParallel(
+    request: SearchRequest,
+    policy: SearchPolicy,
+    plan: CandidatePlan,
+    run: {
+      requestId: string;
+      queryHash: string;
+      startedAt: number;
+      attempts: SearchAttempt[];
+      emitComplete: (providerId: SearchProviderId | undefined, resultCount: number) => void;
+      executionContext: { allowedProviderIds: SearchProviderId[] } | undefined;
+    },
+  ): Promise<OrchestratedSearchResponse> {
+    const { attempts, emitComplete, executionContext } = run;
+
+    // One abort for the whole race: the first winner flips it to cancel the
+    // losers, and the caller's own signal is forwarded into it. Candidates see
+    // a COPY of the request options carrying this signal — the caller's options
+    // object is never mutated, and providers keep owning their timeouts.
+    const callerSignal = request.options?.signal;
+    const raceAbort = new AbortController();
+    const forwardCallerAbort = (): void => raceAbort.abort(callerSignal?.reason);
+    if (callerSignal?.aborted) raceAbort.abort(callerSignal.reason);
+    else callerSignal?.addEventListener('abort', forwardCallerAbort, { once: true });
+    const candidateOptions = { ...request.options, signal: raceAbort.signal };
+
+    let winner: { candidate: SearchProviderContribution; results: ReturnType<typeof normalizeSearchResults> } | undefined;
+    let lastError: SearchProviderError | undefined;
+
+    const launch = async (candidate: SearchProviderContribution) => {
+      const attemptStartedAt = Date.now();
+      try {
+        const produced = await candidate.provider.search(
+          request.query,
+          candidateOptions,
+          executionContext,
+        );
+        const durationMs = Date.now() - attemptStartedAt;
+        const results = normalizeSearchResults(produced, request.options?.maxResults);
+        attempts.push({
+          providerId: candidate.id,
+          outcome: 'success',
+          resultCount: results.length,
+          durationMs,
+        });
+        this.emit({
+          type: 'search_attempt',
+          requestId: run.requestId,
+          queryHash: run.queryHash,
+          providerId: candidate.id,
+          outcome: 'success',
+          resultCount: results.length,
+          durationMs,
+        });
+        return { candidate, results };
+      } catch (error) {
+        const durationMs = Date.now() - attemptStartedAt;
+        const shape = toSearchErrorShape(error);
+        // Same authority rule as the serial walk: the caller's signal decides
+        // cancellation. A loser aborted by the RACE surfaces as `cancelled`
+        // from its own provider mapping, which is equally correct here.
+        const isCancelled =
+          shape.code === 'cancelled' || callerSignal?.aborted === true;
+        const errorCode = isCancelled ? 'cancelled' : shape.code;
+        attempts.push({
+          providerId: candidate.id,
+          outcome: 'failed',
+          errorCode,
+          durationMs,
+        });
+        this.emit({
+          type: 'search_attempt',
+          requestId: run.requestId,
+          queryHash: run.queryHash,
+          providerId: candidate.id,
+          outcome: 'failed',
+          errorCode,
+          durationMs,
+        });
+        lastError = asSearchProviderError(error, shape.code, shape.message, candidate.id);
+        return null;
+      }
+    };
+
+    try {
+      await Promise.all(plan.candidates.map(async (candidate) => {
+        const settled = await launch(candidate);
+        if (settled !== null && winner === undefined) {
+          winner = settled;
+          // First success ends the race: cancel everyone still running. The
+          // awaited Promise.all still drains their cancelled settlements so
+          // `attempts` records every launch.
+          raceAbort.abort(new SearchProviderError(
+            'cancelled',
+            'superseded by a faster parallel search provider',
+            { providerId: candidate.id, retryable: false },
+          ));
+        }
+      }));
+
+      if (winner !== undefined) {
+        emitComplete(winner.candidate.id, winner.results.length);
+        return {
+          query: request.query,
+          providerId: winner.candidate.id,
+          results: winner.results,
+          attempts,
+          fallbackCount: fallbackCountOf(attempts),
+        };
+      }
+      emitComplete(undefined, 0);
+      throw exhaustionError(attempts, lastError);
+    } finally {
+      callerSignal?.removeEventListener('abort', forwardCallerAbort);
+      // Every provider has settled by now; aborting (again) is a no-op that
+      // simply guarantees no listener outlives the request.
+      if (!raceAbort.signal.aborted) raceAbort.abort();
+    }
   }
 
   /** Resolve the candidate list for one request. */

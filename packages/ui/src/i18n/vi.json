@@ -676,7 +676,6 @@
       "label": "Hiện tên mô hình thực",
       "description": "Danh sách và bộ chọn mô hình hiển thị ID mô hình thượng nguồn thực thay vì tên đã ánh xạ. Có hiệu lực khi làm mới danh sách mô hình lần tiếp theo."
     },
-
     "title": "Dịch vụ API",
     "description": "Cấu hình máy chủ API đầu ra, định tuyến mô hình theo endpoint và access key được đặt tên.",
     "loading": "Đang tải cấu hình máy chủ…",
@@ -1002,7 +1001,9 @@
       "allowed": "Nhà cung cấp được phép",
       "allowedDescription": "Trống nghĩa là mọi nhà cung cấp đã cấu hình đều là ứng viên.",
       "fallbackEnabled": "Dự phòng",
+      "parallel": "Song song",
       "fallbackDescription": "Sau một ứng viên thất bại có thể thử ứng viên tiếp theo.",
+      "parallelDescription": "Tất cả ứng viên chạy đồng thời; câu trả lời nhanh nhất thắng.",
       "maxAttempts": "Số lần thử tối đa",
       "maxAttemptsDescription": "Giới hạn trên số nhà cung cấp thử cho mỗi lần tìm (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Hàng tháng",
+      "monthly": "Hàng tháng",
       "codexRefreshConfirmTitle": "Dùng Luna để làm mới hạn mức này?",
       "codexRefreshConfirmDescription": "Một yêu cầu thực sẽ được gửi đến gpt-5.6-luna bằng tài khoản Codex này để lấy hạn mức mới nhất. Thao tác này sẽ sử dụng một phần nhỏ hạn mức gói đăng ký. Tiếp tục?",
       "codexRefreshConfirmAction": "Gửi yêu cầu và làm mới"

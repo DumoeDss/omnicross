@@ -54,7 +54,7 @@ describe('createSearchSettingsDraft', () => {
     expect(draft.providers.searxng?.apiHost).toBe('https://searx.internal.example.test');
     expect(draft.providers.searxng?.basicAuthUsername).toBe('svc');
     expect(draft.providers.jina?.persistedConfigured).toBe(true);
-    expect(draft.policy).toEqual({ preferred: 'tavily', allowed: [], fallbackEnabled: false, maxAttempts: '4' });
+    expect(draft.policy).toEqual({ preferred: 'tavily', allowed: [], fallbackEnabled: false, parallel: false, maxAttempts: '4' });
     expect(draft.allowedPrivateHosts).toEqual(['searx.internal.example.test']);
   });
 

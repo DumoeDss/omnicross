@@ -676,7 +676,6 @@
       "label": "Valódi modellnevek megjelenítése",
       "description": "A modelllisták és választók a valódi upstream modellazonosítókat mutatják a leképezett ügyfélnév helyett. A következő listafrissítéskor lép érvénybe."
     },
-
     "title": "API szolgáltatás",
     "description": "Konfigurálja a kimenő API-kiszolgálót, a végpontonkénti modellútvonalasztást és a névvel ellátott hozzáférési kulcsokat.",
     "loading": "Kiszolgáló konfiguráció betöltése…",
@@ -1002,7 +1001,9 @@
       "allowed": "Engedélyezett szolgáltatók",
       "allowedDescription": "Üresen minden beállított szolgáltató jelölt.",
       "fallbackEnabled": "Tartalék",
+      "parallel": "Párhuzamos",
       "fallbackDescription": "Egy sikertelen jelölt után jöhet a következő.",
+      "parallelDescription": "Minden jelölt egyszerre fut; az első válasz nyer.",
       "maxAttempts": "Max. próbálkozás",
       "maxAttemptsDescription": "Keresésenként kipróbált szolgáltatók felső határa (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Havi",
+      "monthly": "Havi",
       "codexRefreshConfirmTitle": "Frissíti ezt a keretet a Luna használatával?",
       "codexRefreshConfirmDescription": "Valós kérés lesz elküldve a gpt-5.6-luna modellnek ezzel a Codex-fiókkal a legfrissebb keret lekéréséhez. Ez felhasznál egy kis részt az előfizetési keretből. Folytatja?",
       "codexRefreshConfirmAction": "Kérés küldése és frissítés"

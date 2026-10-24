@@ -63,12 +63,13 @@ export function searchEgressPolicyFrom(config: SearchServerConfig): SearchEgress
 
 /** The runtime default policy the configured knobs produce. */
 export function searchPolicyFrom(config: SearchServerConfig): SearchPolicy {
-  const { preferred, allowed, fallbackEnabled, maxAttempts } = config.policy;
+  const { preferred, allowed, fallbackEnabled, maxAttempts, parallel } = config.policy;
   return {
     ...(preferred !== undefined ? { preferred } : {}),
     ...(allowed !== undefined ? { allowed: [...allowed] } : {}),
     fallbackEnabled,
     ...(maxAttempts !== undefined ? { maxAttempts } : {}),
+    ...(parallel ? { parallel: true } : {}),
   };
 }
 

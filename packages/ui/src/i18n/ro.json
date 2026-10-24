@@ -676,7 +676,6 @@
       "label": "Afișează numele reale ale modelelor",
       "description": "Listele și selectoarele de modele afișează ID-urile reale ale modelului upstream în locul numelor mapate. Intră în vigoare la următoarea reîmprospătare a listei."
     },
-
     "title": "Serviciu API",
     "description": "Configurați serverul API de ieșire, rutarea modelelor per endpoint și cheile de acces cu nume.",
     "loading": "Se încarcă configurația serverului…",
@@ -1002,7 +1001,9 @@
       "allowed": "Furnizori permiși",
       "allowedDescription": "Gol înseamnă că fiecare furnizor configurat este candidat.",
       "fallbackEnabled": "Rezervă",
+      "parallel": "Paralel",
       "fallbackDescription": "După un candidat eșuat poate urma următorul.",
+      "parallelDescription": "Toți candidații rulează simultan; câștigă primul răspuns.",
       "maxAttempts": "Încercări max.",
       "maxAttemptsDescription": "Limita superioară a furnizorilor per căutare (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Lunar",
+      "monthly": "Lunar",
       "codexRefreshConfirmTitle": "Folosiți Luna pentru a actualiza această cotă?",
       "codexRefreshConfirmDescription": "Va fi trimisă o solicitare reală către gpt-5.6-luna cu acest cont Codex pentru a obține cea mai recentă cotă. Aceasta va consuma o mică parte din cota abonamentului. Continuați?",
       "codexRefreshConfirmAction": "Trimiteți solicitarea și actualizați"

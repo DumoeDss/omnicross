@@ -512,3 +512,178 @@ describe('observability', () => {
     expect(onEvent).toHaveBeenCalledTimes(2);
   });
 });
+
+// ── Parallel racing (`policy.parallel`) ───────────────────────────────────────
+
+/**
+ * A provider that never settles on its own: it waits for the race to cancel it,
+ * the way a real HTTP engine waits on its abort signal.
+ */
+function hanging(id: SearchProviderId): SearchProviderContribution & {
+  calls: { query: string; options?: SearchOptions }[];
+} {
+  const calls: { query: string; options?: SearchOptions }[] = [];
+  const contribution: SearchProviderContribution = {
+    id,
+    source: 'builtin',
+    kind: 'http',
+    capabilities: CAPABILITIES,
+    provider: {
+      id,
+      search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
+        calls.push({ query, options });
+        return new Promise((resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            reject(new SearchProviderError('cancelled', 'aborted by the race'));
+          });
+        });
+      },
+    },
+  };
+  return Object.assign(contribution, { calls });
+}
+
+describe('parallel mode races every candidate', () => {
+  it('launches all candidates at once; the first success wins and cancels the rest', async () => {
+    const slow = hanging('http-bing');
+    const fast = fake('http-duckduckgo');
+    const orchestrator = new SearchOrchestrator(registryOf(slow, fast), {
+      policy: { parallel: true },
+    });
+
+    const response = await orchestrator.search({ query: 'q' });
+
+    // Everyone launched (that is the point of the mode), not serially.
+    expect(slow.calls).toHaveLength(1);
+    expect(fast.calls).toHaveLength(1);
+    // The first to answer — the fast one — is the answer.
+    expect(response.providerId).toBe('http-duckduckgo');
+    expect(response.results).toEqual([hit('http-duckduckgo')]);
+    // The loser is recorded as a cancelled attempt, and the fallback count
+    // reflects concurrent launches, not sequential retries.
+    expect(response.attempts).toEqual([
+      { providerId: 'http-duckduckgo', outcome: 'success', resultCount: 1, durationMs: expect.any(Number) },
+      { providerId: 'http-bing', outcome: 'failed', errorCode: 'cancelled', durationMs: expect.any(Number) },
+    ]);
+    expect(response.fallbackCount).toBe(1);
+  });
+
+  it('treats an empty result set as a race-winning success', async () => {
+    const slow = hanging('http-bing');
+    const empty = fake('http-duckduckgo', { results: [] });
+    const orchestrator = new SearchOrchestrator(registryOf(slow, empty), {
+      policy: { parallel: true },
+    });
+
+    const response = await orchestrator.search({ query: 'q' });
+
+    expect(response.providerId).toBe('http-duckduckgo');
+    expect(response.results).toEqual([]);
+  });
+
+  it('throws the exhaustion error with every failed attempt when nobody answers', async () => {
+    const bing = fake('http-bing', { error: new SearchProviderError('parse_failed', 'bad html') });
+    const ddg = fake('http-duckduckgo', { error: new SearchProviderError('parse_failed', 'bad html') });
+    const orchestrator = new SearchOrchestrator(registryOf(bing, ddg), {
+      policy: { parallel: true },
+    });
+
+    await expect(orchestrator.search({ query: 'q' })).rejects.toMatchObject({
+      code: 'parse_failed',
+      details: { attempts: 'http-bing:parse_failed,http-duckduckgo:parse_failed' },
+    });
+  });
+
+  it('rejects as cancelled when the caller aborts mid-race', async () => {
+    const controller = new AbortController();
+    const slow = hanging('http-bing');
+    const other = hanging('http-duckduckgo');
+    const orchestrator = new SearchOrchestrator(registryOf(slow, other), {
+      policy: { parallel: true },
+    });
+
+    const pending = orchestrator.search({ query: 'q', options: { signal: controller.signal } });
+    // Let both launches happen, then cancel the way a hung-up client would.
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ code: 'cancelled' });
+  });
+
+  it('degenerates to the serial path for a single candidate (pinned provider)', async () => {
+    const pinned = fake('http-bing');
+    const other = fake('http-duckduckgo');
+    const orchestrator = new SearchOrchestrator(registryOf(pinned, other), {
+      policy: { parallel: true },
+    });
+
+    const response = await orchestrator.search({ query: 'q', provider: 'http-bing' });
+
+    expect(response.providerId).toBe('http-bing');
+    expect(other.calls).toHaveLength(0);
+  });
+
+  it('maxAttempts caps how many candidates launch concurrently', async () => {
+    const first = fake('http-bing');
+    const second = fake('http-duckduckgo');
+    const third = fake('http-startpage');
+    const orchestrator = new SearchOrchestrator(registryOf(first, second, third), {
+      policy: { parallel: true, maxAttempts: 2 },
+    });
+
+    const response = await orchestrator.search({ query: 'q' });
+
+    expect(first.calls).toHaveLength(1);
+    expect(second.calls).toHaveLength(1);
+    expect(third.calls).toHaveLength(0);
+    expect(response.fallbackCount).toBe(1);
+  });
+
+  it('never mutates the caller options; candidates see the race signal', async () => {
+    const callerSignal = new AbortController().signal;
+    const seen: (SearchOptions | undefined)[] = [];
+    const contribution: SearchProviderContribution = {
+      id: 'http-bing',
+      source: 'builtin',
+      kind: 'http',
+      capabilities: CAPABILITIES,
+      provider: {
+        id: 'http-bing',
+        async search(_query: string, options?: SearchOptions): Promise<SearchResult[]> {
+          seen.push(options);
+          return [hit('http-bing')];
+        },
+      },
+    };
+    const orchestrator = new SearchOrchestrator(registryOf(contribution, fake('http-duckduckgo')), {
+      policy: { parallel: true },
+    });
+    const options: SearchOptions = { signal: callerSignal, maxResults: 3 };
+    const frozen = { ...options };
+
+    await orchestrator.search({ query: 'q', options });
+
+    expect(options).toEqual(frozen);
+    // The candidate got a COPY carrying a race-composed signal, not ours.
+    expect(seen[0]?.signal).toBeDefined();
+    expect(seen[0]?.signal).not.toBe(callerSignal);
+    expect(seen[0]?.maxResults).toBe(3);
+  });
+
+  it('emits one search_complete with the winner', async () => {
+    const events: SearchRuntimeEvent[] = [];
+    const slow = hanging('http-bing');
+    const fast = fake('http-duckduckgo');
+    const orchestrator = new SearchOrchestrator(registryOf(slow, fast), {
+      policy: { parallel: true },
+      onEvent: (event) => events.push(event),
+    });
+
+    await orchestrator.search({ query: 'q' });
+
+    const completes = events.filter((event) => event.type === 'search_complete');
+    expect(completes).toHaveLength(1);
+    expect(completes[0]).toMatchObject({ providerId: 'http-duckduckgo', resultCount: 1, fallbackCount: 1 });
+    expect(events.filter((event) => event.type === 'search_attempt')).toHaveLength(2);
+  });
+});

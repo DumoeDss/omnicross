@@ -676,7 +676,6 @@
       "label": "Vis ekte modellnavn",
       "description": "Modellister og velgere viser de ekte oppstrømsmodell-ID-ene i stedet for de tilordnede klientnavnene. Treffer kraft ved neste oppdatering av modellisten."
     },
-
     "title": "API-tjeneste",
     "description": "Konfigurer den utgående API-serveren, modellruting per endepunkt og navngitte tilgangsnøkler.",
     "loading": "Laster serverkonfigurasjon…",
@@ -1002,7 +1001,9 @@
       "allowed": "Tillatte leverandører",
       "allowedDescription": "Tomt betyr at enhver konfigurert leverandør er kandidat.",
       "fallbackEnabled": "Reserve",
+      "parallel": "Parallell",
       "fallbackDescription": "En mislykket kandidat kan etterfølges av den neste.",
+      "parallelDescription": "Alle kandidater kjører samtidig; det første svaret vinner.",
       "maxAttempts": "Maks. forsøk",
       "maxAttemptsDescription": "Øvre grense for leverandører pr. søk (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Månedlig",
+      "monthly": "Månedlig",
       "codexRefreshConfirmTitle": "Bruke Luna til å oppdatere denne kvoten?",
       "codexRefreshConfirmDescription": "En reell forespørsel blir sendt til gpt-5.6-luna med denne Codex-kontoen for å hente den nyeste kvoten. Dette bruker en liten del av abonnementskvoten. Vil du fortsette?",
       "codexRefreshConfirmAction": "Send forespørsel og oppdater"

@@ -676,7 +676,6 @@
       "label": "Näytä todelliset mallinimet",
       "description": "Mallilistat ja valitsimet näyttävät todelliset upstream-mallitunnukset yhdistettyjen asiakasnimien sijaan. Astuu voimaan seuraavassa listan päivityksessä."
     },
-
     "title": "API-palvelu",
     "description": "Määritä lähtevä API-palvelin, mallireititys päätepistettä kohden ja nimetyt käyttöavaimet.",
     "loading": "Ladataan palvelinasetuksia…",
@@ -1002,7 +1001,9 @@
       "allowed": "Sallitut palveluntarjoajat",
       "allowedDescription": "Tyhjä tarkoittaa, että jokainen määritetty palveluntarjoaja on ehdokas.",
       "fallbackEnabled": "Vara",
+      "parallel": "Rinnakkainen",
       "fallbackDescription": "Epäonnistuneen ehdokkaan jälkeen saa seurata seuraava.",
+      "parallelDescription": "Kaikki ehdokkaat ajetaan yhtä aikaa; nopein vastaus voittaa.",
       "maxAttempts": "Enimmäisyritykset",
       "maxAttemptsDescription": "Yläraja haussa kokeiltaville palveluntarjoajille (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Kuukausittain",
+      "monthly": "Kuukausittain",
       "codexRefreshConfirmTitle": "Käytetäänkö Lunaa tämän käyttörajan päivittämiseen?",
       "codexRefreshConfirmDescription": "Tällä Codex-tilillä lähetetään oikea pyyntö osoitteeseen gpt-5.6-luna uusimpien käyttörajatietojen hakemiseksi. Tämä kuluttaa pienen osan tilauksen käyttökiintiöstä. Jatketaanko?",
       "codexRefreshConfirmAction": "Lähetä pyyntö ja päivitä"

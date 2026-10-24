@@ -1102,7 +1102,6 @@
       "label": "Show real model names",
       "description": "Model lists and pickers show the real upstream model ids instead of the mapped client-facing names. Takes effect on the next model-list refresh."
     },
-
     "gatewayTitle": "Gateway",
     "gatewayDescription": "Explain and control how clients enter, route, and flow through the local service.",
     "accessDescription": "Create and manage the access keys clients use to authenticate with the gateway.",
@@ -1643,7 +1642,9 @@
       "allowed": "Allowed providers",
       "allowedDescription": "Empty means every configured provider is a candidate.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Parallel",
       "fallbackDescription": "A failed candidate may be followed by the next one.",
+      "parallelDescription": "Race every candidate provider concurrently; the first to answer wins.",
       "maxAttempts": "Max attempts",
       "maxAttemptsDescription": "Upper bound on providers tried for one search (1–32)."
     },

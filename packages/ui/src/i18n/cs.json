@@ -676,7 +676,6 @@
       "label": "Zobrazovat skutečné názvy modelů",
       "description": "Seznamy a výběry modelů zobrazují skutečné upstream ID modelů namísto mapovaných klientských názvů. Projeví se při příštím obnovení seznamu."
     },
-
     "title": "Služba API",
     "description": "Nakonfigurujte odchozí API server, směrování modelů pro každý koncový bod a pojmenované přístupové klíče.",
     "loading": "Načítání konfigurace serveru…",
@@ -1002,7 +1001,9 @@
       "allowed": "Povolení poskytovatelé",
       "allowedDescription": "Prázdné znamená, že kandidátem je každý nakonfigurovaný poskytovatel.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Paralelně",
       "fallbackDescription": "Po neúspěšném kandidátovi může následovat další.",
+      "parallelDescription": "Všichni kandidáti běží souběžně; vyhrává první odpověď.",
       "maxAttempts": "Max. pokusů",
       "maxAttemptsDescription": "Horní limit poskytovatelů na jedno vyhledávání (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Měsíčně",
+      "monthly": "Měsíčně",
       "codexRefreshConfirmTitle": "Použít Lunu k aktualizaci tohoto limitu?",
       "codexRefreshConfirmDescription": "Pomocí tohoto účtu Codex bude na gpt-5.6-luna odeslán skutečný požadavek, aby se načetly nejnovější údaje o limitu. Tím se spotřebuje malá část předplacené kvóty. Pokračovat?",
       "codexRefreshConfirmAction": "Odeslat požadavek a aktualizovat"

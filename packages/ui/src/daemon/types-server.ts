@@ -665,6 +665,8 @@ export interface SearchServerConfig {
     allowed?: string[];
     fallbackEnabled: boolean;
     maxAttempts?: number;
+    /** Race candidates concurrently; absent on older daemons means `false`. */
+    parallel?: boolean;
   };
 }
 

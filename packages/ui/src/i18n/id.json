@@ -676,7 +676,6 @@
       "label": "Tampilkan nama model asli",
       "description": "Daftar dan pemilih model menampilkan ID model upstream yang sebenarnya, bukan nama klien yang dipetakan. Berlaku saat pembaruan daftar model berikutnya."
     },
-
     "title": "Layanan API",
     "description": "Konfigurasikan server API keluar, routing model per endpoint, dan access key bernama.",
     "loading": "Memuat konfigurasi server…",
@@ -1002,7 +1001,9 @@
       "allowed": "Penyedia yang diizinkan",
       "allowedDescription": "Kosong berarti setiap penyedia terkonfigurasi adalah kandidat.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Paralel",
       "fallbackDescription": "Kandidat yang gagal boleh diikuti kandidat berikutnya.",
+      "parallelDescription": "Semua kandidat berjalan bersamaan; jawaban tercepat menang.",
       "maxAttempts": "Maks. percobaan",
       "maxAttemptsDescription": "Batas atas penyedia yang dicoba per pencarian (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Bulanan",
+      "monthly": "Bulanan",
       "codexRefreshConfirmTitle": "Gunakan Luna untuk memperbarui kuota ini?",
       "codexRefreshConfirmDescription": "Permintaan nyata akan dikirim ke gpt-5.6-luna menggunakan akun Codex ini untuk mengambil kuota terbaru. Tindakan ini akan menggunakan sebagian kecil kuota langganan. Lanjutkan?",
       "codexRefreshConfirmAction": "Kirim permintaan dan perbarui"

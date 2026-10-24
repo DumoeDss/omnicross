@@ -676,7 +676,6 @@
       "label": "Echte Modellnamen anzeigen",
       "description": "Modelllisten und Auswahlmenüs zeigen die echten Upstream-Modell-IDs statt der zugeordneten Client-Namen. Wirkt bei der nächsten Aktualisierung der Modellliste."
     },
-
     "title": "API-Dienst",
     "description": "Konfigurieren Sie den ausgehenden API-Server, das endpunktbasierte Modell-Routing und benannte Zugriffsschlüssel.",
     "loading": "Serverkonfiguration wird geladen…",
@@ -1002,7 +1001,9 @@
       "allowed": "Erlaubte Anbieter",
       "allowedDescription": "Leer bedeutet: jeder konfigurierte Anbieter ist ein Kandidat.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Parallel",
       "fallbackDescription": "Nach einem fehlgeschlagenen Kandidaten darf der nächste folgen.",
+      "parallelDescription": "Alle Kandidaten laufen gleichzeitig; die erste Antwort gewinnt.",
       "maxAttempts": "Maximale Versuche",
       "maxAttemptsDescription": "Obergrenze der Anbieter pro Suche (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Monatlich",
+      "monthly": "Monatlich",
       "codexRefreshConfirmTitle": "Luna verwenden, um dieses Kontingent zu aktualisieren?",
       "codexRefreshConfirmDescription": "Mit diesem Codex-Konto wird eine echte Anfrage an gpt-5.6-luna gesendet, um das aktuelle Kontingent abzurufen. Dabei wird ein kleiner Teil des Abonnementkontingents verbraucht. Fortfahren?",
       "codexRefreshConfirmAction": "Anfrage senden und aktualisieren"

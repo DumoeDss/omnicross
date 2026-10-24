@@ -676,7 +676,6 @@
       "label": "Tunjukkan nama model sebenar",
       "description": "Senarai dan pemilih model menunjukkan ID model huluan sebenar dan bukannya nama klien yang dipetakan. Berkuat kuasa pada muat semula senarai model seterusnya."
     },
-
     "title": "Perkhidmatan API",
     "description": "Konfigurasikan pelayan API keluar, penghalaan model setiap endpoint, dan kunci akses bernama.",
     "loading": "Memuatkan konfigurasi pelayan…",
@@ -1002,7 +1001,9 @@
       "allowed": "Penyedia dibenarkan",
       "allowedDescription": "Kosong bermakna setiap penyedia dikonfigurasi ialah calon.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Selari",
       "fallbackDescription": "Calon yang gagal boleh diikuti calon seterusnya.",
+      "parallelDescription": "Semua calon berjalan serentak; jawapan terpantas menang.",
       "maxAttempts": "Cubaan maks.",
       "maxAttemptsDescription": "Had atas penyedia dicuba setiap carian (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Bulanan",
+      "monthly": "Bulanan",
       "codexRefreshConfirmTitle": "Gunakan Luna untuk menyegarkan kuota ini?",
       "codexRefreshConfirmDescription": "Permintaan sebenar akan dihantar kepada gpt-5.6-luna menggunakan akaun Codex ini untuk mendapatkan kuota terkini. Ini akan menggunakan sedikit kuota langganan. Teruskan?",
       "codexRefreshConfirmAction": "Hantar permintaan dan segarkan"

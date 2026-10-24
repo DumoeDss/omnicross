@@ -676,7 +676,6 @@
       "label": "Mostrar nomes reais dos modelos",
       "description": "As listas e seletores de modelos mostram os IDs reais do upstream em vez dos nomes mapeados. Tem efeito na próxima atualização da lista."
     },
-
     "title": "Serviço de API",
     "description": "Configure o servidor de API de saída, o encaminhamento de modelos por endpoint e as chaves de acesso com nome.",
     "loading": "A carregar configuração do servidor…",
@@ -1002,7 +1001,9 @@
       "allowed": "Fornecedores permitidos",
       "allowedDescription": "Vazio significa que todo o fornecedor configurado é candidato.",
       "fallbackEnabled": "Recurso",
+      "parallel": "Paralelo",
       "fallbackDescription": "Após um candidato com falha, o seguinte pode ser tentado.",
+      "parallelDescription": "Todos os candidatos correm em simultâneo; vence a primeira resposta.",
       "maxAttempts": "Tentativas máx.",
       "maxAttemptsDescription": "Limite de provedores tentados por pesquisa (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Mensal",
+      "monthly": "Mensal",
       "codexRefreshConfirmTitle": "Utilizar o Luna para atualizar esta quota?",
       "codexRefreshConfirmDescription": "Será enviado um pedido real ao gpt-5.6-luna com esta conta do Codex para obter a quota mais recente. Isto consumirá uma pequena parte da quota da subscrição. Continuar?",
       "codexRefreshConfirmAction": "Enviar pedido e atualizar"

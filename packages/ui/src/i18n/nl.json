@@ -676,7 +676,6 @@
       "label": "Echte modelnamen tonen",
       "description": "Modellijsten en kiezers tonen de echte upstream model-ID's in plaats van de toegewezen clientnamen. Wordt actief bij de volgende verversing van de modellijst."
     },
-
     "title": "API-service",
     "description": "Configureer de uitgaande API-server, modelroutering per endpoint en benoemde toegangssleutels.",
     "loading": "Serverconfiguratie laden…",
@@ -1002,7 +1001,9 @@
       "allowed": "Toegestane providers",
       "allowedDescription": "Leeg betekent dat elke geconfigureerde provider kandidaat is.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Parallel",
       "fallbackDescription": "Na een mislukte kandidaat mag de volgende volgen.",
+      "parallelDescription": "Alle kandidaten draaien tegelijk; het eerste antwoord wint.",
       "maxAttempts": "Max. pogingen",
       "maxAttemptsDescription": "Bovengrens van providers per zoekopdracht (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Maandelijks",
+      "monthly": "Maandelijks",
       "codexRefreshConfirmTitle": "Luna gebruiken om dit quotum te vernieuwen?",
       "codexRefreshConfirmDescription": "Er wordt met dit Codex-account een echte aanvraag naar gpt-5.6-luna verzonden om het meest recente quotum op te halen. Dit verbruikt een klein deel van het abonnementsquotum. Doorgaan?",
       "codexRefreshConfirmAction": "Aanvraag verzenden en vernieuwen"

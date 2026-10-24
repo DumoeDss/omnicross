@@ -421,6 +421,19 @@ export interface SearchPolicy {
   fallbackEnabled?: boolean;
   /** Upper bound on candidates attempted for one search. Omit for unbounded. */
   maxAttempts?: number;
+  /**
+   * Race every planned candidate CONCURRENTLY instead of walking them serially.
+   * Omit for `false`.
+   *
+   * The first candidate to produce a response wins the race — including an
+   * EMPTY one, which is a success by the same rule that ends a serial walk —
+   * and the losers are cancelled. Ordering (`preferred`) is therefore advisory
+   * only: it decides nothing about who wins. `attempts` records every launched
+   * candidate in settle order, so `fallbackCount` (attempts beyond the first)
+   * counts concurrent launches, not sequential retries. A pinned provider or a
+   * single-candidate policy degenerates to the serial path unchanged.
+   */
+  parallel?: boolean;
 }
 
 /** How one provider attempt ended. Empty results are a `success`. */

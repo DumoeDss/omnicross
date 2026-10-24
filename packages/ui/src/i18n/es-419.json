@@ -676,7 +676,6 @@
       "label": "Mostrar nombres de modelo reales",
       "description": "Las listas y selectores de modelos muestran los identificadores reales del proveedor en lugar de los nombres asignados. Surte efecto en la próxima actualización de la lista."
     },
-
     "title": "Servicio de API",
     "description": "Configura el servidor de API saliente, el enrutamiento de modelos por endpoint y las claves de acceso nombradas.",
     "loading": "Cargando configuración del servidor…",
@@ -1002,7 +1001,9 @@
       "allowed": "Proveedores permitidos",
       "allowedDescription": "Vacío significa que todo proveedor configurado es candidato.",
       "fallbackEnabled": "Respaldo",
+      "parallel": "Paralelo",
       "fallbackDescription": "Tras un candidato fallido puede seguir el siguiente.",
+      "parallelDescription": "Todos los candidatos se ejecutan a la vez; gana la primera respuesta.",
       "maxAttempts": "Intentos máximos",
       "maxAttemptsDescription": "Límite de proveedores probados por búsqueda (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Mensual",
+      "monthly": "Mensual",
       "codexRefreshConfirmTitle": "¿Usar Luna para actualizar este límite?",
       "codexRefreshConfirmDescription": "Se enviará una solicitud real a gpt-5.6-luna con esta cuenta de Codex para obtener el límite más reciente. Esto consumirá una pequeña cantidad de la cuota de suscripción. ¿Deseas continuar?",
       "codexRefreshConfirmAction": "Enviar solicitud y actualizar"

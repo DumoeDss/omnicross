@@ -676,7 +676,6 @@
       "label": "Visa riktiga modellnamn",
       "description": "Modellistor och väljare visar de verkliga uppströmsmodell-ID:na i stället för de mappade klientnamnen. Träder i kraft vid nästa uppdatering av modellistan."
     },
-
     "title": "API-tjänst",
     "description": "Konfigurera den utgående API-servern, modellrouting per slutpunkt och namngivna åtkomstnycklar.",
     "loading": "Läser in serverkonfiguration…",
@@ -1002,7 +1001,9 @@
       "allowed": "Tillåtna leverantörer",
       "allowedDescription": "Tomt innebär att varje konfigurerad leverantör är kandidat.",
       "fallbackEnabled": "Fallback",
+      "parallel": "Parallell",
       "fallbackDescription": "Efter en misslyckad kandidat får nästa följa.",
+      "parallelDescription": "Alla kandidater körs samtidigt; det snabbaste svaret vinner.",
       "maxAttempts": "Max försök",
       "maxAttemptsDescription": "Övre gräns för leverantörer per sökning (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Månadsvis",
+      "monthly": "Månadsvis",
       "codexRefreshConfirmTitle": "Använd Luna för att uppdatera den här kvoten?",
       "codexRefreshConfirmDescription": "En riktig begäran skickas till gpt-5.6-luna med det här Codex-kontot för att hämta den senaste kvoten. Detta förbrukar en liten del av abonnemangskvoten. Vill du fortsätta?",
       "codexRefreshConfirmAction": "Skicka begäran och uppdatera"

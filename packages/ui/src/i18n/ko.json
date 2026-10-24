@@ -676,7 +676,6 @@
       "label": "실제 모델 이름 표시",
       "description": "모델 목록과 선택기에 매핑된 클라이언트 이름 대신 업스트림의 실제 모델 ID를 표시합니다. 다음 모델 목록 새로 고침 시 적용됩니다."
     },
-
     "title": "API 서비스",
     "description": "아웃바운드 API 서버, 엔드포인트별 모델 라우팅, 명명된 액세스 키를 설정합니다.",
     "loading": "서버 설정을 불러오는 중…",
@@ -1002,7 +1001,9 @@
       "allowed": "허용된 공급자",
       "allowedDescription": "비워 두면 구성된 모든 공급자가 후보가 됩니다.",
       "fallbackEnabled": "폴백",
+      "parallel": "병렬",
       "fallbackDescription": "실패한 후보 뒤에 다음 후보를 시도할 수 있습니다.",
+      "parallelDescription": "모든 후보 제공자를 동시에 실행하고 가장 빠른 응답을 채택합니다.",
       "maxAttempts": "최대 시도 횟수",
       "maxAttemptsDescription": "한 번의 검색에서 시도하는 공급자 상한(1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "월간",
+      "monthly": "월간",
       "codexRefreshConfirmTitle": "Luna를 사용해 이 한도를 새로 고칠까요?",
       "codexRefreshConfirmDescription": "이 Codex 계정으로 gpt-5.6-luna에 실제 요청을 보내 최신 한도를 가져옵니다. 구독 할당량이 소량 사용됩니다. 계속할까요?",
       "codexRefreshConfirmAction": "요청 전송 및 새로 고침"

@@ -95,6 +95,11 @@ export interface SearchServerConfig {
     allowed?: string[];
     fallbackEnabled: boolean;
     maxAttempts?: number;
+    /**
+     * Race all candidate providers concurrently instead of serial fallback.
+     * Always total after normalization; absent means `false` (the serial walk).
+     */
+    parallel: boolean;
   };
 }
 

@@ -58,7 +58,7 @@ function defaultSearchServerConfig(): SearchServerConfig {
     modes: DEFAULT_SEARCH_FRONTEND_MODES,
     providers: {},
     egress: { allowedPrivateHosts: [] },
-    policy: { fallbackEnabled: true },
+    policy: { fallbackEnabled: true, parallel: false },
   };
 }
 
@@ -239,6 +239,8 @@ export function normalizeSearchServerConfig(value: unknown): SearchServerConfig 
       // Omitted means ON, matching `SearchPolicy`'s documented default.
       fallbackEnabled: policyRaw['fallbackEnabled'] !== false,
       ...(maxAttempts !== undefined ? { maxAttempts } : {}),
+      // Omitted means OFF — the serial walk stays the zero-regression default.
+      parallel: policyRaw['parallel'] === true,
     },
   };
 }
@@ -365,6 +367,9 @@ export function validateSearchServerConfig(value: unknown, path = '$.search'): s
         typeof policyRaw['fallbackEnabled'] !== 'boolean'
       ) {
         errors.push(`${path}.policy.fallbackEnabled: expected a boolean`);
+      }
+      if (policyRaw['parallel'] !== undefined && typeof policyRaw['parallel'] !== 'boolean') {
+        errors.push(`${path}.policy.parallel: expected a boolean`);
       }
       const maxAttempts = policyRaw['maxAttempts'];
       if (

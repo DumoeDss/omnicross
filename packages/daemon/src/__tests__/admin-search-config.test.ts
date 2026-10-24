@@ -129,7 +129,7 @@ describe('admin server-config search secret discipline', () => {
     // Non-secret members round-trip unchanged.
     expect(masked.modes).toEqual({ codex: 'managed', responses: 'native', anthropic: 'native' });
     expect(masked.egress.allowedPrivateHosts).toEqual(['searx.internal.example.test']);
-    expect(masked.policy).toEqual({ preferred: 'tavily', fallbackEnabled: true });
+    expect(masked.policy).toEqual({ preferred: 'tavily', fallbackEnabled: true, parallel: false });
 
     // 3. Masked round-trip edit: change only the searxng host from the masked
     //    read (no secret fields) — the stored password survives.

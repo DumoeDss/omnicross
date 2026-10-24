@@ -176,6 +176,8 @@ export interface SearchSettingsDraft {
     /** Selected allowed ids (subset of the catalog; empty = allow all). */
     allowed: string[];
     fallbackEnabled: boolean;
+    /** Race all candidate providers concurrently instead of serial fallback. */
+    parallel: boolean;
     /** Input as text — clamped at payload time. */
     maxAttempts: string;
   };
@@ -232,6 +234,7 @@ export function createSearchSettingsDraft(masked: SearchServerConfig | undefined
       preferred: masked?.policy.preferred ?? '',
       allowed: [...(masked?.policy.allowed ?? [])],
       fallbackEnabled: masked?.policy.fallbackEnabled !== false,
+      parallel: masked?.policy.parallel === true,
       maxAttempts: masked?.policy.maxAttempts !== undefined ? String(masked.policy.maxAttempts) : '',
     },
   };
@@ -339,6 +342,7 @@ export function searchDraftToPayload(draft: SearchSettingsDraft): SearchServerCo
         : {}),
       ...(allowed.length > 0 ? { allowed } : {}),
       fallbackEnabled: draft.policy.fallbackEnabled,
+      ...(draft.policy.parallel ? { parallel: true } : {}),
       ...(maxAttempts !== undefined ? { maxAttempts } : {}),
     },
   };

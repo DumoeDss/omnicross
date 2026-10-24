@@ -1102,7 +1102,6 @@
       "label": "显示真实模型名",
       "description": "模型列表与选择器显示上游真实模型名，而非映射后的客户端名称，下次刷新模型列表时生效。"
     },
-
     "gatewayTitle": "网关",
     "gatewayDescription": "说明并控制客户端如何进入本地服务、经过路由并流转。",
     "accessDescription": "创建和管理客户端用于网关鉴权的访问密钥。",
@@ -1646,7 +1645,9 @@
       "allowed": "允许的提供方",
       "allowedDescription": "留空表示所有已配置提供方均为候选。",
       "fallbackEnabled": "回退",
+      "parallel": "并行",
       "fallbackDescription": "一个候选失败后可以尝试下一个。",
+      "parallelDescription": "所有候选搜索源并行竞速，最快返回结果者胜出。",
       "maxAttempts": "最大尝试次数",
       "maxAttemptsDescription": "单次搜索尝试的提供方上限（1–32）。"
     },

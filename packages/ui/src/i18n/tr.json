@@ -676,7 +676,6 @@
       "label": "Gerçek model adlarını göster",
       "description": "Model listeleri ve seçiciler, eşlenmiş istemci adları yerine gerçek upstream model kimliklerini gösterir. Model listesinin bir sonraki yenilenmesinde etkili olur."
     },
-
     "title": "API Hizmeti",
     "description": "Giden API sunucusunu, endpoint bazında model yönlendirmesini ve adlandırılmış erişim anahtarlarını yapılandırın.",
     "loading": "Sunucu yapılandırması yükleniyor…",
@@ -1002,7 +1001,9 @@
       "allowed": "İzin verilen sağlayıcılar",
       "allowedDescription": "Boş, yapılandırılmış her sağlayıcının aday olduğu anlamına gelir.",
       "fallbackEnabled": "Yedek",
+      "parallel": "Paralel",
       "fallbackDescription": "Başarısız bir adayın ardından sıradaki denenebilir.",
+      "parallelDescription": "Tüm adaylar eşzamanlı çalışır; ilk yanıt kazanır.",
       "maxAttempts": "Azami deneme",
       "maxAttemptsDescription": "Arama başına denenecek sağlayıcı üst sınırı (1–32)."
     },
@@ -1247,8 +1248,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "allowance": {
-
-        "monthly": "Aylık",
+      "monthly": "Aylık",
       "codexRefreshConfirmTitle": "Bu kotayı yenilemek için Luna kullanılsın mı?",
       "codexRefreshConfirmDescription": "En güncel kotayı almak için bu Codex hesabıyla gpt-5.6-luna modeline gerçek bir istek gönderilecek. Bu işlem abonelik kotasının küçük bir kısmını tüketir. Devam edilsin mi?",
       "codexRefreshConfirmAction": "İstek gönder ve yenile"

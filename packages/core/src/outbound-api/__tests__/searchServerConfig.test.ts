@@ -25,7 +25,7 @@ describe('normalizeSearchServerConfig', () => {
     expect(config.modes).toEqual({ codex: 'off', responses: 'native', anthropic: 'native' });
     expect(config.providers).toEqual({});
     expect(config.egress.allowedPrivateHosts).toEqual([]);
-    expect(config.policy).toEqual({ fallbackEnabled: true });
+    expect(config.policy).toEqual({ fallbackEnabled: true, parallel: false });
   });
 
   it('never hands back the shared default arrays', () => {
@@ -56,6 +56,7 @@ describe('normalizeSearchServerConfig', () => {
       preferred: 'tavily',
       allowed: ['tavily', 'http-bing'],
       fallbackEnabled: false,
+      parallel: false,
       maxAttempts: 2,
     });
   });
@@ -162,6 +163,17 @@ describe('validateSearchServerConfig', () => {
     expect(validateSearchServerConfig({
       providers: { deepseek: { apiHost: 'https://api.deepseek.com' } },
     })).toEqual([]);
+  });
+
+  it('normalizes the parallel race knob: absent means off, truthy must be boolean', () => {
+    expect(normalizeSearchServerConfig({ policy: {} }).policy.parallel).toBe(false);
+    expect(normalizeSearchServerConfig({ policy: { parallel: true } }).policy.parallel).toBe(true);
+    expect(normalizeSearchServerConfig({ policy: { parallel: false } }).policy.parallel).toBe(false);
+
+    expect(validateSearchServerConfig({ policy: { parallel: true } })).toEqual([]);
+    expect(validateSearchServerConfig({ policy: { parallel: 'yes' } })).toEqual([
+      expect.stringContaining('$.search.policy.parallel'),
+    ]);
   });
 
   it('names the offending field for every kind of malformation', () => {

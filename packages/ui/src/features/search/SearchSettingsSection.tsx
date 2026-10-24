@@ -690,6 +690,19 @@ function PolicyEditor({
         />
       </SettingRow>
       <SettingRow
+        label={t('search.policy.parallel')}
+        description={t('search.policy.parallelDescription')}
+      >
+        <Switch
+          checked={draft.policy.parallel}
+          disabled={disabled}
+          onCheckedChange={(parallel) =>
+            setDraft((d) => ({ ...d, policy: { ...d.policy, parallel } }))
+          }
+          aria-label={t('search.policy.parallel')}
+        />
+      </SettingRow>
+      <SettingRow
         label={t('search.policy.maxAttempts')}
         description={t('search.policy.maxAttemptsDescription')}
       >
