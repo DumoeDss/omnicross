@@ -393,9 +393,9 @@ describe('transformAnthropicRequestToUnified', () => {
     ]);
   });
 
-  it('preserves thinking on assistant messages (even without signature)', () => {
+  it('preserves unsigned thinking on Anthropic-compatible providers', () => {
     const result = transformAnthropicRequestToUnified({
-      model: 'claude',
+      model: 'mimo-v2.5-pro',
       max_tokens: 1024,
       messages: [
         {
@@ -858,7 +858,7 @@ describe('buildAnthropicRequestBody', () => {
 });
 
 describe('reasoning and parallel tool replay', () => {
-  it('preserves native Chat reasoning into Claude and the next parallel tool-result turn', () => {
+  it('shows Chat reasoning to Claude Code but omits unsigned thinking when replaying to Claude', () => {
     const response = convertOpenAIResponseToAnthropic({
       id: 'deepseek-turn', model: 'deepseek-flash',
       choices: [{ message: {
@@ -884,7 +884,11 @@ describe('reasoning and parallel tool replay', () => {
     const replay = buildAnthropicRequestBody(transformAnthropicRequestToUnified({
       model: 'claude', messages,
     }));
-    expect(replay.messages).toEqual(messages);
+    expect(replay.messages).toEqual([
+      { ...messages[0], content: (response.content as Array<Record<string, unknown>>).filter((block) => block.type !== 'thinking') },
+      messages[1],
+    ]);
+    expect(response.content).toHaveLength(3);
   });
 
   it('round-trips multiple signed and redacted response blocks without embedding signatures in text', () => {

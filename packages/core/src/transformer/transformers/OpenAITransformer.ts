@@ -65,9 +65,12 @@ import {
 } from './utils/structuredOutput';
 import {
   applyReasoningReplay,
+  completeReasoningReplay,
   isReasoningReplayLearned,
   isReasoningReplayProvider,
+  isReasoningReplayForbiddenProvider,
   reasoningReplayKey,
+  stripReasoningReplay,
 } from './utils/reasoningReplay';
 import type { ReasoningReplayEntry } from './utils/reasoningReplay';
 import { readAnthropicSSE } from './AnthropicSSE';
@@ -330,12 +333,17 @@ export class OpenAITransformer implements Transformer {
     const thinking = out.thinking as { type?: unknown } | undefined;
     const reasoningDisabled = thinking?.type === 'disabled'
       || out.reasoning_effort === 'none' || out.enable_thinking === false;
-    if (reasoningReplay?.length && !reasoningDisabled) {
+    if (!reasoningDisabled) {
       const replayLearned = isReasoningReplayLearned(reasoningReplayKey(provider, request.model));
       if (replayLearned || isReasoningReplayProvider(provider, request.model)) {
-        applyReasoningReplay(out, reasoningReplay);
+        if (reasoningReplay?.length) applyReasoningReplay(out, reasoningReplay);
+        completeReasoningReplay(out);
       }
     }
+    // The legacy DeepSeek wire rejects reasoning_content regardless of client
+    // protocol. Do this in the encoder so Claude Code gets the same protection
+    // as the Responses driver's rejection fallback.
+    if (isReasoningReplayForbiddenProvider(provider, request.model)) stripReasoningReplay(out);
 
     // Structured-output fallback: DeepSeek's chat wire answers 400 "This
     // response_format type is unavailable now" for `json_schema` and supports

@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ensureCodexSearchReplayTools,
   normalizeCodexItemIds,
+  sanitizeCodexResponsesRequest,
   sanitizeResponsesInput,
   sanitizeResponsesRequest,
 } from '../responsesInputSanitizer';
@@ -354,6 +355,54 @@ describe('normalizeCodexItemIds — the codex backend id-prefix rule', () => {
     // and idempotent
     normalizeCodexItemIds(a);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('sanitizeCodexResponsesRequest — stateless replay after switching providers', () => {
+  it.each([undefined, null, '', '   ', 42])('omits reasoning with encrypted_content %j', (encrypted_content) => {
+    const reasoning = {
+      type: 'reasoning',
+      id: 'rs_96d3a3b9b1b345148bdacf0f1c52c397',
+      summary: [{ type: 'summary_text', text: 'Prior Chat provider reasoning' }],
+      encrypted_content,
+    };
+    const input = [U(), reasoning, A('Previous answer'), C('a'), O('a')];
+    const before = structuredClone(input);
+    const body = { input, store: true };
+
+    expect(sanitizeCodexResponsesRequest(body)).toBe(body);
+    expect(body.input).toEqual([input[0], input[2], input[3], input[4]]);
+    // The original rollout stays replayable on the Chat route; this helper
+    // also leaves storage policy to the subscription call plan.
+    expect(input).toEqual(before);
+    expect(body.store).toBe(true);
+  });
+
+  it('preserves opaque payloads, tool pairings, order and existing id normalization', () => {
+    const encrypted = { ...R(), id: 'rs_native' };
+    const compaction = { type: 'compaction', id: 'cmp_native', encrypted_content: 'opaque-window' };
+    const future = { type: 'future_item', id: 'opaque-id', payload: 'keep' };
+    const input = [U(), encrypted, CC('a'), CO('a'), compaction, future];
+    const body = { input };
+    sanitizeCodexResponsesRequest(body);
+    expect(body.input).toEqual(input);
+    body.input.forEach((item, index) => expect(item).toBe(input[index]));
+
+    const prefixBody = { input: [{ ...R(), id: 'bare-id' }] };
+    sanitizeCodexResponsesRequest(prefixBody);
+    expect(prefixBody.input[0].id).toBe('rs_bare-id');
+    const once = JSON.stringify(prefixBody);
+    sanitizeCodexResponsesRequest(prefixBody);
+    expect(JSON.stringify(prefixBody)).toBe(once);
+  });
+
+  it('leaves text input and Chat-route reasoning unchanged', () => {
+    const body = { input: 'hello' };
+    expect(sanitizeCodexResponsesRequest(body)).toBe(body);
+    expect(body.input).toBe('hello');
+    const reasoning = { type: 'reasoning', id: 'rs_chat', summary: [{ type: 'summary_text', text: 'think' }] };
+    expect(sanitizeResponsesRequest({ input: [U(), reasoning, A('answer')] }).input)
+      .toEqual([U(), reasoning, A('answer')]);
   });
 });
 

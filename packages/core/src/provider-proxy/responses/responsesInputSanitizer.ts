@@ -269,35 +269,12 @@ export function sanitizeResponsesRequest(body: Item): Item {
  * failure as the ordering rule, from a different validator. Types without an
  * entry here are left alone (the backend raised no complaint about them).
  */
-const CODEX_ID_PREFIX: Record<string, string> = {
-  reasoning: 'rs_',
-  message: 'msg_',
-  function_call: 'fc_',
-  custom_tool_call: 'ctc_',
-};
-
-/**
- * Prefix any missing codex item-id prefixes, in place on `body.input`.
- *
- * The original id is KEPT as the suffix (only the prefix is added) so the
- * rewrite stays deterministic — the same history always produces the same
- * bytes, which is what keeps a repeated/resumed turn's prompt cache warm.
- *
- * Returns the same object for chaining.
- */
-export function normalizeCodexItemIds(body: Item): Item {
-  const input = body.input;
-  if (!Array.isArray(input)) return body;
-  body.input = input.map((raw) => {
-    if (!isRecord(raw)) return raw;
-    const prefix = CODEX_ID_PREFIX[typeOf(raw)];
-    if (!prefix) return raw;
-    const id = raw.id;
-    if (typeof id !== 'string' || id === '' || id.startsWith(prefix)) return raw;
-    return { ...raw, id: `${prefix}${id}` };
-  });
-  return body;
-}
+// Shared with the transformer path used by Claude Code and Chat clients.
+export {
+  normalizeCodexItemIds,
+  sanitizeCodexResponsesRequest,
+  stripUnencryptedResponsesReasoning,
+} from '../../transformer/transformers/utils/responsesReplay';
 
 /**
  * Codex's streaming auto-compaction request replays hosted search history but

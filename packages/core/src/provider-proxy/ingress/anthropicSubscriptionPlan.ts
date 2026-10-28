@@ -44,6 +44,7 @@ import type { AuthSource } from '../../pipeline/AuthSource';
 import { executeProviderCall } from '../../pipeline/executeProviderCall';
 import { getSharedAccountHealth, resolveResetSeconds } from '../../pipeline/SubscriptionAccountHealth';
 import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChain';
+import { sanitizeAnthropicReplayBody } from '../../transformer/transformers/utils/anthropicReplay';
 import {
   type SubscriptionAuthProfile,
   SubscriptionAuthSource,
@@ -769,7 +770,7 @@ export async function runSubscriptionSameFormatFetch(
   let activityRecordId: string | undefined;
   const response = await fetchUpstream(
     urlOverride ?? plan.upstreamUrl,
-    { method: 'POST', headers, body: outboundBody, signal: options.signal },
+    { method: 'POST', headers, body: sanitizeAnthropicReplayBody(outboundBody, plan.transformerProvider), signal: options.signal },
     {
       providerId: proxyProviderId(plan),
       accountId: proxyAccountId,

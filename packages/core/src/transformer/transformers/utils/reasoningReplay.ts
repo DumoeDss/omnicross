@@ -74,6 +74,12 @@ export function isReasoningReplayProvider(
   return resolveTargetModelCapabilities(model, provider).reasoning === true;
 }
 
+/** Legacy DeepSeek R1/v3 rejects the reasoning field required by newer models. */
+export function isReasoningReplayForbiddenProvider(provider: ReasoningReplayProvider | undefined, model: string): boolean {
+  return !!provider && /deepseek/i.test(`${provider.name ?? ''}|${provider.baseUrl ?? ''}`) &&
+    /(?:^|\/)deepseek-(?:r1|v3)(?:$|[-.])/i.test(model) && !isReasoningReplayProvider(provider, model);
+}
+
 /**
  * Whether an upstream status+body is the thinking-mode replay demand
  * specifically. Deliberately narrow: it must name `reasoning_content` AND ask
@@ -173,4 +179,20 @@ export function stripReasoningReplay(wireBody: JsonRecord): boolean {
     }
   }
   return changed;
+}
+
+/**
+ * A replay-requiring Chat target can receive a tool conversation created by a
+ * different model (or a client that omitted private thinking). There is no
+ * reasoning to reconstruct, but it still requires the field on assistant
+ * history when tools are present. Use an empty value, never invented reasoning;
+ * keep every actual reasoning_content already recovered by the decoder.
+ */
+export function completeReasoningReplay(wireBody: JsonRecord): void {
+  if (!Array.isArray(wireBody.tools) || wireBody.tools.length === 0 || !Array.isArray(wireBody.messages)) return;
+  for (const message of wireBody.messages) {
+    if (message && typeof message === 'object' && message.role === 'assistant' && message.reasoning_content === undefined) {
+      message.reasoning_content = '';
+    }
+  }
 }

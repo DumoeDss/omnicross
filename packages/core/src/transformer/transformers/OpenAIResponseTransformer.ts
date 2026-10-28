@@ -35,6 +35,7 @@ import { buildOpenAIResponseApiUrl } from '../../completion/url-builder';
 import { OpenAIOperationError } from '../../openai-operation';
 import { isCodexThreadDeliveryReceipt } from './utils/responsesBookkeeping';
 import type { ReasoningReplayEntry } from './utils/reasoningReplay';
+import { sanitizeCodexResponsesRequest, stripUnencryptedResponsesReasoning } from './utils/responsesReplay';
 import { readAnthropicSSE } from './AnthropicSSE';
 import {
   collectCodexTools,
@@ -246,6 +247,9 @@ export class OpenAIResponseTransformer implements Transformer {
         body.stream = true;
         body.store = false;
         delete body.max_output_tokens;
+        sanitizeCodexResponsesRequest(body);
+      } else if (body.store === false) {
+        stripUnencryptedResponsesReasoning(body);
       }
       return { body, config: { url: new URL(buildOpenAIResponseApiUrl(provider.baseUrl)) } };
     }
@@ -350,6 +354,9 @@ export class OpenAIResponseTransformer implements Transformer {
         ? { type: 'json_schema', ...schema }
         : { type: format.type } };
     }
+
+    if (codex) sanitizeCodexResponsesRequest(body);
+    else stripUnencryptedResponsesReasoning(body);
 
     // R7 drops: the Responses API has NO `stop`/`top_k`/`user-id` parameters
     // (Q1 — the requirements text asserted a stop counterpart; the real API has

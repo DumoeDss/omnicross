@@ -41,8 +41,9 @@ import {
 } from './nativeResponsesDsml';
 import {
   ensureCodexSearchReplayTools,
-  normalizeCodexItemIds,
+  sanitizeCodexResponsesRequest,
   sanitizeResponsesRequest,
+  stripUnencryptedResponsesReasoning,
 } from './responsesInputSanitizer';
 import {
   buildByoRouteActivityMeta,
@@ -433,16 +434,22 @@ export async function executeResponsesUpstream(
   //
   // - Command Code & co. (third party): refuse a message/reasoning item inside
   //   a tool block → `sanitizeResponsesRequest` moves it out.
-  // - ChatGPT's codex backend: tolerates that layout but REQUIRES `rs_`/`msg_`
-  //   prefixed item ids on replayed history → `normalizeCodexItemIds`.
+  // - ChatGPT's codex backend: tolerates that layout but needs encrypted
+  //   reasoning for stateless replay and `rs_`/`msg_` prefixed item ids
+  //   → `sanitizeCodexResponsesRequest`.
   //
   // See `responsesInputSanitizer` for the measured rules. Search bodies carry
   // opaque history for the upstream's own search route, so they stay verbatim.
   if (operation !== 'search') {
     if (plan.proxyProviderId === 'codex') {
-      normalizeCodexItemIds(body);
+      sanitizeCodexResponsesRequest(body);
       if (operation === 'create') ensureCodexSearchReplayTools(body);
-    } else sanitizeResponsesRequest(body);
+    } else {
+      if (plan.profile === 'native' && (body.store === false || operation === 'compact')) {
+        stripUnencryptedResponsesReasoning(body);
+      }
+      sanitizeResponsesRequest(body);
+    }
   }
 
   const originalBody = rawBody === undefined ? undefined

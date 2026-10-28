@@ -235,7 +235,14 @@ sequenceDiagram
 规整统一放在**唯一出口**（`executeResponsesUpstream`，search 操作除外），但**按上游分派**——对上游本来就接受的 body 做改写是白改字节，而改字节 = 丢 prompt cache（实测未规整的一轮仍命中 95–97% 前缀，因为修复只动尾部且是确定性的）：
 
 - `providerId !== 'codex'` → `sanitizeResponsesRequest`：把夹在工具块里的 item **搬到块之前**（真流与官方 API 的顺序 `[assistant message, call, output]`），并删掉完全无文本的 assistant message。
-- `providerId === 'codex'` → `normalizeCodexItemIds`：给缺前缀的 `reasoning`/`message`/`function_call`/`custom_tool_call` id **补上前缀**（保留原 id 作后缀，保证确定性）。
+- `providerId === 'codex'` → `sanitizeCodexResponsesRequest`：过滤没有非空 `encrypted_content` 的 reasoning，再用 `normalizeCodexItemIds` 给缺前缀的 `reasoning`/`message`/`function_call`/`custom_tool_call` id **补上前缀**（保留原 id 作后缀，保证确定性）。Chat 上游的 `reasoning_content` 会被适配成只有明文 summary 的合成 reasoning；切到 Codex 订阅后，`store:false` 无法按其 id 找回服务端条目，因此会返回 404。过滤发生在请求出口，不改客户端历史，也不影响切回 Chat 时的 reasoning 回放；加密 reasoning、compaction、消息及工具调用保持原样。
+
+跨 provider 回放还需要在目标协议出口处理（2026-10-28）：
+
+- **其他原生 Responses 上游**：`store:false` 的 create 和无状态 compact 同样过滤没有加密载荷的 reasoning；存储型 create 保留条目引用。共用 `utils/responsesReplay`，同时覆盖 Responses 中继及 Claude Code / Chat 客户端的 Responses transformer 路径。转成 Chat 的 reduced 路径保留明文 summary，以便 DeepSeek / Kimi 回放。
+- **原生 Claude**：`utils/anthropicReplay` 在翻译及 BYO / 订阅同格式出口过滤无签名 thinking，保留原生签名块、redacted thinking 和工具调用/结果。旧版手动 thinking 模式遇到没有签名 thinking 的外来工具续接时，仅该请求关闭手动 thinking，后续新回合可恢复；adaptive 模式保持不变。其他 Anthropic 兼容模型仍可回放无签名 thinking。有效同格式请求保留原始 JSON 字节，客户端历史不变。依据：[Claude thinking 回放要求](https://platform.claude.com/docs/en/build-with-claude/thinking)。
+- **Gemini 3 及以后**：原生有效签名保持原样；外来模型（含 Gemini 2.x）工具历史的首个并行调用缺少签名时，使用官方规定的 `skip_thought_signature_validator` 迁移标记，不将 Claude 签名当作 Google 签名。Gemini 2.x 不添加该标记。依据：[Google thought signatures](https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures)。
+- **DeepSeek / Kimi Chat**：优先回放已有明文 reasoning；声明工具且目标要求回放时，外来 assistant 历史缺失的 `reasoning_content` 补为空字符串，不编造思考内容。旧 DeepSeek R1/v3 则去掉禁止输入的该字段。处理位于 Chat encoder，因此 Codex 与 Claude Code 都生效。
 
 **为什么必须放出口而不是生产者侧**：客户端按 item **完成顺序**记录历史，旧版本写下的 rollout 会把这个形态（以及裸 UUID 的 id）永久留在磁盘上；恢复会话时每回合原样重发，任何生产者侧的修复都够不着。所以生产者也各修一处（决定写进历史的形态），出口再兜一层（修复已存在的历史）：
 

@@ -137,7 +137,7 @@ describe('codex subscription relays force store:false; BYO stays verbatim', () =
     expect(upstreamCalls.at(-1)).toMatchObject({ store: false });
   });
 
-  it('does not add store to a BYO OpenAI-compatible relay', async () => {
+  it.each([undefined, true])('preserves stored replay on a BYO relay with store %s', async (store) => {
     const upstreamCalls: Array<Record<string, unknown>> = [];
     const server = createServer((request, response) => {
       let raw = '';
@@ -155,13 +155,19 @@ describe('codex subscription relays force store:false; BYO stays verbatim', () =
     proxy = new ProviderProxy(deps);
     const proxyPort = await proxy.start();
     const route = proxy.addRoute(byoRoute());
+    const input = [
+      { type: 'message', role: 'user', content: 'hello' },
+      { type: 'reasoning', id: 'rs_stored', summary: [] },
+    ];
 
     const byo = await fetch(`http://127.0.0.1:${proxyPort}/v1/responses`, {
       method: 'POST',
       headers: headers(route),
-      body: JSON.stringify({ model: 'gpt-native', stream: true, input: 'hello' }),
+      body: JSON.stringify({ model: 'gpt-native', stream: true, input, store }),
     });
     expect(byo.status).toBe(200);
-    expect(upstreamCalls.at(-1)).not.toHaveProperty('store');
+    if (store === undefined) expect(upstreamCalls.at(-1)).not.toHaveProperty('store');
+    else expect(upstreamCalls.at(-1)?.store).toBe(store);
+    expect(upstreamCalls.at(-1)?.input).toEqual(input);
   });
 });

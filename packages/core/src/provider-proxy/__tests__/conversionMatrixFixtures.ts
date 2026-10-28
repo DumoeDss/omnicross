@@ -40,7 +40,7 @@ const chatTools = CALLS.map(call => ({ id: call.id, type: 'function', function: 
 function wireResponse(format: MatrixFormat, final: boolean): Wire {
   const model = MODELS[format];
   if (format === 'chat') return { id: 'chatcmpl_matrix', object: 'chat.completion', created: 1, model, choices: [{ index: 0, message: { role: 'assistant', content: final ? ANSWER : null, reasoning_content: THOUGHT, ...(!final ? { tool_calls: chatTools } : {}) }, finish_reason: final ? 'stop' : 'tool_calls' }], usage: { prompt_tokens: 20, completion_tokens: 30, total_tokens: 50, completion_tokens_details: { reasoning_tokens: 10 } } };
-  if (format === 'anthropic') return { id: 'msg_matrix', type: 'message', role: 'assistant', model, content: [{ type: 'thinking', thinking: THOUGHT }, ...(final ? [{ type: 'text', text: ANSWER }] : CALLS.map(call => ({ type: 'tool_use', id: call.id, name: call.name, input: json(call.arguments) })))], stop_reason: final ? 'end_turn' : 'tool_use', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 30 } };
+  if (format === 'anthropic') return { id: 'msg_matrix', type: 'message', role: 'assistant', model, content: [{ type: 'thinking', thinking: THOUGHT, signature: 'matrix-native-claude-signature' }, ...(final ? [{ type: 'text', text: ANSWER }] : CALLS.map(call => ({ type: 'tool_use', id: call.id, name: call.name, input: json(call.arguments) })))], stop_reason: final ? 'end_turn' : 'tool_use', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 30 } };
   if (format === 'responses') return { id: 'resp_matrix', object: 'response', model, status: 'completed', output: [{ id: 'rs_matrix', type: 'reasoning', summary: [{ type: 'summary_text', text: THOUGHT }] }, ...(final ? [{ id: 'msg_matrix', type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: ANSWER, annotations: [] }] }] : CALLS.map(call => ({ id: `fc_${call.id}`, type: 'function_call', call_id: call.id, name: call.name, arguments: call.arguments, status: 'completed' })))], usage: { input_tokens: 20, output_tokens: 30, total_tokens: 50, output_tokens_details: { reasoning_tokens: 10 } } };
   return { responseId: 'gemini_matrix', modelVersion: model, candidates: [{ index: 0, content: { role: 'model', parts: [{ text: THOUGHT, thought: true }, ...(final ? [{ text: ANSWER }] : CALLS.map(call => ({ functionCall: { id: call.id, name: call.name, args: json(call.arguments) } })))] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 20, thoughtsTokenCount: 10, totalTokenCount: 50 } };
 }
@@ -55,8 +55,9 @@ function streamResponse(format: MatrixFormat, final: boolean): string {
   } else if (format === 'anthropic') {
     events.push({ type: 'message_start', message: { ...value, content: [], stop_reason: null } });
     list(value.content).forEach((block, index) => {
-      events.push({ type: 'content_block_start', index, content_block: block.type === 'tool_use' ? { ...block, input: {} } : { ...block, [block.type === 'thinking' ? 'thinking' : 'text']: '' } });
+      events.push({ type: 'content_block_start', index, content_block: block.type === 'tool_use' ? { ...block, input: {} } : block.type === 'thinking' ? { type: 'thinking', thinking: '' } : { ...block, text: '' } });
       events.push({ type: 'content_block_delta', index, delta: block.type === 'tool_use' ? { type: 'input_json_delta', partial_json: JSON.stringify(block.input) } : block.type === 'thinking' ? { type: 'thinking_delta', thinking: block.thinking } : { type: 'text_delta', text: block.text } });
+      if (block.type === 'thinking') events.push({ type: 'content_block_delta', index, delta: { type: 'signature_delta', signature: block.signature } });
       events.push({ type: 'content_block_stop', index });
     });
     events.push({ type: 'message_delta', delta: { stop_reason: value.stop_reason, stop_sequence: null }, usage: value.usage }, { type: 'message_stop' });
@@ -119,7 +120,7 @@ function followUp(format: MatrixFormat, first: Wire, original: Wire): Wire {
   }
   return body;
 }
-function validateUpstream(format: MatrixFormat, body: Wire, model: string): boolean {
+function validateUpstream(format: MatrixFormat, body: Wire, model: string, ingress: MatrixFormat): boolean {
   assert.equal(body.model ?? model, model);
   if (format === 'chat') {
     const messages = list(body.messages);
@@ -135,7 +136,15 @@ function validateUpstream(format: MatrixFormat, body: Wire, model: string): bool
     if (!results.length) return false;
     const assistant = object(messages.find(message => message.role === 'assistant'));
     const content = list(assistant.content);
-    assert.equal(content.filter(part => part.type === 'thinking').map(part => part.thinking).join(''), THOUGHT);
+    const thinking = content.filter(part => part.type === 'thinking');
+    // Standard Gemini parts cannot carry an Anthropic signature. The client
+    // still saw the thought, but replay to native Claude must omit that now
+    // unsigned block. Other client wires retain the original signed block.
+    const lostClaudeSignature = ingress === 'gemini' && model.startsWith('claude-');
+    assert.equal(thinking.map(part => part.thinking).join(''), lostClaudeSignature ? '' : THOUGHT);
+    if (!lostClaudeSignature && model.startsWith('claude-')) {
+      assert.equal(thinking[0].signature, 'matrix-native-claude-signature');
+    }
     assert.deepEqual(results.map(part => part.tool_use_id), content.filter(part => part.type === 'tool_use').map(part => part.id));
   } else if (format === 'responses') {
     const input = list(body.input);
@@ -177,7 +186,7 @@ export async function runConversionMatrixCase(
         const expectedPath = target === 'chat' ? '/chat/completions' : target === 'anthropic' ? '/messages' : target === 'responses' ? '/responses' : /:streamGenerateContent|:generateContent/;
         assert.ok(typeof expectedPath === 'string' ? req.url?.endsWith(expectedPath) : expectedPath.test(req.url ?? ''), `wrong upstream URL ${req.url}`);
         if (target === 'gemini') assert.ok(req.url?.includes(`/models/${wireModel}:`), `wrong model URL ${req.url}`);
-        const final = validateUpstream(target, body, wireModel);
+        const final = validateUpstream(target, body, wireModel, ingress);
         const streaming = target === 'gemini' ? req.url?.includes(':streamGenerateContent') : body.stream === true;
         res.setHeader('Content-Type', streaming ? 'text/event-stream' : 'application/json');
         const output = streaming ? streamResponse(target, final) : JSON.stringify(wireResponse(target, final));

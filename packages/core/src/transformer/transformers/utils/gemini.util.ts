@@ -243,6 +243,18 @@ export function buildRequestBody(
         });
       }
     }
+    // Google documents this marker for importing another model's tool trace,
+    // including Gemini 2.x history, which can lack signatures. Gemini 3+ checks
+    // the first parallel call in each step. Preserve every existing signature
+    // and clone only the unsigned call; never reuse another vendor's signature.
+    // https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures
+    if (message.role === 'assistant' && /^gemini-(?:[3-9]|\d{2,})(?:[.-]|$)/.test(modelId)) {
+      const firstCall = parts.findIndex((part) => 'functionCall' in part);
+      const part = parts[firstCall];
+      if (part && 'functionCall' in part && !part.thoughtSignature?.trim()) {
+        parts[firstCall] = { ...part, thoughtSignature: 'skip_thought_signature_validator' };
+      }
+    }
     if (message.role === 'system') {
       systemParts.push(...parts);
     } else if (parts.length) {

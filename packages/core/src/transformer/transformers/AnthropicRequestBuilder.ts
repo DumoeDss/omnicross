@@ -33,6 +33,7 @@ import type {
   AnthropicToolResultContent,
 } from './AnthropicTypes';
 import { readGoogleReplayContent } from './AnthropicTypes';
+import { sanitizeAnthropicReplay } from './utils/anthropicReplay';
 
 /**
  * Unified block content → Anthropic tool_result content blocks: text parts to
@@ -60,7 +61,7 @@ function toolResultContentBlocks(content: NonNullable<UnifiedChatRequest['messag
  */
 export function buildAnthropicRequestBody(
   request: UnifiedChatRequest,
-  provider?: Pick<LLMProvider, 'modelConfigs'>,
+  provider?: Partial<Pick<LLMProvider, 'modelConfigs' | 'name' | 'baseUrl'>>,
 ): Record<string, unknown> {
   if (request.n !== undefined && request.n !== 1) {
     throw new OpenAIOperationError({
@@ -299,5 +300,5 @@ export function buildAnthropicRequestBody(
     body.temperature = 1;
   }
 
-  return body;
+  return sanitizeAnthropicReplay(body, provider);
 }

@@ -70,6 +70,7 @@ import type {
   LLMProvider as TransformerLLMProvider,
 } from '../../transformer';
 import { injectExtendedContextBeta } from '../../transformer/anthropicBetaInject';
+import { sanitizeAnthropicReplayBody } from '../../transformer/transformers/utils/anthropicReplay';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import { recordAnthropicNonStreamUsage, recordAnthropicStreamUsage } from '../usage/recordAnthropicUsage';
 
@@ -646,7 +647,7 @@ export async function runSameFormatFetch(
   let activityRecordId: string | undefined;
   const response = await fetchUpstream(
     url,
-    { method: 'POST', headers, body: bodyToSend, signal: options.signal },
+    { method: 'POST', headers, body: sanitizeAnthropicReplayBody(bodyToSend, plan.transformerProvider), signal: options.signal },
     {
       providerId: 'byo',
       onUpstreamError: plan.onUpstreamError ?? undefined,
