@@ -24,7 +24,7 @@ export const IMAGE_PROVIDER_TEMPLATES: readonly ImageProviderTemplate[] = [
   { id: 'openrouter-images', name: 'OpenRouter Images', protocol: 'openrouter',
     baseUrl: 'https://openrouter.ai/api/v1', models: ['google/gemini-nano-banana-2.1'] },
   { id: 'wavespeed-images', name: 'WaveSpeed', protocol: 'wavespeed',
-    baseUrl: 'https://api.wavespeed.ai', models: ['openai/gpt-image-2.5-sunburst/text-to-image', 'openai/gpt-image-2.5-flare/text-to-image', 'google/nano-banana-2.1/text-to-image', 'wavespeed-ai/z-image/turbo'] },
+    baseUrl: 'https://api.wavespeed.ai', models: ['openai/gpt-image-2.6-sunburst/text-to-image', 'openai/gpt-image-2.6-flare/text-to-image', 'openai/gpt-image-2.5-sunburst/text-to-image', 'openai/gpt-image-2.5-flare/text-to-image', 'google/nano-banana-2.1/text-to-image', 'wavespeed-ai/z-image/turbo'] },
 ];
 
 export const CUSTOM_IMAGE_TEMPLATE: ImageProviderTemplate = {

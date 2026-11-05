@@ -146,6 +146,38 @@ describe('API image providers', () => {
     expect(events.at(-1)).toMatchObject({ type: 'completed', images: [{ artifact: { width: 16, height: 16 } }] });
   });
 
+  it('routes WaveSpeed GPT Image 2.6 edits to the dedicated edit endpoint with an image array', async () => {
+    const bytes = await png();
+    const fetch = vi.fn(async () => Response.json({ data: { id: 'job-e', status: 'completed', outputs: ['https://cdn.example/e.png'] } }));
+    const image = await createApiImageAsset(bytes, { maxBytes: 1024 * 1024, maxPixels: 1024 });
+    const invocation = await buildApiImageRequest('wavespeed', credentials, 'openai/gpt-image-2.6-flare/text-to-image',
+      { ...request, action: 'edit', images: [image], aspectRatio: '16:9', resolution: '2K', quality: 'xhigh' },
+      new AbortController().signal, async () => 'https://pub.example/a.png');
+    expect(invocation.url).toBe('https://images.example/v1/api/v3/openai/gpt-image-2.6-flare/edit');
+    const body = JSON.parse(String(invocation.init.body));
+    expect(body.images).toEqual(['https://pub.example/a.png']);
+    expect(body.aspect_ratio).toBe('16:9');
+    expect(body.resolution).toBe('2k');
+    expect(body.quality).toBe('xhigh');
+  });
+
+  it('routes WaveSpeed GPT Image 2 edits to the dedicated edit endpoint', async () => {
+    const bytes = await png();
+    const image = await createApiImageAsset(bytes, { maxBytes: 1024 * 1024, maxPixels: 1024 });
+    const opts = { ...options(vi.fn(), 'wavespeed'), models: { 'public-image': 'openai/gpt-image-2/text-to-image' },
+      publishInput: async () => 'https://pub.example/a.png' };
+    const caps = apiImageCapabilities(opts, true, 'public-image');
+    expect(caps.edit).toBe(true);
+    expect(caps.maxInputImages).toBe(16);
+    const invocation = await buildApiImageRequest('wavespeed', credentials, 'openai/gpt-image-2/text-to-image',
+      { ...request, action: 'edit', images: [image], aspectRatio: '16:9', resolution: '2K', quality: 'high' },
+      new AbortController().signal, opts.publishInput);
+    expect(invocation.url).toBe('https://images.example/v1/api/v3/openai/gpt-image-2/edit');
+    const body = JSON.parse(String(invocation.init.body));
+    expect(body.images).toEqual(['https://pub.example/a.png']);
+    expect(body.quality).toBe('high');
+  });
+
   it('routes WaveSpeed GPT Image 2.5 edits to the dedicated edit endpoint with an image array', async () => {
     const bytes = await png();
     const fetch = vi.fn(async () => Response.json({ data: { id: 'job-e', status: 'completed', outputs: ['https://cdn.example/e.png'] } }));

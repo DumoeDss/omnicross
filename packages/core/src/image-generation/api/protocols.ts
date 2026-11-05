@@ -45,6 +45,18 @@ const WAVE_RATIOS_15 = [...WAVE_RATIOS_10, '1:2', '2:1', '1:3', '3:1', '9:21'] a
 const WAVE_RATIOS_14 = [...WAVE_RATIOS_10, '1:4', '4:1', '1:8', '8:1'] as const;
 
 const WAVE_SPEED_PROFILES: Readonly<Record<string, WaveSpeedModelProfile>> = {
+  'openai/gpt-image-2.6-flare/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'openai/gpt-image-2.6-flare/edit',
+    editField: 'images', maxEditImages: 16,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k', '4k'],
+    quality: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  'openai/gpt-image-2.6-sunburst/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'openai/gpt-image-2.6-sunburst/edit',
+    editField: 'images', maxEditImages: 16,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k', '4k'],
+    quality: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
   'openai/gpt-image-2.5-flare/text-to-image': {
     dimensions: 'aspect-resolution', editRoute: 'openai/gpt-image-2.5-flare/edit',
     editField: 'images', maxEditImages: 16,
@@ -63,6 +75,8 @@ const WAVE_SPEED_PROFILES: Readonly<Record<string, WaveSpeedModelProfile>> = {
     aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k', '4k'],
     quality: ['low', 'medium', 'high'],
   },
+  // Retired from the host catalogs, but the upstream route still exists — the
+  // profile keeps legacy manually-configured rows parameter-correct.
   'openai/gpt-image-1.5/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
   'google/nano-banana-2.1/text-to-image': {
     dimensions: 'aspect-resolution', editRoute: 'google/nano-banana-2.1/edit',
