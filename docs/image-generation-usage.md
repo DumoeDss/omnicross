@@ -48,6 +48,12 @@
 
 GPT Image 2.5 的模型 ID 为 `gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`，新增 `xhigh`、`max` 质量档位；旧 GPT Image 2 不接受这两个档位。Nano Banana 2.1 使用 `gemini-nano-banana-2.1`，通过 Interactions 接口生成和编辑图片，支持 1K/2K/4K；Gemini 4 Argon 是文本输出模型，不是生图模型。
 
+#### 对象存储发布（WaveSpeed 编辑）
+
+WaveSpeed 的编辑路由（如 `openai/gpt-image-2/edit`、`openai/gpt-image-2.6-flare/edit`）只接受公网图片 URL。未配置发布通道时，这些模型仍可正常文生图，但编辑能力保持关闭，编辑请求会被直接拒绝（`unsupported_capability`），不会发出注定失败的请求。
+
+在“高级设置”的“对象存储发布”区配置一个 S3 兼容（AWS / R2 / B2 / Wasabi / MinIO）或阿里云 OSS 存储桶即可启用：保存后本地参考图会先上传到该桶（SigV4/OSS 预签名 PUT），再把签名下载 URL 交给上游编辑。下载 URL 可选签名（限时）或公开模式，也可指定自定义公开域名。凭证支持直接填写或 `$ENV_NAME` 环境变量引用（发布时解析）；管理接口读取配置时凭证只返回 `__SET__` 掩码，UI 原样回传即保留原值。配置保存后运行时会自动重组，`gpt-image-2`、GPT Image 2.5/2.6、Nano Banana 2.1、Seedream 5 等带 edit 路由的模型即获得编辑能力（`publishInput` 生效）。桶未填或凭证缺失时保存会被校验拒绝；已启用但运行期凭证解析失败的配置等同于未配置，编辑能力保持关闭。
+
 API Provider 的“已配置”表示接口与凭证已提供，不代表真实生图已经验证。订阅的可用能力仍取决于账号和能力证据，公开 API 模型目录不能证明订阅账号拥有调用权限。实际验证会访问上游，可能消耗额度。
 
 Codex 工具入口的可见性还依赖所用 Codex 版本及启动配置；自动化代理测试通过不等于已经在用户的 Codex 会话中完成真实生图。

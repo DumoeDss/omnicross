@@ -401,4 +401,55 @@ describe('production image runtime generation factory', () => {
       privateHmacKey: Buffer.alloc(32, 31),
     })).toThrow(/proven resolver/u);
   });
+
+  it('turns WaveSpeed edit on only when object-storage publishing is configured', async () => {
+    const sharedStorage = storage(sandbox());
+    const getStrategy = vi.fn(() => null);
+    const waveConfig = (objectStorage: ImagesServerConfig['storage']): ImagesServerConfig => ({
+      ...config(),
+      aliases: {},
+      defaultModel: 'gpt-image-2.6-flare',
+      models: { 'gpt-image-2.6-flare': 'wave' },
+      providers: { wave: { protocol: 'wavespeed', sourceProviderId: 'wavespeed-key', modelMap: {
+        'gpt-image-2.6-flare': 'openai/gpt-image-2.6-flare/text-to-image',
+      } } },
+      ...(objectStorage ? { storage: objectStorage } : {}),
+    });
+    const providerSource = { getProvider: vi.fn(async () => ({ id: 'wavespeed-key', name: 'WaveSpeed',
+      api_base_url: 'https://api.wavespeed.ai', api_key: 'ws-key', models: [], enabled: true })) };
+    const objectStorage = {
+      enabled: true,
+      kind: 's3' as const,
+      bucket: 'media-bucket',
+      region: 'auto',
+      prefix: 'omnicross',
+      urlMode: 'signed' as const,
+      expiresInSeconds: 3600,
+      forcePathStyle: true,
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: 'secret-example',
+    };
+
+    const unpublished = createImageRuntimeGeneration({
+      generationId: 'wave-without-storage', config: waveConfig(undefined),
+      subscriptionAccounts: { getStrategy }, providerSource,
+      storage: sharedStorage, privateHmacKey: Buffer.alloc(32, 23),
+    });
+    expect(await unpublished.inspectCapability?.('trusted-key')).toMatchObject({
+      providerId: 'wave', available: true,
+      capabilities: { edit: false, maxInputImages: 0 },
+    });
+    await unpublished.dispose();
+
+    const published = createImageRuntimeGeneration({
+      generationId: 'wave-with-storage', config: waveConfig(objectStorage),
+      subscriptionAccounts: { getStrategy }, providerSource,
+      storage: sharedStorage, privateHmacKey: Buffer.alloc(32, 23),
+    });
+    expect(await published.inspectCapability?.('trusted-key')).toMatchObject({
+      providerId: 'wave', available: true,
+      capabilities: { edit: true, maxInputImages: 16 },
+    });
+    await published.dispose();
+  });
 });

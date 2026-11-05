@@ -30,6 +30,7 @@ import { useProviderKeyQuotaSummaries, type KeyQuotaSummaryWindow } from '@/feat
 import { cn } from '@/shared/utils/utils';
 
 import { ImagesSection } from './ImagesSection';
+import { ObjectStorageSection } from './ObjectStorageSection';
 import { ImageProviderDetails } from './ImageProviderDetails';
 import { ImageProviderDialog } from './ImageProviderDialog';
 import { useImagesSettings } from './hooks/useImagesSettings';
@@ -298,13 +299,19 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
   const filterForcesExpanded = Boolean(query.trim());
 
   const advancedContent = config ? (
-    <div className="mx-auto max-w-3xl px-6 py-5">
+    <div className="mx-auto max-w-3xl space-y-5 px-6 py-5">
       <ImagesSection
         key={JSON.stringify(config)}
         config={config}
         accounts={accountsApi.data.providerAccounts.codex ?? []}
         antigravityAccounts={accountsApi.data.providerAccounts.antigravity ?? []}
         sources={providersApi.providers}
+        busy={busy}
+        onUpdate={updateImagesConfig}
+      />
+      <ObjectStorageSection
+        key={`storage:${JSON.stringify(config.storage)}`}
+        config={config}
         busy={busy}
         onUpdate={updateImagesConfig}
       />
