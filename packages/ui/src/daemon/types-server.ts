@@ -549,6 +549,26 @@ export interface ImagesServerConfig {
     storageRootConfigured?: boolean;
   };
   remote: { enabled: boolean };
+  /**
+   * Object-storage publishing target for URL-only provider inputs (WaveSpeed
+   * edit). Credential fields carry the literal/`$ENV_NAME` value on write and
+   * the masked `__SET__` sentinel on admin reads.
+   */
+  storage?: {
+    enabled: boolean;
+    kind: 's3' | 'oss';
+    bucket: string;
+    region?: string;
+    endpoint?: string;
+    prefix?: string;
+    publicBaseUrl?: string;
+    urlMode: 'signed' | 'public';
+    expiresInSeconds: number;
+    forcePathStyle: boolean;
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+  };
   evidenceTtlMs: number;
 }
 

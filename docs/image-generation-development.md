@@ -140,6 +140,12 @@ multipart 拒绝重复 mask、未知文件 part、超长字段或过多图片时
 
 `InMemoryImageAsset` 拥有独立字节副本，`open()` 也返回独立副本；即使输入是 Node Buffer，释放一个 asset 也不能清零调用者或另一张 asset 的图片。
 
+### 3.4 URL-only 上游与对象存储发布
+
+WaveSpeed 的编辑路由只接受公网图片 URL。`ApiImageProvider` 把"能否编辑"建模为 `editRoute && publishInput`：`publishInput` 是宿主注入的发布端口（`(asset, signal) => Promise<url>`），daemon 从 `images.storage` 配置块派生它（`createImagesStoragePublishInput`），凭据支持字面量或 `$ENV_NAME` 引用（发布时解析）。未配置、已禁用或凭据解析失败时端口为空，编辑能力保持关闭，`ImageOrchestrator` 的前置能力检查会以 `unsupported_capability` 拒绝编辑请求，绝不向上游发坏请求。
+
+签名与上传原语位于 `@omnicross/core/object-storage`（SigV4 / OSS 预签名、对象键布局、PUT 发布器），零第三方依赖，宿主只注入目标配置与凭据。`images.storage` 凭据字段在 admin GET 投影中返回 `__SET__` 掩码，PUT 时原样回传该哨兵即保留原值（`preserveImagesAdminOmissions`）。配置保存后 `ImageRuntimeConfigController` 重组运行时，发布端口随配置自动重接线，无需重启。
+
 ## 4. 订阅上游分流
 
 文生图和参考图编辑不是同一个上游请求。

@@ -23,6 +23,7 @@ import type { HealthReport } from '@omnicross/contracts/health-logging-types';
 import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 
+import type { ObjectStorageKind, ObjectStorageTarget } from '../object-storage/types';
 import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { ProviderProxy } from '../provider-proxy';
@@ -136,6 +137,25 @@ export interface ImagesCodexAdapterConfig {
   carrierModel: string;
 }
 
+/**
+ * Object-storage publishing target for provider inputs that must live at
+ * public URLs (WaveSpeed image edit, URL-only video inputs). Absent = the
+ * daemon publishes nothing and edit stays capability-off for URL-only routes.
+ * Credentials may be literals or `$ENV_NAME` references resolved at publish
+ * time (the same convention as provider API keys), so config files stay
+ * secret-free when operators prefer it.
+ */
+export interface ImagesObjectStorageConfig extends ObjectStorageTarget {
+  enabled: boolean;
+  kind: ObjectStorageKind;
+  /** Literal or `$ENV_NAME` reference; masked by the admin GET projection. */
+  accessKeyId: string;
+  /** Literal or `$ENV_NAME` reference; masked by the admin GET projection. */
+  secretAccessKey: string;
+  /** Literal or `$ENV_NAME` reference; masked by the admin GET projection. */
+  sessionToken?: string;
+}
+
 export interface ImagesServerConfig {
   enabled: boolean;
   /** Configured API instances reference the existing credential/provider store. */
@@ -180,6 +200,8 @@ export interface ImagesServerConfig {
     storageRoot?: string;
   };
   remote: { enabled: boolean };
+  /** Object-storage publishing target; absent = publishing (and URL-only edit) off. */
+  storage?: ImagesObjectStorageConfig;
   evidenceTtlMs: number;
 }
 

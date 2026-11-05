@@ -256,6 +256,7 @@ export type {
   ImagesServerConfig,
   ImageProviderId,
   ImagesCodexAdapterConfig,
+  ImagesObjectStorageConfig,
   SearchServerConfig,
   OutboundKeyActivationMode,
   OutboundKeyDb,

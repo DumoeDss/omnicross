@@ -163,6 +163,50 @@ describe('Images server config normalization', () => {
     expect(normalized.limits.maxJsonBytes)
       .toBe(DEFAULT_IMAGES_SERVER_CONFIG.limits.maxJsonBytes);
   });
+
+  it('normalizes the object-storage publishing block tolerantly and defaults it off', () => {
+    const absent = normalizeImagesServerConfig(validImagesConfig());
+    expect(absent.storage).toEqual(DEFAULT_IMAGES_SERVER_CONFIG.storage);
+
+    const normalized = normalizeImagesServerConfig({
+      ...validImagesConfig(),
+      storage: {
+        enabled: true,
+        kind: 'oss',
+        bucket: ' media-bucket ',
+        region: 'cn-hangzhou',
+        endpoint: 'https://oss-cn-hangzhou.aliyuncs.com/',
+        prefix: 'omnicross publish ',
+        urlMode: 'public',
+        publicBaseUrl: 'https://cdn.example.com/',
+        expiresInSeconds: 99_999_999,
+        forcePathStyle: 'no',
+        accessKeyId: '$S3_ACCESS_KEY_ID',
+        secretAccessKey: '$S3_SECRET_ACCESS_KEY',
+      },
+    });
+    expect(normalized.storage).toEqual({
+      enabled: true,
+      kind: 'oss',
+      bucket: 'media-bucket',
+      region: 'cn-hangzhou',
+      endpoint: 'https://oss-cn-hangzhou.aliyuncs.com',
+      prefix: 'omnicross publish',
+      publicBaseUrl: 'https://cdn.example.com',
+      urlMode: 'public',
+      expiresInSeconds: 7 * 24 * 60 * 60,
+      forcePathStyle: true,
+      accessKeyId: '$S3_ACCESS_KEY_ID',
+      secretAccessKey: '$S3_SECRET_ACCESS_KEY',
+    });
+
+    const garbage = normalizeImagesServerConfig({
+      ...validImagesConfig(),
+      storage: { enabled: 'yes', kind: 'gcs' },
+    });
+    expect(garbage.storage?.enabled).toBe(false);
+    expect(garbage.storage?.kind).toBe('s3');
+  });
 });
 
 describe('strict Images server config validation', () => {
@@ -232,5 +276,43 @@ describe('strict Images server config validation', () => {
     temporary.cleanupIntervalMs = 1;
     expect(validateImagesServerConfig(value).join('\n'))
       .toMatch(/staleAfterMs must cover queue and generation timeouts/);
+  });
+
+  it('validates the object-storage publishing block strictly', () => {
+    const storage = {
+      enabled: true,
+      kind: 's3',
+      bucket: 'media-bucket',
+      urlMode: 'signed',
+      expiresInSeconds: 3600,
+      forcePathStyle: true,
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: '$S3_SECRET_ACCESS_KEY',
+    };
+    const valid = validImagesConfig();
+    valid['storage'] = storage;
+    expect(validateImagesServerConfig(valid)).toEqual([]);
+
+    const enabledWithoutCredentials = validImagesConfig();
+    enabledWithoutCredentials['storage'] = { ...storage, accessKeyId: '', bucket: 'a/b' };
+    const errors = validateImagesServerConfig(enabledWithoutCredentials).join('\n');
+    expect(errors).toMatch(/images\.storage\.bucket must not contain slashes/);
+    expect(errors).toMatch(/images\.storage\.accessKeyId is required when storage is enabled/);
+
+    const malformed = validImagesConfig();
+    malformed['storage'] = {
+      ...storage,
+      unknown: true,
+      kind: 'gcs',
+      urlMode: 'magic',
+      endpoint: 'ftp://nope',
+      expiresInSeconds: 0,
+    };
+    const malformedErrors = validateImagesServerConfig(malformed).join('\n');
+    expect(malformedErrors).toMatch(/images\.storage\.unknown is not supported/);
+    expect(malformedErrors).toMatch(/images\.storage\.kind must be 's3' or 'oss'/);
+    expect(malformedErrors).toMatch(/images\.storage\.urlMode must be 'signed' or 'public'/);
+    expect(malformedErrors).toMatch(/images\.storage\.endpoint must use HTTP or HTTPS/);
+    expect(malformedErrors).toMatch(/images\.storage\.expiresInSeconds/);
   });
 });

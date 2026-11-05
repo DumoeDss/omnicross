@@ -293,6 +293,82 @@ describe('admin Images config', () => {
     });
   });
 
+  it('masks images.storage credentials in GET and preserves them across a sentinel round-trip', async () => {
+    await bootDaemon();
+    const current = await getServer();
+    const configured = {
+      ...enabledImages(current),
+      storage: {
+        enabled: true,
+        kind: 's3',
+        bucket: 'media-bucket',
+        endpoint: 'https://account.r2.cloudflarestorage.com',
+        region: 'auto',
+        prefix: 'omnicross',
+        urlMode: 'signed',
+        expiresInSeconds: 3600,
+        forcePathStyle: true,
+        accessKeyId: 'AKID-SENTINEL',
+        secretAccessKey: 'LITERAL-SECRET-SENTINEL',
+        sessionToken: 'SESSION-SECRET-SENTINEL',
+      },
+    };
+
+    const first = await adminFetch('PUT', '/admin/api/server', { images: configured });
+    expect(first.status).toBe(200);
+    expect(first.text).not.toContain('LITERAL-SECRET-SENTINEL');
+    expect(first.text).not.toContain('SESSION-SECRET-SENTINEL');
+    const projected = (first.json as { server: { images: { storage: Record<string, unknown> } } })
+      .server.images.storage;
+    expect(projected['accessKeyId']).toBe('__SET__');
+    expect(projected['secretAccessKey']).toBe('__SET__');
+    expect(projected['sessionToken']).toBe('__SET__');
+    expect(projected['bucket']).toBe('media-bucket');
+
+    // A UI-style round-trip PUT of the masked view must preserve the secrets.
+    const second = await adminFetch('PUT', '/admin/api/server', {
+      images: {
+        ...(first.json as { server: { images: unknown } }).server.images,
+        enabled: false,
+      },
+    });
+    expect(second.status).toBe(200);
+    expect(second.text).not.toContain('LITERAL-SECRET-SENTINEL');
+    const persisted = await daemon!.settingsStore.get<OutboundApiServerConfig>(
+      OUTBOUND_API_SERVER_CONFIG_KEY,
+    );
+    expect(persisted?.images?.storage).toMatchObject({
+      enabled: true,
+      bucket: 'media-bucket',
+      accessKeyId: 'AKID-SENTINEL',
+      secretAccessKey: 'LITERAL-SECRET-SENTINEL',
+      sessionToken: 'SESSION-SECRET-SENTINEL',
+    });
+  });
+
+  it('rejects an enabled images.storage block without bucket or credentials', async () => {
+    await bootDaemon();
+    const current = await getServer();
+    const response = await adminFetch('PUT', '/admin/api/server', {
+      images: {
+        ...enabledImages(current),
+        storage: {
+          enabled: true,
+          kind: 's3',
+          bucket: '',
+          urlMode: 'signed',
+          expiresInSeconds: 3600,
+          forcePathStyle: true,
+          accessKeyId: '',
+          secretAccessKey: '',
+        },
+      },
+    });
+    expect(response.status).toBe(400);
+    expect(response.text).toMatch(/images\.storage\.bucket is required/);
+    expect(response.text).toMatch(/images\.storage\.secretAccessKey is required/);
+  });
+
   it('rejects invalid Images-only and mixed patches without changing persisted config', async () => {
     const imageConfigAudit = vi.fn();
     await bootDaemon({ imageConfigAudit });

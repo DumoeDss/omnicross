@@ -3001,43 +3001,81 @@ function outboundServerConfigInput(
   };
 }
 
+/** GET sentinel for storage credentials that are configured but never leaked. */
+const IMAGES_STORAGE_SECRET_SET = '__SET__';
+const IMAGES_STORAGE_CREDENTIAL_KEYS = ['accessKeyId', 'secretAccessKey', 'sessionToken'] as const;
+
 function projectImagesConfigForAdmin(config: OutboundApiServerConfig): OutboundApiServerConfig {
   if (!config.images) return config;
   const { storageRoot, ...references } = config.images.references;
+  const { storage, ...images } = config.images;
   return {
     ...config,
     images: {
-      ...config.images,
+      ...images,
       references: {
         ...references,
         ...(storageRoot ? { storageRootConfigured: true } : {}),
       },
+      ...(storage
+        ? {
+            storage: {
+              ...storage,
+              ...Object.fromEntries(
+                IMAGES_STORAGE_CREDENTIAL_KEYS.map((key) => [
+                  key,
+                  storage[key] ? IMAGES_STORAGE_SECRET_SET : '',
+                ])
+              ),
+            },
+          }
+        : {}),
     } as OutboundApiServerConfig['images'],
   };
 }
 
 /**
- * Admin Images views omit the machine path. An Images PUT that omits the path
- * therefore keeps the current root; explicit JSON null selects the daemon
- * default. Strict validation still runs on the reconstructed complete segment.
+ * Admin Images views omit the machine path and mask storage credentials. An
+ * Images PUT that omits the path keeps the current root; explicit JSON null
+ * selects the daemon default. Storage credential fields that are absent or
+ * still carry the GET sentinel keep their stored values, so a round-tripped
+ * admin view never wipes secrets. Strict validation still runs on the
+ * reconstructed complete segment.
  */
-function preserveImagesStorageRoot(
+function preserveImagesAdminOmissions(
   value: unknown,
   current: OutboundApiServerConfig['images'],
 ): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const images = value as Record<string, unknown>;
   const referencesValue = images['references'];
-  if (!referencesValue || typeof referencesValue !== 'object' || Array.isArray(referencesValue)) {
-    return value;
+  if (referencesValue && typeof referencesValue === 'object' && !Array.isArray(referencesValue)) {
+    const references = { ...(referencesValue as Record<string, unknown>) };
+    if (Object.prototype.hasOwnProperty.call(references, 'storageRoot')) {
+      if (references['storageRoot'] === null) delete references['storageRoot'];
+    } else if (current?.references.storageRoot) {
+      references['storageRoot'] = current.references.storageRoot;
+    }
+    images['references'] = references;
   }
-  const references = { ...(referencesValue as Record<string, unknown>) };
-  if (Object.prototype.hasOwnProperty.call(references, 'storageRoot')) {
-    if (references['storageRoot'] === null) delete references['storageRoot'];
-  } else if (current?.references.storageRoot) {
-    references['storageRoot'] = current.references.storageRoot;
+  const storageValue = images['storage'];
+  if (
+    storageValue &&
+    typeof storageValue === 'object' &&
+    !Array.isArray(storageValue) &&
+    current?.storage
+  ) {
+    const storage = { ...(storageValue as Record<string, unknown>) };
+    for (const key of IMAGES_STORAGE_CREDENTIAL_KEYS) {
+      const incoming = storage[key];
+      if (incoming === undefined || incoming === IMAGES_STORAGE_SECRET_SET) {
+        if (current.storage[key]) storage[key] = current.storage[key];
+        else delete storage[key];
+      }
+    }
+    images['storage'] = storage;
   }
-  return { ...images, references };
+  return images;
 }
 
 function sameConfigValue(left: unknown, right: unknown): boolean {
@@ -3065,7 +3103,9 @@ function imageConfigurationAuditFields(
   const { storageRoot: beforeStorage, ...beforeRetention } = before.references;
   const { storageRoot: afterStorage, ...afterRetention } = after.references;
   if (!sameConfigValue(beforeRetention, afterRetention)) fields.push('retention');
-  if (beforeStorage !== afterStorage) fields.push('storage');
+  if (beforeStorage !== afterStorage || !sameConfigValue(before.storage, after.storage)) {
+    fields.push('storage');
+  }
   if (!sameConfigValue(before.remote, after.remote)) fields.push('remote');
   if (before.evidenceTtlMs !== after.evidenceTtlMs) fields.push('evidence');
   return fields;
@@ -3159,7 +3199,7 @@ async function handleServer(
       effectivePatch = { ...effectivePatch, billing: preserveBillingSecret(patch.billing, current.billing) };
     }
     if (patch.images !== undefined) {
-      const images = preserveImagesStorageRoot(patch.images, current.images);
+      const images = preserveImagesAdminOmissions(patch.images, current.images);
       const imageErrors = validateImagesAdminConfig(images, {
         remoteResolverAvailable: deps.imageRemoteResolverAvailable,
       });

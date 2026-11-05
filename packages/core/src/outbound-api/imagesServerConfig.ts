@@ -8,7 +8,7 @@ import {
   IMAGE_PROVIDER_IDS,
   type ImageProviderId,
 } from './types';
-import type { ImagesServerConfig } from './types';
+import type { ImagesObjectStorageConfig, ImagesServerConfig } from './types';
 import { normalizeImageApiProviders, validateImageApiProviders } from './imageApiProviderConfig';
 
 /** Default models used by the configured Codex subscription adapter. */
@@ -17,6 +17,8 @@ export const DEFAULT_CODEX_CARRIER_MODEL = 'gpt-5.6-luna';
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
+/** Signed-URL lifetime ceiling (7 days), matching S3/OSS presign maximums. */
+const MAX_STORAGE_URL_TTL = 7 * 24 * 60 * 60;
 
 /** Immutable upper bounds used by both tolerant reads and strict admin writes. */
 export const IMAGE_SERVER_HARD_CEILINGS = Object.freeze({
@@ -81,6 +83,16 @@ export const DEFAULT_IMAGES_SERVER_CONFIG: Readonly<ImagesServerConfig> = Object
     imageModel: DEFAULT_CODEX_IMAGE_MODEL,
     carrierModel: DEFAULT_CODEX_CARRIER_MODEL,
   }),
+  storage: Object.freeze({
+    enabled: false,
+    kind: 's3',
+    bucket: '',
+    urlMode: 'signed',
+    expiresInSeconds: 3600,
+    forcePathStyle: true,
+    accessKeyId: '',
+    secretAccessKey: '',
+  } as ImagesObjectStorageConfig),
   account: Object.freeze({ fallback: 'strict' }),
   queue: Object.freeze({
     maxConcurrentJobsPerAccount: 1,
@@ -206,6 +218,37 @@ function normalizedRoutes(raw: Record<string, unknown>): Record<string, ImagePro
 }
 
 /** Tolerant read normalization: malformed members fall back or clamp, never throw. */
+/** Tolerant read of the object-storage publishing block; always returns one. */
+function normalizeImagesObjectStorage(value: unknown): ImagesObjectStorageConfig {
+  const raw = record(value) ?? {};
+  const base = DEFAULT_IMAGES_SERVER_CONFIG.storage!;
+  const text = (key: string): string => {
+    const item = raw[key];
+    if (typeof item !== 'string') return '';
+    return item.trim().replace(/[\u0000-\u001f\u007f]/gu, '');
+  };
+  const expires = Math.round(Number(raw['expiresInSeconds']));
+  return {
+    enabled: raw['enabled'] === true,
+    kind: raw['kind'] === 'oss' ? 'oss' : 's3',
+    bucket: text('bucket'),
+    ...(text('region') ? { region: text('region') } : {}),
+    ...(text('endpoint') ? { endpoint: text('endpoint').replace(/\/+$/u, '') } : {}),
+    ...(text('prefix') ? { prefix: text('prefix') } : {}),
+    ...(text('publicBaseUrl')
+      ? { publicBaseUrl: text('publicBaseUrl').replace(/\/+$/u, '') }
+      : {}),
+    urlMode: raw['urlMode'] === 'public' ? 'public' : 'signed',
+    expiresInSeconds: Number.isFinite(expires)
+      ? Math.min(Math.max(expires, 1), MAX_STORAGE_URL_TTL)
+      : base.expiresInSeconds,
+    forcePathStyle: raw['forcePathStyle'] === undefined ? true : raw['forcePathStyle'] !== false,
+    accessKeyId: text('accessKeyId'),
+    secretAccessKey: text('secretAccessKey'),
+    ...(text('sessionToken') ? { sessionToken: text('sessionToken') } : {}),
+  };
+}
+
 export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig {
   const raw = record(value) ?? {};
   const accountRaw = record(raw['account']) ?? {};
@@ -417,6 +460,7 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
     limits,
     references,
     remote: { enabled: remoteRaw['enabled'] === true },
+    storage: normalizeImagesObjectStorage(raw['storage']),
     evidenceTtlMs: boundedInt(
       raw['evidenceTtlMs'],
       DEFAULT_IMAGES_SERVER_CONFIG.evidenceTtlMs,
@@ -427,7 +471,11 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
 
 const TOP_LEVEL_KEYS = [
   'enabled', 'providers', 'models', 'defaultModel', 'aliases', 'codex', 'account', 'queue',
-  'temporary', 'limits', 'references', 'remote', 'evidenceTtlMs',
+  'temporary', 'limits', 'references', 'remote', 'storage', 'evidenceTtlMs',
+] as const;
+const STORAGE_KEYS = [
+  'enabled', 'kind', 'bucket', 'region', 'endpoint', 'prefix', 'publicBaseUrl', 'urlMode',
+  'expiresInSeconds', 'forcePathStyle', 'accessKeyId', 'secretAccessKey', 'sessionToken',
 ] as const;
 const ACCOUNT_KEYS = ['id', 'group', 'fallback'] as const;
 const QUEUE_KEYS = [
@@ -605,6 +653,74 @@ export function validateImagesServerConfig(value: unknown): string[] {
   if (remote) {
     rejectUnknown(remote, ['enabled'], 'images.remote', errors);
     if (typeof remote['enabled'] !== 'boolean') errors.push('images.remote.enabled must be a boolean');
+  }
+
+  if (raw['storage'] !== undefined) {
+    const storage = requireRecord(raw['storage'], 'images.storage', errors);
+    if (storage) {
+      rejectUnknown(storage, STORAGE_KEYS, 'images.storage', errors);
+      if (storage['enabled'] !== undefined && typeof storage['enabled'] !== 'boolean') {
+        errors.push('images.storage.enabled must be a boolean');
+      }
+      if (storage['kind'] !== undefined && storage['kind'] !== 's3' && storage['kind'] !== 'oss') {
+        errors.push("images.storage.kind must be 's3' or 'oss'");
+      }
+      if (storage['urlMode'] !== undefined && storage['urlMode'] !== 'signed' && storage['urlMode'] !== 'public') {
+        errors.push("images.storage.urlMode must be 'signed' or 'public'");
+      }
+      const simpleString = (key: string, maxLength: number): boolean => {
+        const item = storage[key];
+        if (item === undefined) return true;
+        if (typeof item !== 'string' || item.length > maxLength || /[\u0000-\u001f\u007f]/u.test(item)) {
+          errors.push(`images.storage.${key} is invalid`);
+          return false;
+        }
+        return true;
+      };
+      simpleString('bucket', 63);
+      if (typeof storage['bucket'] === 'string' && /[/\\]/u.test(storage['bucket'])) {
+        errors.push('images.storage.bucket must not contain slashes');
+      }
+      for (const key of ['region', 'prefix'] as const) simpleString(key, 256);
+      for (const key of ['accessKeyId', 'secretAccessKey', 'sessionToken'] as const) {
+        simpleString(key, 256);
+      }
+      for (const key of ['endpoint', 'publicBaseUrl'] as const) {
+        const item = storage[key];
+        if (item === undefined || item === '') continue;
+        if (typeof item !== 'string' || item.length > 2048 || /[\u0000-\u001f\u007f]/u.test(item)) {
+          errors.push(`images.storage.${key} is invalid`);
+          continue;
+        }
+        try {
+          const parsed = new URL(item);
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            errors.push(`images.storage.${key} must use HTTP or HTTPS`);
+          }
+        } catch {
+          errors.push(`images.storage.${key} must be a valid URL`);
+        }
+      }
+      if (storage['forcePathStyle'] !== undefined && typeof storage['forcePathStyle'] !== 'boolean') {
+        errors.push('images.storage.forcePathStyle must be a boolean');
+      }
+      strictInteger(
+        storage['expiresInSeconds'],
+        MAX_STORAGE_URL_TTL,
+        'images.storage.expiresInSeconds',
+        errors,
+      );
+      if (storage['enabled'] === true) {
+        if (typeof storage['bucket'] !== 'string' || !storage['bucket'].trim()) {
+          errors.push('images.storage.bucket is required when storage is enabled');
+        }
+        for (const key of ['accessKeyId', 'secretAccessKey'] as const) {
+          if (typeof storage[key] !== 'string' || !storage[key].trim()) {
+            errors.push(`images.storage.${key} is required when storage is enabled`);
+          }
+        }
+      }
+    }
   }
   strictInteger(
     raw['evidenceTtlMs'],

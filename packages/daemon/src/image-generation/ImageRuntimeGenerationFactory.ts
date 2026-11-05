@@ -45,6 +45,7 @@ import {
 } from './imageTemporaryResources';
 import type { DaemonImagePathResolver } from './imagePathResolver';
 import { loadOrCreateImageTenantHmacSalt } from './imageTenantHmac';
+import { createImagesStoragePublishInput } from './imagesStoragePublishInput';
 
 const GENERATION_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u;
 
@@ -259,7 +260,13 @@ export function createImageRuntimeGeneration(
           providers: apiProviders, modelRoutes: config.models, providerSource: options.providerSource,
           timeoutMs: config.queue.generationTimeoutMs, maxOutputBytes: config.limits.maxOutputBytes,
           maxTotalOutputBytes: config.limits.maxTotalOutputBytes, maxPixels: config.limits.maxPixels,
-          publishInput: options.publishInput,
+          // `options.publishInput` is the explicit host/test seam; otherwise the
+          // publisher is derived from `config.storage` so generation swaps on
+          // config changes rewire publishing without touching bootstrap.
+          publishInput: options.publishInput
+            ?? createImagesStoragePublishInput(config.storage, {
+              maxInputBytes: Math.min(config.limits.maxFileBytes, config.limits.maxTotalInputBytes),
+            }),
           acquireExecution: (sourceProviderId) => async (context, signal) => scheduler!.acquire({
             tenantId: context.tenantId, accountKey: scheduler!.deriveAccountKey(`image-api:${sourceProviderId}`), signal,
           }),

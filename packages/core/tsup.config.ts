@@ -28,6 +28,11 @@ export default defineConfig({
     'image-generation': 'src/image-generation/index.ts',
     'image-generation/responses': 'src/image-generation/responses/index.ts',
     'openai-operation': 'src/openai-operation/index.ts',
+    // object-storage-publish: pure SigV4/OSS presigning + PUT publishing used
+    // by hosts that must hand URL-only providers (WaveSpeed edit, URL-only
+    // video APIs) inputs at public URLs. Consumed via the daemon image
+    // runtime's `publishInput` and portable to any host.
+    'object-storage': 'src/object-storage/index.ts',
     'completion/ApiKeyPoolService': 'src/completion/ApiKeyPoolService.ts',
     'completion/BuiltinToolExecutor': 'src/completion/BuiltinToolExecutor.ts',
     'completion/CompletionService': 'src/completion/CompletionService.ts',
