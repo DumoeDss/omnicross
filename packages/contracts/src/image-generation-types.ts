@@ -142,6 +142,15 @@ export type ImageGenerationErrorCode = (typeof IMAGE_GENERATION_ERROR_CODES)[num
 export type ImageRetrySafety = 'before_acceptance' | 'after_acceptance' | 'unknown';
 export type ImageModerationStage = 'input' | 'output';
 
+export const IMAGE_DIAGNOSTIC_PHASES = ['upstream-http', 'response-body', 'response-shape', 'image-base64', 'image-container', 'image-decode'] as const;
+export const IMAGE_DIAGNOSTIC_REASONS = ['http-rejected', 'body-limit', 'body-read-failed', 'invalid-shape', 'invalid-base64', 'incomplete-container', 'invalid-image'] as const;
+export interface ImageGenerationDiagnostic {
+  readonly phase: (typeof IMAGE_DIAGNOSTIC_PHASES)[number];
+  readonly reason: (typeof IMAGE_DIAGNOSTIC_REASONS)[number];
+  readonly upstreamStatus?: number;
+  readonly observedBytes?: number;
+}
+
 export interface ImageModerationDetails {
   readonly stage?: ImageModerationStage;
   /** Coarse, upstream-verified category names only; no scores are accepted. */
@@ -158,6 +167,7 @@ export interface ImageGenerationPublicError {
   readonly retryAfterSeconds?: number;
   readonly retrySafety?: ImageRetrySafety;
   readonly moderationDetails?: ImageModerationDetails;
+  readonly diagnostic?: ImageGenerationDiagnostic;
 }
 
 export type ImageProviderAcceptedEvent = {

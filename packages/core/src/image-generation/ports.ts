@@ -6,6 +6,7 @@ import type {
   ImageArtifactMetadata,
   ImageBackground,
   ImageGenerationErrorCode,
+  ImageGenerationDiagnostic,
   ImageOutputFormat,
   ImageQuality,
   ImageReferenceId,
@@ -225,6 +226,7 @@ export interface ImageTelemetryOutputMetadata {
 
 /** No content-bearing, credential, tenant, account, URL, or raw-reference field exists here. */
 export interface ImageTelemetryRecord {
+  readonly diagnostic?: ImageGenerationDiagnostic;
   readonly requestId: string;
   readonly providerId: string;
   readonly model: string;

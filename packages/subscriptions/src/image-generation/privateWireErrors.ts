@@ -29,9 +29,11 @@ function privateErrorCode(body: string): string | undefined {
 export function mapCandidateCodexImageFailure(response: Response, body: string): ImageGenerationError {
   const retryAfterSeconds = parseRetryAfter(response.headers);
   const code = privateErrorCode(body);
-  const uncertain: ImageGenerationErrorOptions = { retryAfterSeconds, retrySafety: 'unknown' };
+  const diagnostic: ImageGenerationErrorOptions['diagnostic'] = { phase: 'upstream-http', reason: 'http-rejected', upstreamStatus: response.status };
+  const uncertain: ImageGenerationErrorOptions = { retryAfterSeconds, retrySafety: 'unknown', diagnostic };
   if (response.status === 401 || response.status === 403) {
     return new ImageGenerationError('upstream_auth_required', {
+      diagnostic,
       retryAfterSeconds,
       retrySafety: 'before_acceptance',
     });

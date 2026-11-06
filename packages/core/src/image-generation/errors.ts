@@ -1,5 +1,8 @@
 import {
   IMAGE_GENERATION_ERROR_CODES,
+  IMAGE_DIAGNOSTIC_PHASES,
+  IMAGE_DIAGNOSTIC_REASONS,
+  type ImageGenerationDiagnostic,
   type ImageGenerationErrorCode,
   type ImageGenerationPublicError,
   type ImageModerationDetails,
@@ -49,6 +52,7 @@ const DEFAULT_HTTP_STATUS: Record<ImageGenerationErrorCode, number> = {
 };
 
 export interface ImageGenerationErrorOptions {
+  readonly diagnostic?: ImageGenerationDiagnostic;
   readonly param?: string;
   readonly httpStatus?: number;
   readonly retryAfterSeconds?: number;
@@ -61,6 +65,16 @@ function safeParam(value: unknown): string | undefined {
   return typeof value === 'string' && /^[a-z][a-z0-9_.-]{0,63}$/i.test(value) ? value : undefined;
 }
 
+function safeDiagnostic(value: unknown): ImageGenerationDiagnostic | undefined {
+  if (!value || typeof value !== 'object' || !('phase' in value) || !('reason' in value)) return undefined;
+  const phase = IMAGE_DIAGNOSTIC_PHASES.find(item => item === value.phase);
+  const reason = IMAGE_DIAGNOSTIC_REASONS.find(item => item === value.reason);
+  if (!phase || !reason) return undefined;
+  const upstreamStatus = 'upstreamStatus' in value && typeof value.upstreamStatus === 'number' && Number.isInteger(value.upstreamStatus) && value.upstreamStatus >= 100 && value.upstreamStatus <= 599 ? value.upstreamStatus : undefined;
+  const observedBytes = 'observedBytes' in value && typeof value.observedBytes === 'number' && Number.isSafeInteger(value.observedBytes) && value.observedBytes >= 0 ? value.observedBytes : undefined;
+  return { phase, reason, ...(upstreamStatus !== undefined ? { upstreamStatus } : {}), ...(observedBytes !== undefined ? { observedBytes } : {}) };
+}
+
 function safeModerationDetails(value: ImageModerationDetails | undefined): ImageModerationDetails | undefined {
   if (!value) return undefined;
   const stage = value.stage === 'input' || value.stage === 'output' ? value.stage : undefined;
@@ -71,6 +85,7 @@ function safeModerationDetails(value: ImageModerationDetails | undefined): Image
 }
 
 export class ImageGenerationError extends Error {
+  readonly diagnostic?: ImageGenerationDiagnostic;
   readonly code: ImageGenerationErrorCode;
   readonly param?: string;
   readonly httpStatus: number;
@@ -82,6 +97,7 @@ export class ImageGenerationError extends Error {
     super(DEFAULT_MESSAGES[code]);
     this.name = 'ImageGenerationError';
     this.code = code;
+    this.diagnostic = safeDiagnostic(options.diagnostic);
     this.param = safeParam(options.param);
     this.httpStatus = Number.isInteger(options.httpStatus)
       ? Math.min(599, Math.max(400, options.httpStatus!))
@@ -117,6 +133,7 @@ export function serializeImageGenerationError(error: ImageGenerationError): Imag
   return {
     type: error.code === 'moderation_blocked' ? 'image_generation_user_error' : 'image_generation_error',
     code: error.code,
+    ...(error.diagnostic !== undefined ? { diagnostic: safeDiagnostic(error.diagnostic) } : {}),
     message: DEFAULT_MESSAGES[error.code],
     httpStatus: error.httpStatus,
     ...(error.param !== undefined ? { param: error.param } : {}),
@@ -143,6 +160,7 @@ export function imageGenerationErrorFromPublic(value: unknown): ImageGenerationE
     ? (record.code as ImageGenerationErrorCode)
     : 'image_generation_failed';
   return new ImageGenerationError(code, {
+    diagnostic: safeDiagnostic(record.diagnostic),
     param: safeParam(record.param),
     httpStatus: typeof record.httpStatus === 'number' ? record.httpStatus : undefined,
     retryAfterSeconds:

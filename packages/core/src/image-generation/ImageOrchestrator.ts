@@ -276,6 +276,7 @@ export class ImageOrchestrator {
     let cancelPromise: Promise<void> | undefined;
     let telemetrySent = false;
     let terminalCode: ImageGenerationErrorCode | undefined;
+    let terminalDiagnostic: ImageGenerationError['diagnostic'];
     let terminalKind: ImageTelemetryRecord['terminal'] = 'failed';
     let finalImages: readonly ImageAsset[] = [];
     let finalUsage: ImageProviderCompletedEvent<ImageAsset>['usage'];
@@ -335,6 +336,7 @@ export class ImageOrchestrator {
         finishedAt: this.#now(),
         terminal: terminalKind,
         errorCode: terminalCode,
+        ...(terminalDiagnostic ? { diagnostic: terminalDiagnostic } : {}),
         usage: finalUsage,
         usageUnavailable: finalUsage === undefined,
         ...(jobObservability?.queueWaitMs !== undefined
@@ -433,6 +435,7 @@ export class ImageOrchestrator {
           } else {
             const safeError = imageGenerationErrorFromPublic(pendingTerminal.error);
             terminalCode = safeError.code;
+            terminalDiagnostic = safeError.diagnostic;
             terminalKind = safeError.code === 'request_cancelled' ? 'cancelled' : 'failed';
             await sendTelemetry();
             yield { type: 'failed', error: serializeImageGenerationError(safeError) };
@@ -524,6 +527,7 @@ export class ImageOrchestrator {
           });
       if (normalized.code === 'request_cancelled') await rollbackRetainedOnce();
       terminalCode = normalized.code;
+      terminalDiagnostic = normalized.diagnostic;
       terminalKind = normalized.code === 'request_cancelled' ? 'cancelled' : 'failed';
       await sendTelemetry();
       throw normalized;

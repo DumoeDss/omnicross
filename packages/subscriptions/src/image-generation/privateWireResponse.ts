@@ -1,5 +1,6 @@
 import type {
   ImageOutputFormat,
+  ImageGenerationDiagnostic,
   ImageUsage,
 } from '@omnicross/contracts/image-generation-types';
 import {
@@ -34,7 +35,7 @@ const MAX_DECODED_RAW_BYTES = MAX_DECODED_IMAGE_PIXELS * 4;
 export async function readCandidateCodexImageResponseBody(response: Response): Promise<string> {
   const declared = response.headers.get('content-length');
   if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_CANDIDATE_RESPONSE_BYTES)) {
-    return protocolChanged();
+    return protocolChanged(undefined, { phase: 'response-body', reason: 'body-limit' });
   }
   if (!response.body) return '';
   const reader = response.body.getReader();
@@ -48,14 +49,15 @@ export async function readCandidateCodexImageResponseBody(response: Response): P
       total += next.value.byteLength;
       if (total > MAX_CANDIDATE_RESPONSE_BYTES) {
         await reader.cancel();
-        return protocolChanged();
+        return protocolChanged(undefined, { phase: 'response-body', reason: 'body-limit', observedBytes: total });
       }
       body += decoder.decode(next.value, { stream: true });
     }
     body += decoder.decode();
     return body;
   } catch (cause) {
-    return protocolChanged(cause);
+    if (cause instanceof ImageGenerationError) throw cause;
+    return protocolChanged(cause, { phase: 'response-body', reason: 'body-read-failed', observedBytes: total });
   } finally {
     reader.releaseLock();
   }
@@ -73,18 +75,18 @@ export function selectVerifiedCandidateResponseMetadata(
   };
 }
 
-function protocolChanged(cause?: unknown): never {
-  throw new ImageGenerationError('upstream_protocol_changed', { cause });
+function protocolChanged(cause?: unknown, diagnostic: ImageGenerationDiagnostic = { phase: 'response-shape', reason: 'invalid-shape' }): never {
+  throw new ImageGenerationError('upstream_protocol_changed', { cause, diagnostic });
 }
 
 /** Private-module test seam; not exported from the subscriptions package barrel. */
 export function decodeCandidateBase64ForTests(value: unknown): Uint8Array {
   if (typeof value !== 'string' || value.length === 0 || value.length % 4 !== 0) {
-    return protocolChanged();
+    return protocolChanged(undefined, { phase: 'image-base64', reason: 'invalid-base64' });
   }
   const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
   const decodedLength = (value.length / 4) * 3 - padding;
-  if (decodedLength <= 0 || decodedLength > MAX_DECODED_IMAGE_BYTES) return protocolChanged();
+  if (decodedLength <= 0 || decodedLength > MAX_DECODED_IMAGE_BYTES) return protocolChanged(undefined, { phase: 'image-base64', reason: 'invalid-base64' });
 
   const alphabetEnd = value.length - padding;
   for (let index = 0; index < alphabetEnd; index += 1) {
@@ -95,18 +97,18 @@ export function decodeCandidateBase64ForTests(value: unknown): Uint8Array {
       (code >= 0x30 && code <= 0x39) ||
       code === 0x2b ||
       code === 0x2f;
-    if (!allowed) return protocolChanged();
+    if (!allowed) return protocolChanged(undefined, { phase: 'image-base64', reason: 'invalid-base64' });
   }
   for (let index = alphabetEnd; index < value.length; index += 1) {
-    if (value.charCodeAt(index) !== 0x3d) return protocolChanged();
+    if (value.charCodeAt(index) !== 0x3d) return protocolChanged(undefined, { phase: 'image-base64', reason: 'invalid-base64' });
   }
-  if (padding === 1 && value.charCodeAt(value.length - 2) === 0x3d) return protocolChanged();
+  if (padding === 1 && value.charCodeAt(value.length - 2) === 0x3d) return protocolChanged(undefined, { phase: 'image-base64', reason: 'invalid-base64' });
 
   const decoded = Buffer.from(value, 'base64');
   if (
     decoded.byteLength !== decodedLength ||
     decoded.toString('base64') !== value
-  ) return protocolChanged();
+  ) return protocolChanged(undefined, { phase: 'image-base64', reason: 'invalid-base64' });
   return new Uint8Array(decoded);
 }
 
@@ -131,7 +133,7 @@ function readU32Le(bytes: Uint8Array, offset: number): number {
 /** Require a complete container in addition to libvips' complete pixel decode. */
 function assertCompleteContainer(bytes: Uint8Array, format: ImageOutputFormat): void {
   if (format === 'jpeg') {
-    if (bytes.byteLength < 4 || bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) protocolChanged();
+    if (bytes.byteLength < 4 || bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
     return;
   }
   if (format === 'webp') {
@@ -140,38 +142,38 @@ function assertCompleteContainer(bytes: Uint8Array, format: ImageOutputFormat): 
       Buffer.from(bytes.subarray(0, 4)).toString('ascii') !== 'RIFF' ||
       Buffer.from(bytes.subarray(8, 12)).toString('ascii') !== 'WEBP' ||
       readU32Le(bytes, 4) + 8 !== bytes.byteLength
-    ) protocolChanged();
+    ) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
     let offset = 12;
     while (offset < bytes.byteLength) {
-      if (offset + 8 > bytes.byteLength) protocolChanged();
+      if (offset + 8 > bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
       const length = readU32Le(bytes, offset + 4);
       const next = offset + 8 + length + (length % 2);
-      if (next > bytes.byteLength) protocolChanged();
+      if (next > bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
       offset = next;
     }
-    if (offset !== bytes.byteLength) protocolChanged();
+    if (offset !== bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
     return;
   }
 
   const signature = [137, 80, 78, 71, 13, 10, 26, 10];
   if (bytes.byteLength < 20 || !signature.every((value, index) => bytes[index] === value)) {
-    protocolChanged();
+    protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
   }
   let offset = 8;
   let sawEnd = false;
   while (offset < bytes.byteLength) {
-    if (offset + 12 > bytes.byteLength) protocolChanged();
+    if (offset + 12 > bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
     const length = readU32Be(bytes, offset);
     const next = offset + 12 + length;
-    if (next > bytes.byteLength) protocolChanged();
+    if (next > bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
     const type = Buffer.from(bytes.subarray(offset + 4, offset + 8)).toString('ascii');
     if (type === 'IEND') {
-      if (length !== 0 || next !== bytes.byteLength) protocolChanged();
+      if (length !== 0 || next !== bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
       sawEnd = true;
     }
     offset = next;
   }
-  if (!sawEnd || offset !== bytes.byteLength) protocolChanged();
+  if (!sawEnd || offset !== bytes.byteLength) protocolChanged(undefined, { phase: 'image-container', reason: 'incomplete-container' });
 }
 
 async function createAsset(value: unknown, format: ImageOutputFormat): Promise<ImageAsset> {
@@ -192,7 +194,7 @@ async function createAsset(value: unknown, format: ImageOutputFormat): Promise<I
       metadata.width! <= 0 ||
       metadata.height! <= 0 ||
       metadata.width! * metadata.height! > MAX_DECODED_IMAGE_PIXELS
-    ) return protocolChanged();
+    ) return protocolChanged(undefined, { phase: 'image-decode', reason: 'invalid-image' });
 
     // Metadata parsing alone is insufficient: force a complete, bounded pixel
     // decode so truncated IDAT, JPEG scan, VP8 and VP8L payloads fail before the
@@ -206,7 +208,7 @@ async function createAsset(value: unknown, format: ImageOutputFormat): Promise<I
       decoded.info.channels > 4 ||
       decoded.data.byteLength !== decoded.info.width * decoded.info.height * decoded.info.channels ||
       decoded.data.byteLength > MAX_DECODED_RAW_BYTES
-    ) return protocolChanged();
+    ) return protocolChanged(undefined, { phase: 'image-decode', reason: 'invalid-image' });
 
     return new InMemoryImageAsset(bytes, {
       mimeType: `image/${format}`,
@@ -215,7 +217,8 @@ async function createAsset(value: unknown, format: ImageOutputFormat): Promise<I
       ...(metadata.hasAlpha !== undefined ? { hasAlpha: metadata.hasAlpha } : {}),
     });
   } catch (cause) {
-    return protocolChanged(cause);
+    if (cause instanceof ImageGenerationError) throw cause;
+    return protocolChanged(cause, { phase: 'image-decode', reason: 'invalid-image' });
   }
 }
 
