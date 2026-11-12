@@ -23,17 +23,23 @@ import type { SecretBox } from '../secrets';
 
 import {
   detectProviderKeyQuotaAdapter,
+  mergeLearnedZaiWindows,
  parseClinePassUsageLimitsPayload,
   parseCommandCodeCreditsPayload,
   parseCommandCodeWhoamiOrgId,
   parseMiniMaxTokenPlanPayload,
   parseSyntheticQuotasPayload,
   parseUmansUsagePayload,
+  parseZaiPlanLevel,
   parseZaiQuotaPayload,
   providerKeyQuotaAuthHeader,
   providerKeyQuotaUrl,
   type ProviderKeyQuotaAdapter,
 } from './ProviderKeyQuota';
+import {
+  getSharedProviderKeyQuotaLearningStore,
+  type LearnedQuotaEntry,
+} from '@omnicross/core/pipeline/ProviderKeyQuotaLearningStore';
 
 function parseQuotaPayload(
   adapter: ProviderKeyQuotaAdapter,
@@ -66,6 +72,14 @@ export interface ProviderKeyQuota {
   windows: AllowanceWindow[];
   /** Stable display-safe diagnostic code on a failed probe. */
   errorCode?: string;
+  /** zai monitor payload's plan tier (`data.level`), when it names one. */
+  planLevel?: string;
+  /**
+   * Upstream-rejection diagnostic learned from a real 429 on the serving path
+   * (plan expired / balance / fair-use / model permission). More specific than
+   * a probe `errorCode` — the UI should prefer it when present.
+   */
+  learnedDiagnostic?: string;
 }
 
 export type ProviderKeyQuotaFetch = (url: string, init: RequestInit) => Promise<Response>;
@@ -124,7 +138,7 @@ export class ProviderKeyQuotaService {
       !options.force &&
       cached &&
       Date.parse(cached.expiresAt) > now
-    ) return cached;
+    ) return this.decorateWithLearned(adapter, row.id, keyId, cached);
 
     const running = this.inFlight.get(cacheKey);
     if (running) return running;
@@ -149,9 +163,40 @@ export class ProviderKeyQuotaService {
         }
         return null;
       })
+      .then((result) => this.decorateWithLearned(adapter, row.id, keyId, result))
       .finally(() => this.inFlight.delete(cacheKey));
     this.inFlight.set(cacheKey, promise);
     return promise;
+  }
+
+  /**
+   * Overlay passively-learned zai evidence (429 walls observed on the serving
+   * path, core's `ProviderKeyQuotaLearningStore`) onto a polled/cached
+   * snapshot. Pure overlay — the cache keeps its own copy; a learned window's
+   * lifetime is its reset instant, so freshness never depends on the poll.
+   */
+  private decorateWithLearned(
+    adapter: ProviderKeyQuotaAdapter,
+    rowId: string,
+    keyId: string,
+    snapshot: ProviderKeyQuota | null,
+  ): ProviderKeyQuota | null {
+    if (!snapshot || adapter !== 'zai') return snapshot;
+    const now = this.now();
+    let learned: LearnedQuotaEntry | null = null;
+    try {
+      learned = getSharedProviderKeyQuotaLearningStore().lookup(rowId, keyId, now);
+    } catch {
+      /* learning telemetry must never break the keys view */
+    }
+    if (!learned || (learned.windows.length === 0 && learned.diagnostic === undefined)) return snapshot;
+    return {
+      ...snapshot,
+      windows: learned.windows.length > 0
+        ? mergeLearnedZaiWindows(snapshot.windows, learned.windows, now)
+        : snapshot.windows,
+      ...(learned.diagnostic !== undefined ? { learnedDiagnostic: learned.diagnostic } : {}),
+    };
   }
 
   /** Drop cached rows for a provider (key added/removed/rotated). */
@@ -183,7 +228,11 @@ export class ProviderKeyQuotaService {
       },
       signal: AbortSignal.timeout(15_000),
     });
-    if (response.status === 401 || response.status === 403) {
+    // Command Code's FIRST step (whoami) is an optional org-scope resolver: a
+    // personal (non-org) key can fail it (403/404) while the billing meters
+    // still answer, so only the CREDITS response may declare unauthorized.
+    const firstStepOptional = adapter === 'commandcode';
+    if (!firstStepOptional && (response.status === 401 || response.status === 403)) {
       // A wrong-scheme key (e.g. a PAYG key on a plan endpoint) is a permanent
       // mismatch — remember it so the poll does not hammer the endpoint.
       const snapshot: ProviderKeyQuota = {
@@ -196,13 +245,15 @@ export class ProviderKeyQuotaService {
       this.cache.set(cacheKey, snapshot);
       return snapshot;
     }
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok && !firstStepOptional) throw new Error(`HTTP ${response.status}`);
 
    let payload: unknown;
-   try {
-     payload = await response.json();
-   } catch {
-     throw new Error('invalid JSON');
+   if (response.ok) {
+     try {
+       payload = await response.json();
+     } catch {
+       throw new Error('invalid JSON');
+     }
    }
     // Command Code is two-step: whoami resolves the org scope, then the
     // billing/credits payload carries the actual window meters.
@@ -239,12 +290,14 @@ export class ProviderKeyQuotaService {
       }
     }
    const windows = parseQuotaPayload(adapter, payload, now);
+    const planLevel = adapter === 'zai' ? parseZaiPlanLevel(payload) : undefined;
     const snapshot: ProviderKeyQuota = {
       adapter,
       observedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + PROVIDER_KEY_QUOTA_CACHE_MS).toISOString(),
       windows: windows ?? [],
       ...(windows ? {} : { errorCode: 'quota_unavailable' }),
+      ...(planLevel !== undefined ? { planLevel } : {}),
     };
     this.cache.set(cacheKey, snapshot);
     return snapshot;

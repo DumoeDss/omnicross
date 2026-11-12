@@ -249,6 +249,70 @@ export function parseZaiQuotaPayload(payload: unknown, now: number): AllowanceWi
   return windows.length > 0 ? windows.slice(0, 4) : null;
 }
 
+/**
+ * The plan tier the zai monitor payload names (`data.level`, with the label
+ * aliases other generations shipped). Display-safe by construction: trimmed,
+ * length-capped, control-character-free — it rides the secret-free quota DTO.
+ */
+export function parseZaiPlanLevel(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  const data = isRecord(payload['data']) ? (payload['data'] as Record<string, unknown>) : payload;
+  for (const field of ['level', 'planName', 'plan', 'packageName', 'plan_type'] as const) {
+    const raw = data[field];
+    if (typeof raw !== 'string') continue;
+    const cleaned = raw.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 32);
+    if (cleaned) return cleaned;
+  }
+  return undefined;
+}
+
+/**
+ * Merge passively-learned 429 windows (see core's
+ * `ProviderKeyQuotaLearningStore`) into a polled quota window set. A learned
+ * window is authoritative for its own length: the wall was HIT, so the used
+ * percent is 100 and the body's reset stamp beats a possibly-stale poll. A
+ * learned window the poll never reported (e.g. a monthly pool) is appended
+ * with the standard zai id/label scheme. Pure — callers own caching.
+ */
+export function mergeLearnedZaiWindows(
+  polled: readonly AllowanceWindow[],
+  learned: readonly { windowMinutes?: number; resetsAtMs: number; usedPercent: 100 }[],
+  now: number,
+): AllowanceWindow[] {
+  const merged = polled.map((window) => ({ ...window }));
+  for (const evidence of learned) {
+    const resetsAt = new Date(evidence.resetsAtMs).toISOString();
+    if (evidence.windowMinutes !== undefined) {
+      const match = merged.find((window) => window.windowMinutes === evidence.windowMinutes);
+      if (match) {
+        match.usedPercent = 100;
+        match.resetsAt = resetsAt;
+        match.remainingSeconds = secondsUntil(resetsAt, now);
+        match.state = 'fresh';
+        continue;
+      }
+    }
+    const durationMs = evidence.windowMinutes !== undefined ? evidence.windowMinutes * MINUTE_MS : undefined;
+    const { id, label } = zaiWindowIdLabel(durationMs);
+    // Skip a length-less learned window when the poll already reported
+    // anything — a generic "quota" card is worse than the real windows.
+    if (evidence.windowMinutes === undefined && merged.length > 0) continue;
+    merged.push({
+      id,
+      label,
+      scope: 'all',
+      usedPercent: 100,
+      ...(durationMs !== undefined ? { windowMinutes: evidence.windowMinutes } : {}),
+      resetsAt,
+      remainingSeconds: secondsUntil(resetsAt, now),
+      state: 'fresh',
+    });
+  }
+  return merged
+    .sort((a, b) => (a.windowMinutes ?? Number.POSITIVE_INFINITY) - (b.windowMinutes ?? Number.POSITIVE_INFINITY))
+    .slice(0, 4);
+}
+
 // ── MiniMax Token Plan ────────────────────────────────────────────────────────
 
 const MINIMAX_STATUS_EXHAUSTED = 2;
@@ -518,8 +582,9 @@ export function parseCommandCodeCreditsPayload(payload: unknown, now: number): A
   if (!isRecord(payload)) return null;
   const windowLimits = isRecord(payload['windowLimits']) ? payload['windowLimits'] : undefined;
   if (!windowLimits) return null;
-  const limited = windowLimits['limited'];
-  if (limited === false) return null;
+  // `limited === false` ("currently NOT limited") is NOT "no data": the
+  // fiveHour/weekly meters below are exactly what an UN-throttled key should
+  // show. Only a missing meters structure returns null.
   const windows: AllowanceWindow[] = [];
   const configs = [
     ['fiveHour', 'five-hour', '5 hours', 5 * 60],

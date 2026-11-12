@@ -1,12 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DaemonProviderConfig } from '../../config';
 import {
  detectProviderKeyQuotaAdapter,
+  mergeLearnedZaiWindows,
   parseCommandCodeCreditsPayload,
   parseCommandCodeWhoamiOrgId,
  parseClinePassUsageLimitsPayload,
   parseMiniMaxTokenPlanPayload,
+  parseZaiPlanLevel,
   parseZaiQuotaPayload,
   providerKeyQuotaAuthHeader,
   providerKeyQuotaUrl,
@@ -15,6 +17,10 @@ import {
   PROVIDER_KEY_QUOTA_CACHE_MS,
   ProviderKeyQuotaService,
 } from '../ProviderKeyQuotaService';
+import {
+  __resetSharedProviderKeyQuotaLearningStoreForTests,
+  getSharedProviderKeyQuotaLearningStore,
+} from '@omnicross/core/pipeline/ProviderKeyQuotaLearningStore';
 
 function zaiRow(overrides: Partial<DaemonProviderConfig> = {}): DaemonProviderConfig {
   return {
@@ -370,5 +376,152 @@ describe('commandcode quota', () => {
       { id: 'seven-day', usedPercent: 100 },
     ]);
     expect(JSON.stringify(quota)).not.toContain('user_secret');
+  });
+});
+
+// ── zai plan level + learned-window merge + commandcode fixes ──────────────
+
+describe('parseZaiPlanLevel', () => {
+  it('reads the plan tier from any shipped field name', () => {
+    expect(parseZaiPlanLevel({ data: { limits: [], level: 'pro' } })).toBe('pro');
+    expect(parseZaiPlanLevel({ data: { planName: 'Max' } })).toBe('Max');
+    expect(parseZaiPlanLevel({ plan: 'lite' })).toBe('lite');
+    expect(parseZaiPlanLevel({ data: { level: '  ' } })).toBeUndefined();
+    expect(parseZaiPlanLevel({ data: { limits: [] } })).toBeUndefined();
+  });
+
+  it('strips control characters and caps the length (secret-free DTO)', () => {
+    expect(parseZaiPlanLevel({ data: { level: 'a\u0000b\u001fc' } })).toBe('abc');
+    expect(parseZaiPlanLevel({ data: { level: 'x'.repeat(50) } })).toHaveLength(32);
+  });
+});
+
+describe('mergeLearnedZaiWindows', () => {
+  const NOW = 1_000_000;
+  const resetIn2h = (NOW + 2 * 60 * 60_000);
+  const resetIn3d = (NOW + 3 * 24 * 60 * 60_000);
+
+  it('overwrites the matching polled window with the learned wall', () => {
+    const merged = mergeLearnedZaiWindows(
+      [
+        { id: 'five-hour', label: '5 hours', scope: 'all', usedPercent: 40, windowMinutes: 300, state: 'fresh' },
+        { id: 'seven-day', label: '7 days', scope: 'all', usedPercent: 60, windowMinutes: 10_080, state: 'fresh' },
+      ],
+      [{ windowMinutes: 300, resetsAtMs: resetIn2h, usedPercent: 100 }],
+      NOW,
+    );
+    const fiveHour = merged.find((w) => w.id === 'five-hour');
+    expect(fiveHour).toMatchObject({ usedPercent: 100, state: 'fresh' });
+    expect(fiveHour?.resetsAt).toBe(new Date(resetIn2h).toISOString());
+    expect(fiveHour?.remainingSeconds).toBe(2 * 60 * 60);
+    expect(merged.find((w) => w.id === 'seven-day')?.usedPercent).toBe(60);
+  });
+
+  it('appends a learned window the poll never reported (monthly pool)', () => {
+    const merged = mergeLearnedZaiWindows(
+      [{ id: 'five-hour', label: '5 hours', scope: 'all', usedPercent: 10, windowMinutes: 300, state: 'fresh' }],
+      [{ windowMinutes: 30 * 24 * 60, resetsAtMs: resetIn3d, usedPercent: 100 }],
+      NOW,
+    );
+    expect(merged.map((w) => w.id)).toEqual(['five-hour', 'thirty-day']);
+    expect(merged[1]).toMatchObject({ usedPercent: 100, state: 'fresh' });
+  });
+
+  it('drops a length-less learned window when real windows exist', () => {
+    const merged = mergeLearnedZaiWindows(
+      [{ id: 'five-hour', label: '5 hours', scope: 'all', usedPercent: 10, windowMinutes: 300, state: 'fresh' }],
+      [{ resetsAtMs: resetIn2h, usedPercent: 100 }],
+      NOW,
+    );
+    expect(merged).toHaveLength(1);
+  });
+});
+
+describe('parseCommandCodeCreditsPayload — not-limited is data, not absence', () => {
+  it('still parses the fiveHour/weekly meters when limited is false', () => {
+    const windows = parseCommandCodeCreditsPayload({
+      windowLimits: {
+        limited: false,
+        fiveHour: { used: 3, cap: 14, resetAt: 1_800_000_000_000 },
+        weekly: { used: 10, cap: 70, resetAt: 1_800_000_000_000 },
+      },
+    }, 0);
+    expect(windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 21.4 },
+      { id: 'seven-day', usedPercent: 14.3 },
+    ]);
+  });
+});
+
+describe('ProviderKeyQuotaService — learned 429 overlay', () => {
+  const box = { decryptMaybe: (value: string) => value };
+
+  beforeEach(() => {
+    __resetSharedProviderKeyQuotaLearningStoreForTests();
+  });
+
+  afterEach(() => {
+    __resetSharedProviderKeyQuotaLearningStoreForTests();
+  });
+
+  it('overlays a learned wall on the cached poll and surfaces the diagnostic', async () => {
+    const now = 1_000_000;
+    const fetchImpl = vi.fn(async () => Response.json({
+      success: true,
+      data: { limits: [
+        { type: 'CREDIT_LIMIT', usage: 100, currentValue: 40, unit: 3, number: 5 },
+        { type: 'CREDIT_LIMIT', usage: 100, currentValue: 60, unit: 6 },
+      ], level: 'pro' },
+    }));
+    const service = new ProviderKeyQuotaService(box, fetchImpl, () => now);
+    const row = zaiRow();
+
+    // A 429 landed on the serving path AFTER the poll cached.
+    const first = await service.quotaFor(row, 'zhipu:default');
+    expect(first?.windows[0]).toMatchObject({ id: 'five-hour', usedPercent: 40 });
+    expect(first?.planLevel).toBe('pro');
+
+    getSharedProviderKeyQuotaLearningStore().record('zhipu', 'zhipu:default', {
+      windows: [{ windowMinutes: 300, resetsAtMs: now + 60 * 60_000, usedPercent: 100 }],
+      diagnostic: 'zai_fair_use_limited',
+    }, now);
+
+    const second = await service.quotaFor(row, 'zhipu:default');
+    // Still one upstream fetch — the overlay is pure, the cache is untouched.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(second?.windows.find((w) => w.id === 'five-hour')).toMatchObject({ usedPercent: 100, state: 'fresh' });
+    expect(second?.learnedDiagnostic).toBe('zai_fair_use_limited');
+    expect(second?.planLevel).toBe('pro');
+  });
+
+  it('survives a failed whoami for a personal commandcode key (credits still answer)', async () => {
+    const fetchImpl = vi.fn(async (url: unknown) => {
+      const target = String(url);
+      if (target.includes('/alpha/whoami')) {
+        return new Response('{"error":"forbidden"}', { status: 403 });
+      }
+      if (target.includes('/alpha/billing/credits')) {
+        return Response.json({
+          windowLimits: {
+            fiveHour: { used: 2, cap: 10, resetAt: 1_800_000_000_000 },
+            weekly: { used: 4, cap: 20, resetAt: 1_800_000_000_000 },
+          },
+        });
+      }
+      return new Response('', { status: 404 });
+    });
+    const service = new ProviderKeyQuotaService(box, fetchImpl as never);
+    const row = {
+      id: 'command',
+      apiFormat: 'openai',
+      baseUrl: 'https://api.commandcode.ai/provider/v1/responses',
+      apiKey: 'personal_key',
+    } as DaemonProviderConfig;
+    const quota = await service.quotaFor(row, 'command:default');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(quota?.windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 20 },
+      { id: 'seven-day', usedPercent: 20 },
+    ]);
   });
 });
