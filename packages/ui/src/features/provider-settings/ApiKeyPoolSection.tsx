@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
+import { AllowanceWindowBar } from '@/components/AllowanceWindowBar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RevealableInput } from '@/components/ui/revealable-input';
@@ -15,11 +16,11 @@ import { Switch } from '@/components/ui/switch';
 import { useUnbackedTitle } from '@/components/ui/unbacked';
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
-import { cn } from '@/shared/utils/utils';
 
 import type { ApiKeyEntry, ApiKeyEntryInput, KeyHealthMap } from '@shared/llm-config';
 
 import { KeyStatusBadge } from './KeyStatusBadge';
+import { localizedQuotaWindowLabel } from '../upstreams/useProviderKeyQuota';
 
 /**
  * Key-pool MUTATIONS (add / delete / toggle / weight) are now daemon-backed
@@ -159,17 +160,6 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
     return entry.hasKey ? '••••••••' : t('providerSettings.apiKeyPool.noKey');
   };
 
-  /** Reuses the accounts allowance i18n keys (same window DTO, one wording). */
-  const quotaWindowLabel = (window: NonNullable<ApiKeyEntry['quota']>['windows'][number]): string => {
-    if (window.id === 'five-hour' || window.windowMinutes === 300) {
-      return t('accounts.allowance.fiveHour');
-    }
-    if (window.id === 'seven-day' || window.windowMinutes === 10_080) {
-      return t('accounts.allowance.weekly');
-    }
-    return window.label;
-  };
-
   return (
     <div className="border rounded-lg">
       <button
@@ -229,45 +219,30 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
                           </code>
                         </div>
                         {/* Plan quota windows (Z.AI coding plan, MiniMax Token
-                            Plan, …) — present only when the row has an adapter. */}
-                        {entry.quota && entry.quota.windows.length > 0 ? (
-                          <div className="grid gap-1 pt-1 sm:grid-cols-2">
-                            {entry.quota.windows.map((window) => {
-                              const percent = window.usedPercent === null
-                                ? null
-                                : Math.max(0, Math.min(100, window.usedPercent));
-                              return (
-                                <div key={window.id} className="min-w-0">
-                                  <div className="flex items-center justify-between gap-2 text-[10px]">
-                                    <span className="truncate text-muted-foreground">
-                                      {quotaWindowLabel(window)}
-                                      {window.modelFamily ? ` · ${window.modelFamily}` : ''}
-                                    </span>
-                                    <span className="shrink-0 font-medium">
-                                      {percent === null
-                                        ? t(`accounts.allowance.state.${window.state}`)
-                                        : t('accounts.allowance.used', { percent: Math.round(percent) })}
-                                    </span>
-                                  </div>
-                                  <div className="h-1 overflow-hidden rounded-full bg-surface-2">
-                                    <div
-                                      className={cn(
-                                        'h-full rounded-full transition-[width]',
-                                        window.state === 'fresh' ? 'bg-primary' : 'bg-muted-foreground/50',
-                                      )}
-                                      style={{ width: `${percent ?? 0}%` }}
-                                    />
-                                  </div>
-                                  {window.resetsAt ? (
-                                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                                      {t('accounts.allowance.resetsAt', {
-                                        time: new Date(window.resetsAt).toLocaleString(),
-                                      })}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
+                            Plan, …) — present only when the row has an adapter.
+                            Learned 429 diagnostics (plan expired / balance /
+                            fair-use) surface even without windows. */}
+                        {entry.quota && (entry.quota.windows.length > 0 || entry.quota.learnedDiagnostic) ? (
+                          <div className="space-y-1 pt-1">
+                            {entry.quota.learnedDiagnostic ? (
+                              <p className="text-[10px] text-destructive">
+                                {t(`accounts.allowance.diagnostic.${entry.quota.learnedDiagnostic}`)}
+                              </p>
+                            ) : null}
+                            {entry.quota.windows.length > 0 ? (
+                              <div className="grid gap-1 sm:grid-cols-2">
+                                {entry.quota.windows.map((window) => (
+                                  <AllowanceWindowBar
+                                    key={window.id}
+                                    label={localizedQuotaWindowLabel(window, t)}
+                                    modelFamily={window.modelFamily}
+                                    usedPercent={window.usedPercent}
+                                    state={window.state}
+                                    resetsAt={window.resetsAt}
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>

@@ -1962,6 +1962,7 @@
       "weekly": "Weekly limit",
       "used": "{{percent}}% used",
       "resetsAt": "Resets {{time}}",
+      "resetsIn": "Resets in {{duration}}",
       "observedAt": "Observed {{time}}",
       "refresh": "Refresh",
       "refreshAll": "Reload allowances",
@@ -1978,6 +1979,12 @@
         "stale": "Stale",
         "unavailable": "Unavailable",
         "unsupported": "Unsupported"
+      },
+      "diagnostic": {
+        "zai_plan_expired": "Coding plan has expired — renew on the provider site to restore this key",
+        "zai_insufficient_balance": "Insufficient balance — top up to restore this key",
+        "zai_fair_use_limited": "Limited by the provider's fair-use policy (frequency throttled)",
+        "zai_model_not_included": "Current plan does not include this model"
       }
     },
     "detail": {

@@ -351,6 +351,13 @@ export interface ApiKeyEntry {
       state: 'fresh' | 'stale' | 'unavailable' | 'unsupported';
     }>;
     errorCode?: string;
+    /** zai monitor payload's plan tier, when it names one. */
+    planLevel?: string;
+    /**
+     * Upstream-rejection diagnostic learned from a real 429 (plan expired /
+     * balance / fair-use / model permission) — more specific than `errorCode`.
+     */
+    learnedDiagnostic?: string;
   };
 }
 

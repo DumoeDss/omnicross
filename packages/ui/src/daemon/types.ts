@@ -181,6 +181,13 @@ export interface DaemonPoolKeyView {
     expiresAt: string;
     windows: import('./types-accounts').AllowanceWindow[];
     errorCode?: string;
+    /** zai monitor payload's plan tier, when it names one. */
+    planLevel?: string;
+    /**
+     * Upstream-rejection diagnostic learned from a real 429 (plan expired /
+     * balance / fair-use / model permission) — more specific than `errorCode`.
+     */
+    learnedDiagnostic?: string;
   };
 }
 

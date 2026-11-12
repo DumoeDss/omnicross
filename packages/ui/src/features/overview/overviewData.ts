@@ -150,14 +150,26 @@ export async function readProviderKeyQuotas(): Promise<OverviewKeyQuotaEntry[]> 
       if (!providerId) return null;
       try {
         const keysBody = await adminClient.get<{
-          keys?: Array<{ quota?: Parameters<typeof reduceKeyQuotaWorst>[0][number]['quota'] }>;
+          keys?: Array<{
+            quota?: Parameters<typeof reduceKeyQuotaWorst>[0][number]['quota'] & {
+              learnedDiagnostic?: string;
+              planLevel?: string;
+            };
+          }>;
         }>(`/providers/${encodeURIComponent(providerId)}/keys`);
-        const windows = reduceKeyQuotaWorst(keysBody.keys ?? []);
-        if (windows.length === 0) return null;
+        const keys = keysBody.keys ?? [];
+        const windows = reduceKeyQuotaWorst(keys);
+        // Upstream-rejection diagnostics and the plan tier ride per-key; any
+        // key reporting one speaks for the row (they share the plan).
+        const learnedDiagnostic = keys.find((key) => key.quota?.learnedDiagnostic)?.quota?.learnedDiagnostic;
+        const planLevel = keys.find((key) => key.quota?.planLevel)?.quota?.planLevel;
+        if (windows.length === 0 && !learnedDiagnostic) return null;
         return {
           providerId,
           providerLabel: typeof provider.name === 'string' && provider.name.trim() ? provider.name.trim() : providerId,
           windows,
+          ...(learnedDiagnostic ? { learnedDiagnostic } : {}),
+          ...(planLevel ? { planLevel } : {}),
         };
       } catch {
         // One provider's failed keys read must not sink the rest.

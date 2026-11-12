@@ -1965,6 +1965,7 @@
       "weekly": "周限额",
       "used": "已用 {{percent}}%",
       "resetsAt": "{{time}} 重置",
+      "resetsIn": "{{duration}} 后重置",
       "observedAt": "观测于 {{time}}",
       "refresh": "刷新",
       "refreshAll": "重新加载额度",
@@ -1981,6 +1982,12 @@
         "stale": "已过期",
         "unavailable": "不可用",
         "unsupported": "不支持"
+      },
+      "diagnostic": {
+        "zai_plan_expired": "编程套餐已到期——请到官网续订后恢复此密钥",
+        "zai_insufficient_balance": "余额不足——请充值后恢复此密钥",
+        "zai_fair_use_limited": "触发提供商公平使用策略（请求频率受限）",
+        "zai_model_not_included": "当前套餐未包含该模型"
       }
     },
     "detail": {

@@ -467,4 +467,63 @@ describe('buildOverviewModel', () => {
     expect(buildOverviewModel(healthySources({ keyQuotas: { state: 'loading' } }), NOW).allowance.keyQuotaItems)
       .toEqual([]);
   });
+
+  it('drops a long-failed allowance snapshot from the rankings instead of replaying its fiction', () => {
+    const deadToken: AccountAllowanceSnapshot = {
+      providerId: 'opencodego',
+      accountId: 'dead-1',
+      source: 'oauth-usage-api',
+      observedAt: new Date(NOW - 30 * 24 * 60 * 60_000).toISOString(),
+      lastErrorCode: 'opencodego_usage_unauthorized',
+      windows: [
+        { id: 'five-hour', label: '5 hours', scope: 'all', usedPercent: 0, state: 'stale' },
+        { id: 'monthly', label: 'monthly', scope: 'all', usedPercent: 100, state: 'stale' },
+      ],
+    };
+    const view = buildOverviewModel(healthySources({
+      allowances: source([...baseAllowances, deadToken]),
+    }), NOW);
+
+    expect(view.allowance.weeklyTop.find((item) => item.accountId === 'dead-1')).toBeUndefined();
+    expect(view.allowance.nearLimit.find((item) => item.accountId === 'dead-1')).toBeUndefined();
+    expect(view.allowance.stale.find((item) => item.accountId === 'dead-1')).toBeUndefined();
+  });
+
+  it('keeps a recently-failed snapshot visible (a transient probe failure is not fiction)', () => {
+    const hiccup: AccountAllowanceSnapshot = {
+      providerId: 'opencodego',
+      accountId: 'hiccup-1',
+      source: 'oauth-usage-api',
+      observedAt: new Date(NOW - 60_000).toISOString(),
+      lastErrorCode: 'opencodego_usage_unauthorized',
+      windows: [
+        { id: 'monthly', label: 'monthly', scope: 'all', usedPercent: 100, state: 'stale' },
+      ],
+    };
+    const view = buildOverviewModel(healthySources({
+      allowances: source([...baseAllowances, hiccup]),
+    }), NOW);
+
+    expect(view.allowance.weeklyTop.find((item) => item.accountId === 'hiccup-1')).toBeDefined();
+  });
+
+  it('carries a learned diagnostic through to the key-quota row (window-less entries survive)', () => {
+    const view = buildOverviewModel(healthySources({
+      keyQuotas: source([
+        {
+          providerId: 'zhipu',
+          providerLabel: 'z.ai',
+          windows: [],
+          learnedDiagnostic: 'zai_plan_expired',
+          planLevel: 'pro',
+        },
+      ]),
+    }), NOW);
+
+    expect(view.allowance.keyQuotaItems).toHaveLength(1);
+    expect(view.allowance.keyQuotaItems[0]).toMatchObject({
+      learnedDiagnostic: 'zai_plan_expired',
+      planLevel: 'pro',
+    });
+  });
 });

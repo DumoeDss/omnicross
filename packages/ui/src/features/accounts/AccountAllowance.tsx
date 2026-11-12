@@ -1,6 +1,7 @@
 import { RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
 
+import { AllowanceWindowBar } from '@/components/AllowanceWindowBar';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
@@ -117,47 +118,21 @@ export function AccountAllowance({
         </p>
       ) : snapshot?.windows.length ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {snapshot.windows.map((window) => {
-            const percent = window.usedPercent === null
-              ? null
-              : Math.max(0, Math.min(100, window.usedPercent));
-            return (
-              <div key={`${window.id}:${window.modelFamily ?? 'all'}`} className="min-w-0">
-                <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
-                  <span className="truncate text-muted-foreground">
-                    {windowLabel(
-                      window,
-                      t('accounts.allowance.fiveHour'),
-                      t('accounts.allowance.weekly'),
-                      t('accounts.allowance.monthly'),
-                    )}
-                    {window.modelFamily ? ` · ${window.modelFamily}` : ''}
-                  </span>
-                  <span className="shrink-0 font-medium text-foreground">
-                    {percent === null
-                      ? t(`accounts.allowance.state.${window.state}`)
-                      : t('accounts.allowance.used', { percent: Math.round(percent) })}
-                  </span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-[width]',
-                      window.state === 'fresh' ? 'bg-primary' : 'bg-muted-foreground/50',
-                    )}
-                    style={{ width: `${percent ?? 0}%` }}
-                  />
-                </div>
-                {window.resetsAt ? (
-                  <p className="mt-1 truncate text-[10px] text-muted-foreground">
-                    {t('accounts.allowance.resetsAt', {
-                      time: new Date(window.resetsAt).toLocaleString(),
-                    })}
-                  </p>
-                ) : null}
-              </div>
-            );
-          })}
+          {snapshot.windows.map((window) => (
+            <AllowanceWindowBar
+              key={`${window.id}:${window.modelFamily ?? 'all'}`}
+              label={windowLabel(
+                window,
+                t('accounts.allowance.fiveHour'),
+                t('accounts.allowance.weekly'),
+                t('accounts.allowance.monthly'),
+              )}
+              modelFamily={window.modelFamily}
+              usedPercent={window.usedPercent}
+              state={window.state}
+              resetsAt={window.resetsAt}
+            />
+          ))}
         </div>
       ) : loading ? null : (
         <p className="mt-1.5 text-xs text-muted-foreground">

@@ -24,6 +24,10 @@ export interface OverviewKeyQuotaEntry {
   providerId: string;
   providerLabel: string;
   windows: Array<{ id: string; label: string; usedPercent: number | null; resetsAt?: string; state?: string }>;
+  /** Upstream 429 diagnostic (plan expired / balance / …) learned on any key. */
+  learnedDiagnostic?: string;
+  /** Plan tier the monitor payload named (zai), when any key reported one. */
+  planLevel?: string;
 }
 
 export interface OverviewSources {
@@ -139,6 +143,8 @@ export interface KeyQuotaDisplayItem {
   providerId: string;
   providerLabel: string;
   windows: KeyQuotaDisplayWindow[];
+  learnedDiagnostic?: string;
+  planLevel?: string;
 }
 
 export interface OverviewModel {
@@ -259,10 +265,28 @@ function allowanceKey(providerId: string, accountId: string): string {
   return `${providerId}\u0000${accountId}`;
 }
 
+/**
+ * A snapshot whose probe has FAILED for over a day carries percentages that
+ * stopped being true (a token that died mid-month keeps showing its last
+ * monthly wall as if it were live). Trustworthy snapshots — including
+ * probe-failed ones still inside the grace window, which may just be a
+ * transient upstream hiccup — render normally; older failed ones drop off the
+ * watch lists and rankings instead of misleading them.
+ */
+export function isAllowanceSnapshotTrustworthy(
+  snapshot: Pick<AccountAllowanceSnapshot, 'lastErrorCode' | 'observedAt'>,
+  now: number,
+): boolean {
+  if (!snapshot.lastErrorCode) return true;
+  const observedMs = Date.parse(snapshot.observedAt);
+  return Number.isFinite(observedMs) && observedMs >= now - 24 * 60 * 60_000;
+}
+
 function buildAllowanceWatch(
   source: OverviewSource<AccountAllowanceSnapshot[]>,
   threshold: number,
   accounts: AccountEntry[],
+  now: number,
 ): { nearLimit: AllowanceWatchItem[]; stale: AllowanceWatchItem[]; unavailableCount: number; unobservedCount: number } {
   if (source.state !== 'ready' || !source.data) {
     return { nearLimit: [], stale: [], unavailableCount: 0, unobservedCount: 0 };
@@ -277,6 +301,11 @@ function buildAllowanceWatch(
     const key = allowanceKey(snapshot.providerId, snapshot.accountId);
     if (snapshot.lastErrorCode === 'codex_allowance_not_observed') {
       unobservedKeys.add(key);
+      continue;
+    }
+    if (!isAllowanceSnapshotTrustworthy(snapshot, now)) {
+      // Long-failed probe — the percentages are fiction; count as unavailable.
+      unavailableKeys.add(key);
       continue;
     }
     if (snapshot.windows.length === 0) {
@@ -347,6 +376,7 @@ function weeklyAccountLabel(provider: string, label: string): string {
 function buildWeeklyTop(
   source: OverviewSource<AccountAllowanceSnapshot[]>,
   accounts: AccountEntry[],
+  now: number,
   limit = 6,
 ): AllowanceWeeklyItem[] {
   if (source.state !== 'ready' || !source.data) return [];
@@ -358,6 +388,7 @@ function buildWeeklyTop(
   );
   const items: AllowanceWeeklyItem[] = [];
   for (const snapshot of source.data) {
+    if (!isAllowanceSnapshotTrustworthy(snapshot, now)) continue;
     const weekly = snapshot.windows.find((window) => window.id === 'seven-day' || window.windowMinutes === 10_080);
     const fiveHour = snapshot.windows.find((window) => window.id === 'five-hour' || window.windowMinutes === 300);
     const monthly = snapshot.windows.find((window) => window.id === 'monthly');
@@ -426,13 +457,15 @@ function buildKeyQuotaItems(
         : 'fresh',
       ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
     }));
-    if (windows.length === 0) continue;
+    if (windows.length === 0 && !entry.learnedDiagnostic) continue;
     windows.sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1));
     items.push({
       key: entry.providerId,
       providerId: entry.providerId,
       providerLabel: entry.providerLabel,
       windows,
+      ...(entry.learnedDiagnostic ? { learnedDiagnostic: entry.learnedDiagnostic } : {}),
+      ...(entry.planLevel ? { planLevel: entry.planLevel } : {}),
     });
   }
   items.sort((left, right) =>
@@ -515,8 +548,8 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   const abnormalCount = rows.filter(isAbnormal).length;
   const expiringSoonCount = rows.filter((account) => isExpiringSoon(account, now)).length;
   const allowanceThreshold = config?.allowanceScheduling?.demoteAtPercent ?? DEFAULT_ALLOWANCE_WARNING_PERCENT;
-  const allowanceWatch = buildAllowanceWatch(input.allowances, allowanceThreshold, entries);
-  const weeklyTop = buildWeeklyTop(input.allowances, entries);
+  const allowanceWatch = buildAllowanceWatch(input.allowances, allowanceThreshold, entries, now);
+  const weeklyTop = buildWeeklyTop(input.allowances, entries, now);
   const keyQuotaItems = buildKeyQuotaItems(input.keyQuotas);
   const todayAudit = auditErrorRate(input.audit, input.usage);
   const integrations = integrationRows(input.integrations);

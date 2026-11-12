@@ -15,6 +15,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AllowanceWindowBar } from '@/components/AllowanceWindowBar';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import type { AppRoute } from '@/shared/state/hashRoute';
 import { cn } from '@/shared/utils/utils';
@@ -40,7 +41,6 @@ import {
   type PathState,
 } from './overviewModel';
 import type {
-  AllowanceWindowState,
   CliIntegrationClient,
   CliIntegrationStatusKind,
 } from '@/daemon/types';
@@ -157,54 +157,6 @@ function EvidenceRow({
   );
 }
 
-/** One labeled quota bar (5h or weekly) — label + percent, bar, reset time. */
-function AllowanceWindowBar({
-  label,
-  usedPercent,
-  state,
-  resetsAt,
-  threshold,
-}: {
-  label: string;
-  usedPercent?: number;
-  state: AllowanceWindowState;
-  resetsAt?: string;
-  threshold: number;
-}) {
-  const t = useTranslation();
-  const hasData = typeof usedPercent === 'number';
-  const percent = hasData ? usedPercent : 0;
-  const nearLimit = hasData && (usedPercent as number) >= threshold;
-  return (
-    <div className="min-w-0">
-      <div className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="truncate text-muted-foreground">{label}</span>
-        <span className={cn('shrink-0 font-mono tabular-nums', nearLimit ? 'text-warning' : 'text-foreground')}>
-          {hasData ? t('accounts.allowance.used', { percent: Math.round(percent) }) : t(`accounts.allowance.state.${state}`)}
-        </span>
-      </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-        <div
-          className={cn(
-            'h-full rounded-full transition-[width]',
-            !hasData || state !== 'fresh'
-              ? 'bg-muted-foreground/50'
-              : nearLimit
-                ? 'bg-warning'
-                : 'bg-primary',
-          )}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      {resetsAt ? (
-        <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-          {t('accounts.allowance.resetsAt', { time: new Date(resetsAt).toLocaleString() })}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 function WeeklyAllowanceList({
   items,
   threshold,
@@ -272,7 +224,19 @@ function KeyQuotaList({ items, threshold }: { items: KeyQuotaDisplayItem[]; thre
       <div className="space-y-2">
         {items.map((item) => (
           <div key={item.key} className="min-w-0">
-            <p className="truncate text-[11px] font-medium text-foreground" title={item.providerLabel}>{item.providerLabel}</p>
+            <p className="truncate text-[11px] font-medium text-foreground" title={item.providerLabel}>
+              {item.providerLabel}
+              {item.planLevel ? (
+                <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px] font-normal text-muted-foreground">
+                  {item.planLevel}
+                </span>
+              ) : null}
+            </p>
+            {item.learnedDiagnostic ? (
+              <p className="text-[10px] text-destructive">
+                {t(`accounts.allowance.diagnostic.${item.learnedDiagnostic}`)}
+              </p>
+            ) : null}
             <div className="mt-1 grid gap-3 sm:grid-cols-2">
               {item.windows.map((window) => (
                 <AllowanceWindowBar
