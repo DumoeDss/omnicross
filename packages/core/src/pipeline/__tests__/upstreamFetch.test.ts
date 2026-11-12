@@ -33,6 +33,10 @@ import {
   setUpstreamTracePath,
 } from '../upstreamTrace';
 import { getSharedAccountRouteActivity } from '../AccountRouteActivity';
+import {
+  __resetSharedProviderKeyQuotaLearningStoreForTests,
+  getSharedProviderKeyQuotaLearningStore,
+} from '../ProviderKeyQuotaLearningStore';
 
 /** The `dispatcher` the helper attaches (undici-specific, absent from DOM lib). */
 function dispatcherOf(init: RequestInit | undefined): unknown {
@@ -522,5 +526,114 @@ describe('fetchUpstream — upstream error-body capture', () => {
       onUpstreamError: (info) => seen.push(info),
     });
     expect(seen).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// GLM (zai) 429 quota learning — the BYO serving-path tap
+// ===========================================================================
+describe('fetchUpstream — zai 429 quota learning', () => {
+  beforeEach(() => {
+    __resetUpstreamProxyForTests();
+    __resetSharedProviderKeyQuotaLearningStoreForTests();
+  });
+
+  afterEach(() => {
+    __resetUpstreamProxyForTests();
+    __resetSharedProviderKeyQuotaLearningStoreForTests();
+    vi.unstubAllGlobals();
+  });
+
+  const stub = (response: Response): void => {
+    vi.stubGlobal('fetch', vi.fn(async () => response));
+  };
+
+  const byoCtx = {
+    providerId: 'byo',
+    accountId: 'key-pool-7',
+    routeActivity: {
+      providerId: 'zai-row',
+      credentialKind: 'provider-key' as const,
+      endpoint: 'messages' as const,
+      sessionSource: 'admin' as const,
+      model: 'glm-5.3',
+    },
+  };
+
+  const WALL_BODY = JSON.stringify({
+    error: {
+      code: '1316',
+      message: '已达到 5 小时使用上限。您的限额将在 2026-11-12T20:00:00+08:00 重置。',
+      type: 'rate_limit_error',
+    },
+    type: 'error',
+  });
+
+  /** The tap is fire-and-forget — give the cloned read a moment to land. */
+  const settle = async (): Promise<void> => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  };
+
+  it('learns a zai 429 wall into the store, attributed to row + pool key', async () => {
+    stub(new Response(WALL_BODY, { status: 429 }));
+    const response = await fetchUpstream('https://api.z.ai/api/anthropic/v1/messages', { method: 'POST' }, byoCtx);
+    expect(response.status).toBe(429);
+    await settle();
+    const learned = getSharedProviderKeyQuotaLearningStore().lookup('zai-row', 'key-pool-7');
+    expect(learned?.windows).toHaveLength(1);
+    expect(learned?.windows[0]).toMatchObject({ windowMinutes: 300, usedPercent: 100 });
+  });
+
+  it('leaves the relayed body intact after learning', async () => {
+    stub(new Response(WALL_BODY, { status: 429 }));
+    const response = await fetchUpstream('https://api.z.ai/api/anthropic/v1/messages', { method: 'POST' }, byoCtx);
+    expect(await response.text()).toBe(WALL_BODY);
+    await settle();
+    expect(getSharedProviderKeyQuotaLearningStore().lookup('zai-row', 'key-pool-7')).not.toBeNull();
+  });
+
+  it('is a strict no-op on a non-zai host (no clone, no store entry)', async () => {
+    const response = new Response(WALL_BODY, { status: 429 });
+    const cloneSpy = vi.spyOn(response, 'clone');
+    stub(response);
+    await fetchUpstream('https://api.deepseek.com/v1/chat/completions', { method: 'POST' }, byoCtx);
+    await settle();
+    expect(cloneSpy).not.toHaveBeenCalled();
+    expect(getSharedProviderKeyQuotaLearningStore().lookup('zai-row', 'key-pool-7')).toBeNull();
+  });
+
+  it('ignores subscription-account egress (credentialKind) and 2xx responses', async () => {
+    stub(new Response(WALL_BODY, { status: 429 }));
+    await fetchUpstream('https://api.z.ai/api/anthropic/v1/messages', { method: 'POST' }, {
+      providerId: 'claude',
+      accountId: 'acct-1',
+      routeActivity: {
+        providerId: 'claude',
+        credentialKind: 'subscription-account',
+        endpoint: 'messages',
+        sessionSource: 'admin',
+        model: 'claude-fable-5-1',
+      },
+    });
+    await settle();
+    expect(getSharedProviderKeyQuotaLearningStore().lookup('claude', 'acct-1')).toBeNull();
+
+    stub(new Response('{"ok":true}', { status: 200 }));
+    await fetchUpstream('https://api.z.ai/api/anthropic/v1/messages', { method: 'POST' }, byoCtx);
+    await settle();
+    expect(getSharedProviderKeyQuotaLearningStore().lookup('zai-row', 'key-pool-7')).toBeNull();
+  });
+
+  it('never reads a body when redactBodies is set (credential exchanges)', async () => {
+    const response = new Response(WALL_BODY, { status: 429 });
+    const cloneSpy = vi.spyOn(response, 'clone');
+    stub(response);
+    await fetchUpstream('https://api.z.ai/api/anthropic/v1/messages', { method: 'POST' }, {
+      ...byoCtx,
+      redactBodies: true,
+    });
+    await settle();
+    expect(cloneSpy).not.toHaveBeenCalled();
+    expect(getSharedProviderKeyQuotaLearningStore().lookup('zai-row', 'key-pool-7')).toBeNull();
   });
 });

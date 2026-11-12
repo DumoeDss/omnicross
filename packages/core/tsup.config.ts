@@ -59,6 +59,7 @@ export default defineConfig({
     'pipeline/AccountAllowanceScheduling': 'src/pipeline/AccountAllowanceScheduling.ts',
     'pipeline/antigravityQuotaFamily': 'src/pipeline/antigravityQuotaFamily.ts',
     'pipeline/AccountRouteActivity': 'src/pipeline/AccountRouteActivity.ts',
+    'pipeline/ProviderKeyQuotaLearningStore': 'src/pipeline/ProviderKeyQuotaLearningStore.ts',
     'pipeline/BoundAccountSelectionError': 'src/pipeline/BoundAccountSelectionError.ts',
     'pipeline/executeProviderCall': 'src/pipeline/executeProviderCall.ts',
     'pipeline/LlmConfigProviderAuth': 'src/pipeline/LlmConfigProviderAuth.ts',

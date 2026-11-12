@@ -52,6 +52,8 @@ import {
   type AccountRouteSessionSource,
   type RouteCredentialKind,
 } from './AccountRouteActivity';
+import { getSharedProviderKeyQuotaLearningStore } from './ProviderKeyQuotaLearningStore';
+import { isZaiQuotaHost, parseZaiRateLimitError } from '../provider-proxy/ingress/zaiRateLimitDetection';
 
 export interface AccountRouteActivityContext {
   /**
@@ -353,6 +355,38 @@ export function fetchUpstream(
           getSharedAccountAllowanceStore().recordClaudeHeaders(ctx.accountId, response.headers);
         } catch {
           /* allowance telemetry is best-effort */
+        }
+      }
+      // GLM (Z.AI / bigmodel) quota learning: a 429 body names the exhausted
+      // window AND its reset stamp — the only quota evidence the serving path
+      // ever sees. Attribution is the BYO row id (`routeActivity.providerId`;
+      // the egress ctx's own `providerId` is the literal 'byo' here) plus the
+      // selected pool key id (`ctx.accountId`). Fire-and-forget off a CLONE so
+      // the verbatim relay is never delayed and its body never consumed.
+      const zaiRowId = ctx?.routeActivity?.credentialKind === 'provider-key'
+        ? ctx.routeActivity.providerId
+        : undefined;
+      if (
+        response.status === 429 &&
+        zaiRowId &&
+        ctx?.accountId &&
+        ctx?.redactBodies !== true &&
+        isZaiQuotaHost(url)
+      ) {
+        const zaiKeyId = ctx.accountId;
+        try {
+          void readErrorBody(response.clone(), UPSTREAM_ERROR_BODY_CAP)
+            .then((body) => {
+              const observation = parseZaiRateLimitError(body);
+              if (observation) {
+                getSharedProviderKeyQuotaLearningStore().record(zaiRowId, zaiKeyId, observation);
+              }
+            })
+            .catch(() => {
+              /* quota learning is best-effort */
+            });
+        } catch {
+          /* a failed clone must never break egress */
         }
       }
       return response;
