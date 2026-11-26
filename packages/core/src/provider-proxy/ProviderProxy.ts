@@ -46,9 +46,21 @@ export function isLoopbackAddress(addr: string | undefined): boolean {
   );
 }
 
+/**
+ * Listener placement for {@link ProviderProxy.start}. The host must be a
+ * loopback literal; the proxy refuses non-loopback peers either way.
+ */
+export interface ProviderProxyListenOptions {
+  /** `127.0.0.1` (default), `::1` or `localhost`. */
+  readonly host?: '127.0.0.1' | '::1' | 'localhost';
+  /** TCP port; `0` (default) picks a free port. */
+  readonly port?: number;
+}
+
 export class ProviderProxy {
   private server: http.Server | null = null;
   private port = 0;
+  private host: '127.0.0.1' | '::1' | 'localhost' = '127.0.0.1';
   private readonly routes: ProviderProxyRouteMap;
   private readonly beforeStop = new Set<() => void | Promise<void>>();
 
@@ -61,10 +73,19 @@ export class ProviderProxy {
 
   /**
    * Start the resident listener on a stable port on 127.0.0.1. Idempotent —
-   * a second `start()` returns the already-bound port.
+   * a second `start()` returns the already-bound port. `options` lets an
+   * embedding host pin the loopback host/port (defaults: `127.0.0.1:0`).
    */
-  async start(): Promise<number> {
+  async start(options: ProviderProxyListenOptions = {}): Promise<number> {
     if (this.server) return this.port;
+    const host = options.host ?? '127.0.0.1';
+    if (host !== '127.0.0.1' && host !== '::1' && host !== 'localhost') {
+      throw new Error('ProviderProxy must listen on a loopback host');
+    }
+    const requestedPort = options.port ?? 0;
+    if (!Number.isInteger(requestedPort) || requestedPort < 0 || requestedPort > 65535) {
+      throw new Error('ProviderProxy port must be an integer from 0 to 65535');
+    }
 
     return new Promise((resolve, reject) => {
       const server = http.createServer((req, res) => {
@@ -88,13 +109,14 @@ export class ProviderProxy {
         });
       });
 
-      server.listen(0, '127.0.0.1', () => {
+      server.listen(requestedPort, host, () => {
         const addr = server.address();
         if (addr && typeof addr === 'object') {
           this.port = addr.port;
+          this.host = host;
           this.server = server;
-          if (this.deps.logger) this.deps.logger.info('[ProviderProxy] Listening on 127.0.0.1', { port: this.port });
-          else console.log(`[ProviderProxy] Listening on 127.0.0.1:${this.port}`);
+          if (this.deps.logger) this.deps.logger.info(`[ProviderProxy] Listening on ${host}`, { port: this.port });
+          else console.log(`[ProviderProxy] Listening on ${host}:${this.port}`);
           resolve(this.port);
         } else {
           reject(new Error('Failed to get server address'));
@@ -130,7 +152,8 @@ export class ProviderProxy {
 
   /** Base URL for injector wiring (`ANTHROPIC_BASE_URL` / codex `base_url`). */
   getBaseUrl(): string {
-    return `http://127.0.0.1:${this.port}`;
+    const host = this.host === '::1' ? '[::1]' : this.host;
+    return `http://${host}:${this.port}`;
   }
 
   /** Register daemon-owned cleanup that must run before route-map teardown. */

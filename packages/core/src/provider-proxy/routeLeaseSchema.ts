@@ -18,7 +18,16 @@ export const ROUTE_LEASE_SESSION_HASH_DOMAIN = 'omnicross.route-lease.session/v1
 export const ROUTE_LEASE_CODEX_TOKEN_ENV = 'OMNICROSS_CODEX_ROUTE_TOKEN';
 
 export const ROUTE_LEASE_RUNTIMES = ['claude', 'codex'] as const;
-export type RouteLeaseRuntime = (typeof ROUTE_LEASE_RUNTIMES)[number];
+/**
+ * `claude` / `codex` produce CLI launch descriptors. `endpoint` is an in-process
+ * runtime: it yields only `{ baseUrl, token, wire }` for an SDK and is accepted
+ * solely by managers constructed with `endpointRuntime: true` (embedded hosts);
+ * the daemon's HTTP lease API never enables it.
+ */
+export type RouteLeaseRuntime = (typeof ROUTE_LEASE_RUNTIMES)[number] | 'endpoint';
+/** The wire protocol an `endpoint` lease speaks (claude/codex imply theirs). */
+export const ROUTE_LEASE_WIRES = ['anthropic-messages', 'openai-responses', 'openai-chat'] as const;
+export type RouteLeaseWire = (typeof ROUTE_LEASE_WIRES)[number];
 export type RouteLeaseUpstream = GatewayBindingTarget;
 export type RouteLeaseStatus = 'active' | 'released' | 'expired';
 
@@ -49,6 +58,8 @@ export interface RouteLeaseRequest {
   readonly model: string;
   readonly execution?: RouteLeaseExecutionRequest;
   readonly ttlSeconds?: number;
+  /** Required for `runtime: 'endpoint'`; optional (must match) for claude/codex. */
+  readonly wire?: RouteLeaseWire;
 }
 
 export interface NormalizedRouteLeaseRequest {
@@ -59,6 +70,8 @@ export interface NormalizedRouteLeaseRequest {
   readonly model: string;
   readonly execution?: RouteLeaseExecutionMetadata;
   readonly ttlSeconds: number;
+  /** Present only for `runtime: 'endpoint'`. */
+  readonly wire?: RouteLeaseWire;
 }
 
 export interface NormalizedRouteLeaseCreate {
@@ -78,12 +91,32 @@ export interface RouteLeaseMetadata {
   readonly lastActivityAt?: string;
   readonly status: RouteLeaseStatus;
   readonly execution?: RouteLeaseExecutionMetadata;
+  /** Present only for `runtime: 'endpoint'`. */
+  readonly wire?: RouteLeaseWire;
 }
 
 export interface RouteLeaseCreateResult extends RouteLeaseMetadata {
   readonly schemaVersion: typeof ROUTE_LEASE_RESULT_SCHEMA;
   readonly status: 'active';
   readonly launch: RuntimeLaunchDescriptor;
+  /**
+   * In-process connection details. Present only when the manager was
+   * constructed with `exposeEndpoint: true` (embedded hosts).
+   */
+  readonly endpoint?: RouteLeaseEndpoint;
+}
+
+/** `{ baseUrl, token, wire }` for an SDK talking to the resident proxy in-process. */
+export interface RouteLeaseEndpoint {
+  /**
+   * SDK base URL. Anthropic Messages: the proxy origin (SDKs append
+   * `/v1/messages`). OpenAI wires: `<origin>/v1` (SDKs append `/responses` or
+   * `/chat/completions`).
+   */
+  readonly baseUrl: string;
+  /** Route token; accepted as `Authorization: Bearer`, `x-api-key` or `x-goog-api-key`. */
+  readonly token: string;
+  readonly wire: RouteLeaseWire;
 }
 
 export interface RouteLeaseRenewResult {
@@ -115,7 +148,7 @@ export const ROUTE_LEASE_CAPABILITIES: RouteLeaseCapabilities = Object.freeze({
   maxTtlSeconds: ROUTE_LEASE_MAX_TTL_SECONDS,
 });
 
-export const ROUTE_LEASE_RUNTIME_TABLE: Readonly<Record<RouteLeaseRuntime, {
+export const ROUTE_LEASE_RUNTIME_TABLE: Readonly<Record<'claude' | 'codex', {
   readonly endpoint: 'messages' | 'responses';
   readonly ingressFormat: IngressFormat;
   readonly wirePath: '/v1/messages' | '/openai/responses';
@@ -123,6 +156,32 @@ export const ROUTE_LEASE_RUNTIME_TABLE: Readonly<Record<RouteLeaseRuntime, {
   claude: Object.freeze({ endpoint: 'messages', ingressFormat: 'anthropic-messages', wirePath: '/v1/messages' }),
   codex: Object.freeze({ endpoint: 'responses', ingressFormat: 'openai-responses', wirePath: '/openai/responses' }),
 });
+
+/** Per-wire routing facts for `endpoint` leases (and the wire claude/codex imply). */
+export const ROUTE_LEASE_WIRE_TABLE: Readonly<Record<RouteLeaseWire, {
+  readonly endpoint: 'messages' | 'responses' | 'chat';
+  readonly ingressFormat: IngressFormat;
+}>> = Object.freeze({
+  'anthropic-messages': Object.freeze({ endpoint: 'messages', ingressFormat: 'anthropic-messages' }),
+  'openai-responses': Object.freeze({ endpoint: 'responses', ingressFormat: 'openai-responses' }),
+  'openai-chat': Object.freeze({ endpoint: 'chat', ingressFormat: 'openai-chat' }),
+});
+
+/** The wire a lease request speaks: explicit for `endpoint`, implied for claude/codex. */
+export function routeLeaseWireOf(request: {
+  readonly runtime: RouteLeaseRuntime;
+  readonly wire?: RouteLeaseWire;
+}): RouteLeaseWire {
+  if (request.runtime === 'claude') return 'anthropic-messages';
+  if (request.runtime === 'codex') return 'openai-responses';
+  if (!request.wire) throw new RouteLeaseError('invalid_request', 'wire is required for the endpoint runtime');
+  return request.wire;
+}
+
+/** SDK base URL for a wire on the given proxy origin (see {@link RouteLeaseEndpoint}). */
+export function routeLeaseEndpointBaseUrl(proxyBaseUrl: string, wire: RouteLeaseWire): string {
+  return wire === 'anthropic-messages' ? proxyBaseUrl : `${proxyBaseUrl}/v1`;
+}
 
 export type RouteLeaseErrorCode =
   | 'invalid_request'
@@ -290,10 +349,16 @@ export function hashRouteLeasePayload(value: unknown): string {
   return createHash('sha256').update(canonicalizeRouteLeasePayload(value), 'utf8').digest('hex');
 }
 
+export interface ParseRouteLeaseOptions {
+  /** Accept `runtime: 'endpoint'` and read the `wire` field (embedded hosts only). */
+  readonly allowEndpointRuntime?: boolean;
+}
+
 export function parseRouteLeaseCreate(
   raw: unknown,
   idempotencyHeader: unknown,
   hmacKey: Uint8Array = PROCESS_SESSION_HMAC_KEY,
+  options: ParseRouteLeaseOptions = {},
 ): NormalizedRouteLeaseCreate {
   if (!isRecord(raw)) throw invalid('request body must be a JSON object');
   if (raw.schemaVersion !== ROUTE_LEASE_REQUEST_SCHEMA) {
@@ -301,9 +366,22 @@ export function parseRouteLeaseCreate(
   }
   const consumer = normalizedString(raw.consumer, 'consumer', ROUTE_LEASE_MAX_CONSUMER_BYTES);
   const runtime = raw.runtime;
-  if (runtime !== 'claude' && runtime !== 'codex') {
+  const endpointAllowed = options.allowEndpointRuntime === true;
+  if (runtime !== 'claude' && runtime !== 'codex' && !(endpointAllowed && runtime === 'endpoint')) {
     throw new RouteLeaseError('runtime_unsupported', 'runtime is unsupported');
   }
+  // `wire` is read only when the endpoint runtime is enabled, so the daemon's
+  // HTTP contract (which ignores unknown fields) is unchanged.
+  let wire: RouteLeaseWire | undefined;
+  if (endpointAllowed && raw.wire !== undefined) {
+    if (!(ROUTE_LEASE_WIRES as readonly unknown[]).includes(raw.wire)) throw invalid('wire is unsupported');
+    wire = raw.wire as RouteLeaseWire;
+    if (runtime !== 'endpoint' && wire !== routeLeaseWireOf({ runtime })) {
+      throw invalid(`wire does not match the ${runtime} runtime`);
+    }
+  }
+  if (runtime === 'endpoint' && !wire) throw invalid('wire is required for the endpoint runtime');
+  const endpointWire = runtime === 'endpoint' ? wire : undefined;
   const upstream = normalizeUpstream(raw.upstream);
   if (typeof raw.model !== 'string' || raw.model.trim().length === 0) {
     throw new RouteLeaseError('model_not_configured', 'model is not configured');
@@ -345,6 +423,7 @@ export function parseRouteLeaseCreate(
     model,
     ...(execution ? { execution } : {}),
     ttlSeconds,
+    ...(endpointWire ? { wire: endpointWire } : {}),
   };
   const semanticPayload = {
     schemaVersion: request.schemaVersion,
@@ -354,14 +433,19 @@ export function parseRouteLeaseCreate(
     model,
     ...(semanticExecution ? { execution: semanticExecution } : {}),
     ttlSeconds,
+    ...(endpointWire ? { wire: endpointWire } : {}),
   };
   return { request, idempotencyKey, payloadHash: hashRouteLeasePayload(semanticPayload) };
 }
 
-export function routeLeaseRuntime(runtime: RouteLeaseRuntime): (typeof ROUTE_LEASE_RUNTIME_TABLE)[RouteLeaseRuntime] {
+export function routeLeaseRuntime(
+  runtime: RouteLeaseRuntime,
+): (typeof ROUTE_LEASE_RUNTIME_TABLE)['claude' | 'codex'] {
   switch (runtime) {
     case 'claude': return ROUTE_LEASE_RUNTIME_TABLE.claude;
     case 'codex': return ROUTE_LEASE_RUNTIME_TABLE.codex;
+    case 'endpoint':
+      throw new RouteLeaseError('runtime_unsupported', 'the endpoint runtime has no CLI runtime table entry');
     default: {
       const exhaustive: never = runtime;
       throw new RouteLeaseError('runtime_unsupported', `runtime is unsupported: ${String(exhaustive)}`);

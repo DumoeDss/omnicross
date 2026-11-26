@@ -4,7 +4,9 @@ import type { RouteRegistrationOptions } from './providerProxyRouteMap';
 import {
   parseRouteLeaseCreate,
   ROUTE_LEASE_RESULT_SCHEMA,
+  routeLeaseEndpointBaseUrl,
   RouteLeaseError,
+  routeLeaseWireOf,
   type NormalizedRouteLeaseCreate,
   type NormalizedRouteLeaseRequest,
   type RouteLeaseCreateResult,
@@ -55,6 +57,17 @@ export interface RouteLeaseManagerOptions {
   readonly logger?: RouteLeaseLogger;
   /** Test-only fault seam after records are published but before create returns. */
   readonly afterPublish?: () => void;
+  /**
+   * Accept `runtime: 'endpoint'` (in-process SDK leases with no CLI launch
+   * descriptor). Off by default; the daemon's HTTP lease API never enables it.
+   */
+  readonly endpointRuntime?: boolean;
+  /**
+   * Add `endpoint: { baseUrl, token, wire }` to every create result so an
+   * in-process host can use the lease without parsing launch env. Off by
+   * default so the daemon's HTTP response shape is unchanged.
+   */
+  readonly exposeEndpoint?: boolean;
 }
 
 interface ActiveLease {
@@ -113,6 +126,8 @@ export class RouteLeaseManager {
   private readonly tombstoneMaxAgeMs: number;
   private readonly logger?: RouteLeaseLogger;
   private readonly afterPublish?: () => void;
+  private readonly endpointRuntime: boolean;
+  private readonly exposeEndpoint: boolean;
   private closed = false;
 
   constructor(
@@ -127,10 +142,14 @@ export class RouteLeaseManager {
     this.tombstoneMaxAgeMs = Math.max(1, options.tombstoneMaxAgeMs ?? 60 * 60 * 1000);
     this.logger = options.logger;
     this.afterPublish = options.afterPublish;
+    this.endpointRuntime = options.endpointRuntime === true;
+    this.exposeEndpoint = options.exposeEndpoint === true;
   }
 
   parse(raw: unknown, idempotencyKey: unknown): NormalizedRouteLeaseCreate {
-    return parseRouteLeaseCreate(raw, idempotencyKey, this.hmacKey);
+    return parseRouteLeaseCreate(raw, idempotencyKey, this.hmacKey, {
+      allowEndpointRuntime: this.endpointRuntime,
+    });
   }
 
   async createFromRequest(raw: unknown, idempotencyKey: unknown): Promise<RouteLeaseCreateOutcome> {
@@ -181,7 +200,11 @@ export class RouteLeaseManager {
     if (!this.routePort.isReady()) {
       throw new RouteLeaseError('daemon_not_ready', 'resident provider proxy is not ready');
     }
-    if (!this.descriptors.has(request.runtime)) {
+    if (request.runtime === 'endpoint') {
+      if (!this.endpointRuntime) {
+        throw new RouteLeaseError('runtime_unsupported', 'runtime is unsupported');
+      }
+    } else if (!this.descriptors.has(request.runtime)) {
       throw new RouteLeaseError('runtime_unsupported', 'runtime launch adapter is unavailable');
     }
 
@@ -210,11 +233,15 @@ export class RouteLeaseManager {
         onActivity: (at) => this.noteActivity(leaseId, at),
         onEvicted: () => this.onRouteEvicted(leaseId),
       });
-      const launch = this.descriptors.build(request.runtime, {
-        proxyBaseUrl: this.routePort.getBaseUrl(),
-        model: request.model,
-        routeToken,
-      });
+      const proxyBaseUrl = this.routePort.getBaseUrl();
+      // The endpoint runtime launches nothing; claude/codex build their CLI env.
+      const launch = request.runtime === 'endpoint'
+        ? { env: {}, extraArgs: [] }
+        : this.descriptors.build(request.runtime, {
+            proxyBaseUrl,
+            model: request.model,
+            routeToken,
+          });
       this.assertOpen();
       const metadata: RouteLeaseMetadata = {
         leaseId,
@@ -226,12 +253,17 @@ export class RouteLeaseManager {
         expiresAt: new Date(expiresAtMs).toISOString(),
         status: 'active',
         ...(request.execution ? { execution: { ...request.execution } } : {}),
+        ...(request.wire ? { wire: request.wire } : {}),
       };
+      const wire = routeLeaseWireOf(request);
       const result: RouteLeaseCreateResult = {
         schemaVersion: ROUTE_LEASE_RESULT_SCHEMA,
         ...metadata,
         status: 'active',
         launch: { env: { ...launch.env }, extraArgs: [...launch.extraArgs] },
+        ...(this.exposeEndpoint
+          ? { endpoint: { baseUrl: routeLeaseEndpointBaseUrl(proxyBaseUrl, wire), token: routeToken, wire } }
+          : {}),
       };
       const timer = this.clock.setTimeout(() => this.expire(leaseId), ttlMs);
       activeLease = {
