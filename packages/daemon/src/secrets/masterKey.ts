@@ -48,6 +48,12 @@ export interface ResolveMasterKeyOptions {
   envVar?: string | undefined;
   /** Override the keyfile path (the `--master-key-file` flag); defaults to `defaultMasterKeyPath()`. */
   keyFilePath?: string | undefined;
+  /**
+   * `false` skips the `OMNICROSS_MASTER_KEY` env lookup entirely (embedded hosts
+   * keep their own key and must not pick up a standalone install's env key).
+   * An explicit `envVar` is still honored. Default `true`.
+   */
+  readEnv?: boolean;
 }
 
 /**
@@ -108,7 +114,7 @@ function generateKeyFile(path: string): Buffer {
  * Returns the raw key Buffer. The keyfile is only generated/written on path 3.
  */
 export function resolveMasterKey(options: ResolveMasterKeyOptions = {}): Buffer {
-  const envRaw = options.envVar ?? process.env[MASTER_KEY_ENV];
+  const envRaw = options.envVar ?? (options.readEnv === false ? undefined : process.env[MASTER_KEY_ENV]);
   if (typeof envRaw === 'string' && envRaw.trim().length > 0) {
     return decodeEnvKey(envRaw); // highest priority; NOT written to disk
   }

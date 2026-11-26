@@ -8,8 +8,9 @@ import { getSubscriptionRegistryForOutbound } from '../outbound-api/subscription
 import type { GatewayBinding } from '../outbound-api/types';
 import { resolveProviderChain } from '../pipeline/resolveProviderChain';
 import {
+  ROUTE_LEASE_WIRE_TABLE,
   RouteLeaseError,
-  routeLeaseRuntime,
+  routeLeaseWireOf,
   type NormalizedRouteLeaseRequest,
   type RouteLeaseTargetResolverPort,
   type RouteLeaseUpstream,
@@ -54,7 +55,7 @@ function providerSupportsModel(provider: { models?: string[]; modelConfigs?: Arr
 }
 
 function syntheticBinding(request: NormalizedRouteLeaseRequest): GatewayBinding {
-  const runtime = routeLeaseRuntime(request.runtime);
+  const runtime = ROUTE_LEASE_WIRE_TABLE[routeLeaseWireOf(request)];
   return {
     id: 'route-lease-ephemeral',
     name: 'Route Lease ephemeral target',
@@ -82,7 +83,7 @@ export class RouteLeaseTargetResolver implements RouteLeaseTargetResolverPort {
   ) {}
 
   async resolve(request: NormalizedRouteLeaseRequest): Promise<RouteContext> {
-    const runtime = routeLeaseRuntime(request.runtime);
+    const runtime = ROUTE_LEASE_WIRE_TABLE[routeLeaseWireOf(request)];
     await this.preflightTarget(request);
     const binding = syntheticBinding(request);
     const config = gatewayBindingToEndpointConfig(binding, request.model);
@@ -152,9 +153,11 @@ export class RouteLeaseTargetResolver implements RouteLeaseTargetResolverPort {
       }
     }
 
+    const wire = routeLeaseWireOf(request);
     const sameFormat =
-      (request.runtime === 'claude' && provider.apiFormat === 'anthropic') ||
-      (request.runtime === 'codex' && provider.apiFormat === 'openai-response');
+      (wire === 'anthropic-messages' && provider.apiFormat === 'anthropic') ||
+      (wire === 'openai-responses' && provider.apiFormat === 'openai-response') ||
+      (wire === 'openai-chat' && provider.apiFormat === 'openai');
     if (!sameFormat) {
       try {
         const chain = await resolveProviderChain(this.llmConfig, provider.id, request.model);

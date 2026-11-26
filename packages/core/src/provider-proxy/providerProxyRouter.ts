@@ -77,15 +77,22 @@ export function extractRouteToken(authHeader: string | undefined): string | unde
 /**
  * Resolve the per-run route token from a request's headers. Tries the
  * `Authorization` header first (the claude / codex / qwen / copilot / opencode
- * sentinel shape), then falls back to `x-goog-api-key` (Gemini's default auth
- * header — the gemini-CLI carries the token there, NOT in `Authorization`). The
- * `x-goog-api-key` value is a bare token (no `Bearer` prefix).
+ * sentinel shape), then `x-goog-api-key` (Gemini's default auth header — the
+ * gemini-CLI carries the token there, NOT in `Authorization`), then `x-api-key`
+ * (the Anthropic SDK's default auth header, so an in-process SDK can pass the
+ * route token as its plain `apiKey`). The header values are bare tokens (no
+ * `Bearer` prefix). The first header present wins; there is no fallback to a
+ * later header when an earlier one carries an unknown token.
  */
 export function resolveRouteToken(req: http.IncomingMessage): string | undefined {
   const fromAuth = extractRouteToken(req.headers['authorization'] as string | undefined);
   if (fromAuth) return fromAuth;
-  const googKey = req.headers['x-goog-api-key'];
-  const value = Array.isArray(googKey) ? googKey[0] : googKey;
+  return headerToken(req, 'x-goog-api-key') ?? headerToken(req, 'x-api-key');
+}
+
+function headerToken(req: http.IncomingMessage, name: string): string | undefined {
+  const raw = req.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
   return value?.trim() || undefined;
 }
 

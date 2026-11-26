@@ -18,6 +18,11 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     cli: 'src/cli.ts',
+    // `@omnicross/daemon/embed` (resolved by the `./*` exports wildcard): the
+    // in-process embedding entry. Its own bundle (splitting is off), so it
+    // carries none of the gateway/admin/image/search modules — a process uses
+    // either this entry or the daemon barrel, never both.
+    embed: 'src/embed/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

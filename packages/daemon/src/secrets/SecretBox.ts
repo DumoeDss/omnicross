@@ -38,13 +38,29 @@ function isEnvRef(value: string): boolean {
   return value.startsWith('$');
 }
 
+/** Optional presentation overrides for a `SecretBox`. */
+export interface SecretBoxOptions {
+  /**
+   * Message thrown when an envelope fails to decrypt (wrong key or tampered
+   * value). Defaults to the standalone daemon's text, which names its env var
+   * and keyfile; an embedding host supplies its own wording.
+   */
+  readonly decryptFailureMessage?: string;
+}
+
+const DEFAULT_DECRYPT_FAILURE_MESSAGE =
+  'failed to decrypt a stored secret: the master key does not match (wrong ' +
+  `${'OMNICROSS_MASTER_KEY'} / master.key) or the encrypted value was tampered with`;
+
 export class SecretBox {
   /** The raw 32-byte master key (resolved lazily). Held privately; never logged. */
   private key: Buffer | null;
   /** The lazy resolver (used once, then nulled after caching the key). */
   private resolver: (() => Buffer) | null;
+  private readonly decryptFailureMessage: string;
 
-  constructor(key: MasterKeyInput) {
+  constructor(key: MasterKeyInput, options: SecretBoxOptions = {}) {
+    this.decryptFailureMessage = options.decryptFailureMessage ?? DEFAULT_DECRYPT_FAILURE_MESSAGE;
     if (typeof key === 'function') {
       this.key = null;
       this.resolver = key;
@@ -88,10 +104,7 @@ export class SecretBox {
     try {
       return decryptValue(envelope, this.getKey());
     } catch {
-      throw new Error(
-        'failed to decrypt a stored secret: the master key does not match (wrong ' +
-          `${'OMNICROSS_MASTER_KEY'} / master.key) or the encrypted value was tampered with`,
-      );
+      throw new Error(this.decryptFailureMessage);
     }
   }
 

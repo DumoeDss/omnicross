@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 import type { ImageOutputFormat } from '@omnicross/contracts/image-generation-types';
-import sharp from 'sharp';
+import type { Sharp } from '../sharpLoader';
+import { loadSharp } from '../sharpLoader';
 
 import { ImageGenerationError } from '../errors';
 import { createSafeRemoteImageResolver } from '../openai-images/safeRemoteImageResolver';
@@ -84,8 +85,9 @@ export async function createApiImageAsset(
   format?: ImageOutputFormat,
 ): Promise<ImageAsset> {
   if (!bytes.byteLength || bytes.byteLength > limits.maxBytes) throw new ImageGenerationError('image_too_large');
-  let input: ReturnType<typeof sharp> | undefined;
-  let raster: ReturnType<typeof sharp> | undefined;
+  let input: ReturnType<Sharp> | undefined;
+  let raster: ReturnType<Sharp> | undefined;
+  const sharp = await loadSharp();
   try {
     input = sharp(bytes, { limitInputPixels: limits.maxPixels, failOn: 'warning', animated: false });
     const metadata = await input.metadata();

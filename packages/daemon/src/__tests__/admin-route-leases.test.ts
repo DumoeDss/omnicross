@@ -346,6 +346,9 @@ describe('Admin Route Lease API', () => {
       { name: 'unsafe idempotency key', body: createBody('claude'), key: 'contains spaces' },
       { name: 'overlong consumer', body: createBody('claude', { consumer: 'x'.repeat(65) }), key: 'consumer-limit' },
       { name: 'unsupported runtime', body: createBody('claude', { runtime: 'future-runtime' }), key: 'runtime-limit', code: 'runtime_unsupported' },
+      // The in-process `endpoint` runtime exists only for embedded hosts; the
+      // daemon's HTTP lease contract keeps rejecting it.
+      { name: 'embedded-only endpoint runtime', body: createBody('claude', { runtime: 'endpoint', wire: 'anthropic-messages' }), key: 'endpoint-runtime', code: 'runtime_unsupported' },
       { name: 'unknown upstream kind', body: createBody('claude', { upstream: { kind: 'future', providerId: 'anthropic-route' } }), key: 'kind-limit' },
       { name: 'missing account id', body: createBody('claude', { upstream: { kind: 'account', providerId: 'claude' } }), key: 'account-limit' },
       { name: 'missing group', body: createBody('claude', { upstream: { kind: 'account-group', providerId: 'claude' } }), key: 'group-limit' },

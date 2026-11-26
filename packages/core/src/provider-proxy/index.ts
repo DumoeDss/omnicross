@@ -37,7 +37,7 @@ export function __resetProviderProxyForTests(): void {
   instance = null;
 }
 
-export { isLoopbackAddress, ProviderProxy } from './ProviderProxy';
+export { isLoopbackAddress, ProviderProxy, type ProviderProxyListenOptions } from './ProviderProxy';
 export {
   RouteLeaseManager,
   SYSTEM_ROUTE_LEASE_CLOCK,
