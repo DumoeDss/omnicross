@@ -34,6 +34,17 @@ export interface LoopbackBinding {
   path?: string;
   /** Short human name for error messages (e.g. `'codex'`). */
   label?: string;
+  /** Callback page `<title>` (default `omnicross login`). */
+  pageTitle?: string;
+  /** Line under the heading (default tells the user to return to the terminal). */
+  pageHint?: string;
+}
+
+const DEFAULT_PAGE_TITLE = 'omnicross login';
+const DEFAULT_PAGE_HINT = 'You can close this window and return to the terminal.';
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 }
 
 /**
@@ -48,8 +59,12 @@ const HTML_HEADERS: Readonly<Record<string, string>> = {
 };
 
 /** Minimal browser-facing HTML (no token material — just a close prompt). */
-function pageHtml(message: string): string {
-  return `<!doctype html><meta charset="utf-8"><title>omnicross login</title><body style="font-family:sans-serif;padding:2rem"><h2>${message}</h2><p>You can close this window and return to the terminal.</p></body>`;
+function pageHtml(
+  message: string,
+  title: string = DEFAULT_PAGE_TITLE,
+  hint: string = DEFAULT_PAGE_HINT,
+): string {
+  return `<!doctype html><meta charset="utf-8"><title>${escapeHtml(title)}</title><body style="font-family:sans-serif;padding:2rem"><h2>${message}</h2><p>${escapeHtml(hint)}</p></body>`;
 }
 
 /**
@@ -68,6 +83,7 @@ export function awaitLoopbackCode(
   const port = binding.port ?? LOOPBACK_PORT;
   const callbackPath = binding.path ?? CALLBACK_PATH;
   const label = binding.label ?? 'codex';
+  const page = (message: string): string => pageHtml(message, binding.pageTitle, binding.pageHint);
   return new Promise<string>((resolve, reject) => {
     let settled = false;
 
@@ -96,7 +112,7 @@ export function awaitLoopbackCode(
       const url = new URL(req.url ?? '', `http://${LOOPBACK_HOST}:${port}`);
       if (url.pathname !== callbackPath) {
         res.writeHead(404, HTML_HEADERS);
-        res.end(pageHtml('Not found'));
+        res.end(page('Not found'));
         return;
       }
 
@@ -105,19 +121,19 @@ export function awaitLoopbackCode(
 
       if (!code) {
         res.writeHead(400, HTML_HEADERS);
-        res.end(pageHtml('Login failed: missing authorization code.'));
+        res.end(page('Login failed: missing authorization code.'));
         finish(server, () => reject(new Error('login: callback did not include an authorization code')));
         return;
       }
       if (state !== expectedState) {
         res.writeHead(400, HTML_HEADERS);
-        res.end(pageHtml('Login failed: state mismatch.'));
+        res.end(page('Login failed: state mismatch.'));
         finish(server, () => reject(new Error('login: callback state did not match (possible CSRF) — aborting')));
         return;
       }
 
       res.writeHead(200, HTML_HEADERS);
-      res.end(pageHtml('Login complete.'));
+      res.end(page('Login complete.'));
       finish(server, () => resolve(code));
     });
 

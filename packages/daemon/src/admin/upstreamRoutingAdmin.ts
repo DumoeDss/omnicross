@@ -51,7 +51,7 @@ export function defaultProviderMappingTarget(provider: DaemonProviderConfig): st
 /** The models an upstream DECLARES (its local existence list — never a live
  *  probe): a BYO provider's models/modelConfigs union, or the subscription
  *  pool's catalog. */
-function declaredUpstreamModels(
+export function declaredUpstreamModels(
   target: GatewayBindingTarget,
   providers: readonly DaemonProviderConfig[],
 ): string[] {
@@ -204,7 +204,7 @@ export function upstreamMappingKeyOf(target: GatewayBindingTarget): string {
  * doc: an empty pool is a request black hole under passthrough can-serve).
  */
 export async function listUpstreamCatalog(
-  deps: UpstreamRoutingDeps,
+  deps: Pick<UpstreamRoutingDeps, 'configPath' | 'subscriptionAccounts' | 'subscriptionTokenWriter'>,
 ): Promise<UpstreamCatalogEntry[]> {
   const providers = loadConfig(deps.configPath).providers ?? [];
   const rawSubscriptions = await deps.subscriptionAccounts.listAll().catch(() => [] as unknown[]);
