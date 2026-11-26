@@ -6,9 +6,9 @@ import type {
 import {
   ImageGenerationError,
   InMemoryImageAsset,
+  loadSharp,
   type ImageAsset,
 } from '@omnicross/core/image-generation';
-import sharp from 'sharp';
 
 export interface ParsedCandidateCodexImageResponse {
   readonly images: readonly ImageAsset[];
@@ -180,6 +180,7 @@ async function createAsset(value: unknown, format: ImageOutputFormat): Promise<I
   const bytes = decodeCandidateBase64ForTests(value);
   assertCompleteContainer(bytes, format);
   const input = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const sharp = await loadSharp();
   try {
     const decoder = sharp(input, {
       failOn: 'warning',

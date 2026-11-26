@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { open, readFile } from 'node:fs/promises';
 
-import sharp from 'sharp';
+import { loadSharp } from '../sharpLoader';
 
 import { ImageGenerationError } from '../errors';
 import type { ImageAsset } from '../ports';
@@ -88,6 +88,7 @@ export async function validateRaster(
     const format = await inspectContainer(privatePath, file.byteLength);
     const encoded = await readFile(privatePath);
     if (encoded.byteLength !== file.byteLength) unsupported();
+    const sharp = await loadSharp();
     try {
       const image = sharp(encoded, {
         failOn: 'warning',

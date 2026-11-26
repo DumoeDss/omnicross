@@ -21,7 +21,7 @@ import {
   buildAntigravityUrl,
   deriveAntigravitySessionId,
 } from '@omnicross/core/transformer/transformers/AntigravityTransformer';
-import sharp from 'sharp';
+import { loadSharp } from '@omnicross/core/image-generation';
 
 import { readCandidateCodexImageResponseBody } from './privateWireResponse';
 
@@ -123,6 +123,7 @@ export async function parseAntigravityImageResponse(body: string): Promise<Image
     const bytes = Buffer.from(data, 'base64');
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) throw protocolChanged();
     if (bytes.toString('base64') !== data) throw protocolChanged();
+    const sharp = await loadSharp();
     try {
       const decoder = sharp(bytes, { failOn: 'warning', limitInputPixels: MAX_PIXELS, sequentialRead: true });
       const metadata = await decoder.metadata();
