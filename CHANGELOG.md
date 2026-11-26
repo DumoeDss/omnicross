@@ -6,7 +6,7 @@ embedding API. Earlier releases are described in their GitHub release notes.
 Public-API stability during 0.x: breaking changes to `@omnicross/daemon/embed`
 are listed under **Breaking (embed API)** in the release that makes them.
 
-## Unreleased
+## 0.7.4 — 2026-11-26
 
 ### Added: embedding entry `@omnicross/daemon/embed` (new public API)
 

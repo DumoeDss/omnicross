@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/daemon",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Omnicross standalone daemon — the bare-Node embedder of @omnicross/core with an admin HTTP API + dashboard.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
@@ -58,11 +58,11 @@
     "@omnicross/chatgpt-web"
   ],
   "dependencies": {
-    "@omnicross/contracts": "^0.7.3",
-    "@omnicross/core": "^0.7.3",
-    "@omnicross/subscriptions": "^0.7.3",
-    "@omnicross/cli-launcher": "^0.7.3",
-    "@omnicross/ui": "^0.7.3",
+    "@omnicross/contracts": "^0.7.4",
+    "@omnicross/core": "^0.7.4",
+    "@omnicross/subscriptions": "^0.7.4",
+    "@omnicross/cli-launcher": "^0.7.4",
+    "@omnicross/ui": "^0.7.4",
     "@omnicross/chatgpt-web": "^0.5.0"
   }
 }
