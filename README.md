@@ -177,6 +177,10 @@ import type { LLMProvider } from '@omnicross/contracts/llm-config';
 > Subpath imports keep the dependency graph tight, e.g.
 > `@omnicross/contracts/provider-presets`, `@omnicross/core/provider-proxy`.
 
+To run providers, key pools, subscription accounts, sign-in and route leases
+in-process with no daemon, use the embedding entry `@omnicross/daemon/embed`.
+See the [embedding guide](docs/embedding.md).
+
 ## 🛠️ Develop
 
 ```bash
